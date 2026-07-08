@@ -15,13 +15,22 @@ export default function RegisterScreen() {
 
   return (
     <ScrollView style={styles.container} bounces={false}>
-      {/* Parte superior con imagen de fondo */}
+      {/* Parte superior */}
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800' }}
+        source={require('../../assets/images/splash.png')}
         style={styles.header}
+        resizeMode="cover"
       >
         <View style={styles.overlay} />
         <View style={styles.headerContent}>
+          
+          {/* Cloche */}
+          <View style={styles.clocheWrapper}>
+            <View style={styles.handle} />
+            <View style={styles.lid} />
+            <View style={styles.base} />
+          </View>
+
           <Text style={styles.menuTitle}>MENÚ</Text>
           <Text style={styles.menuTitle}>DAYS</Text>
         </View>
@@ -159,7 +168,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   header: {
-    height: 220,
+    height: 280,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -310,5 +319,33 @@ const styles = StyleSheet.create({
     color: '#FFA726',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+
+  clocheWrapper: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  handle: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#FFA726',
+    marginBottom: -2,
+    zIndex: 3,
+  },
+  lid: {
+    width: 100,
+    height: 48,
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+    backgroundColor: '#FFA726',
+    zIndex: 2,
+  },
+  base: {
+    width: 115,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#FFA726',
+    marginTop: 2,
   },
 });

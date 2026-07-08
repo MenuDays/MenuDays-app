@@ -1,30 +1,96 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ImageBackground, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import LottieView from 'lottie-react-native';
+
+const { width } = Dimensions.get('window');
+
+const CATEGORIES = [
+  {
+    id: 1,
+    name: 'Hamburguesas',
+    image: require('../../assets/images/burger.png'),
+    lottie: require('../../assets/lottie/burger.json'),
+  },
+  {
+    id: 2,
+    name: 'Pizzas',
+    image: require('../../assets/images/pizza.png'),
+    lottie: require('../../assets/lottie/pizza.json'),
+  },
+  {
+    id: 3,
+    name: 'Sushi',
+    image: require('../../assets/images/sushi.png'),
+    lottie: require('../../assets/lottie/sushi.json'),
+  },
+  {
+    id: 4,
+    name: 'Tacos',
+    image: require('../../assets/images/tacos.png'),
+    lottie: require('../../assets/lottie/tacos.json'),
+  },
+  {
+    id: 5,
+    name: 'Y mucho más',
+    image: require('../../assets/images/plus.png'),
+    lottie: require('../../assets/lottie/plus.json'),
+  },
+];
 
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Auto carrusel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % CATEGORIES.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const current = CATEGORIES[currentIndex];
 
   return (
     <ScrollView style={styles.container} bounces={false}>
-      {/* Parte superior con imagen de fondo */}
+      {/* Parte superior con carrusel */}
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800' }}
+        source={current.image}
         style={styles.header}
       >
-        {/* Overlay oscuro */}
         <View style={styles.overlay} />
 
-        {/* Contenido del header */}
         <View style={styles.headerContent}>
           <Text style={styles.menuTitle}>MENÚ</Text>
           <Text style={styles.menuTitle}>DAYS</Text>
-          <Text style={styles.categoryEmoji}>🍔</Text>
-          <Text style={styles.categoryText}>Hamburguesas</Text>
+
+          {/* Lottie animado */}
+          <LottieView
+            source={current.lottie}
+            autoPlay
+            loop
+            style={styles.lottie}
+          />
+
+          <Text style={styles.categoryText}>{current.name}</Text>
+
+          {/* Indicadores */}
+          <View style={styles.indicators}>
+            {CATEGORIES.map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.indicator,
+                  i === currentIndex && styles.indicatorActive
+                ]}
+              />
+            ))}
+          </View>
         </View>
       </ImageBackground>
 
@@ -117,7 +183,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   header: {
-    height: 350,
+    height: 380,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -136,15 +202,31 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     lineHeight: 48,
   },
-  categoryEmoji: {
-    fontSize: 48,
-    marginTop: 12,
+  lottie: {
+    width: 100,
+    height: 100,
+    marginTop: 8,
   },
   categoryText: {
     fontSize: 18,
     color: '#FFFFFF',
     fontWeight: '600',
     marginTop: 4,
+  },
+  indicators: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 6,
+  },
+  indicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  indicatorActive: {
+    width: 20,
+    backgroundColor: '#FFA726',
   },
   card: {
     backgroundColor: '#FFFFFF',
