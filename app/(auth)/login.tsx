@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ImageBackground, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
+import { Link, router } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useRef, useEffect } from 'react';
 import LottieView from 'lottie-react-native';
+
 
 const { width } = Dimensions.get('window');
 
@@ -141,14 +142,17 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         {/* Botón iniciar sesión */}
-        <TouchableOpacity style={styles.button}>
+        <TouchableOpacity
+            style={styles.button}
+            onPress={() => router.replace("/(province)" as any)}
+        >
           <LinearGradient
-            colors={['#FFB74D', '#FB8C00']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.buttonGradient}
+              colors={['#FFB74D', '#FB8C00']}
+              style={styles.buttonGradient}
           >
-            <Text style={styles.buttonText}>Iniciar sesión</Text>
+            <Text style={styles.buttonText}>
+              Iniciar sesión
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
 
