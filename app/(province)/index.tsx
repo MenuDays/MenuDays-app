@@ -48,7 +48,7 @@ export default function ProvinceScreen() {
             selectedProvince
         );
 
-        router.replace("/(tabs)");
+        router.replace("/(home)");
     }
 
     return (
