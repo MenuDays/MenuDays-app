@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    SafeAreaView,
     StyleSheet,
     View,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { router } from "expo-router";
 

@@ -2,61 +2,7 @@ import { View, Text, StyleSheet, Animated, Easing, ImageBackground } from 'react
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef } from 'react';
 import { router } from 'expo-router';
-
-// Crea un óvalo REAL (círculo estirado con scaleX/scaleY, no un borderRadius
-// capado) y le apila varias capas más grandes y transparentes para simular
-// el "layer blur" de Figma sin depender de shadow/elevation.
-function VaporBlob({ width, height, opacity, style }: {
-  width: number;
-  height: number;
-  opacity: number;
-  style?: any;
-}) {
-
-  const layers = [
-    { scale: 2.6, opacityFactor: 0.10 },
-    { scale: 1.9, opacityFactor: 0.20 },
-    { scale: 1.4, opacityFactor: 0.35 },
-    { scale: 1.0, opacityFactor: 0.55 },
-  ];
-
-  return (
-    <View style={[{ width, height }, style]}>
-      {layers.map((layer, i) => {
-        const w = width * layer.scale;
-        const h = height * layer.scale;
-        const maxDim = Math.max(w, h);
-        const scaleX = w / maxDim;
-        const scaleY = h / maxDim;
-
-        return (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <View
-              style={{
-                width: maxDim,
-                height: maxDim,
-                borderRadius: maxDim / 2,
-                backgroundColor: `rgba(255,255,255,${opacity * layer.opacityFactor})`,
-                transform: [{ scaleX }, { scaleY }],
-              }}
-            />
-          </View>
-        );
-      })}
-    </View>
-  );
-}
+import VaporSVG from '../components/splash/VaporSVG'; // ajustá el path
 
 export default function SplashScreen() {
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -277,29 +223,7 @@ export default function SplashScreen() {
 
             >
 
-              {/* Elipse 1: 29x80, pegada a la izquierda / cerca de la bandeja */}
-              <VaporBlob
-                width={29}
-                height={80}
-                opacity={0.22}
-                style={{ position:'absolute', left:2, bottom:0 }}
-              />
-
-              {/* Elipse 2: 28x70, en medio, pegada arriba */}
-              <VaporBlob
-                width={28}
-                height={70}
-                opacity={0.32}
-                style={{ position:'absolute', left:38, top:0 }}
-              />
-
-              {/* Elipse 3: 18x65, a la derecha, centrada verticalmente */}
-              <VaporBlob
-                width={18}
-                height={65}
-                opacity={0.24}
-                style={{ position:'absolute', left:85, top:10 }}
-              />
+              <VaporSVG width={103} height={94} />
 
             </Animated.View>
 
@@ -519,7 +443,8 @@ const styles = StyleSheet.create({
     position:'absolute',
     top:-3,
     width:103,
-    height:86,
+    height:94,
+    alignItems:'center',
     zIndex:1,
   },
 
