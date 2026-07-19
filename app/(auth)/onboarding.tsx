@@ -13,7 +13,7 @@ import {
 import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 type Slide = {
   key: string;
   title: string;
@@ -22,8 +22,6 @@ type Slide = {
   buttonLabel: string;
 };
 
-// Asunción: tus 3 fotos de plato están en estos paths. Si el nombre real
-// es distinto, solo cambiá el require de cada una.
 const SLIDES: Slide[] = [
   {
     key: 'slide1',
@@ -176,7 +174,7 @@ const styles = StyleSheet.create({
   foodImage: {
     position: 'absolute',
     width: SCREEN_WIDTH,
-    height: '100%',
+    height: SCREEN_HEIGHT,
     top: 0,
     left: 0,
   },
