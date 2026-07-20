@@ -7,15 +7,13 @@ import {
   Alert,
   Dimensions,
   ImageBackground,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthService from "../../services/auth.service";
 
 const { width } = Dimensions.get('window');
@@ -85,9 +83,11 @@ export default function LoginScreen() {
 
   const current = CATEGORIES[currentIndex];
 
-  const content = (
-    <ScrollView
+  return (
+    <KeyboardAwareScrollView
       style={styles.container}
+      contentContainerStyle={{ flexGrow: 1 }}
+      bottomOffset={20}
       bounces={false}
       keyboardShouldPersistTaps="handled"
     >
@@ -209,21 +209,8 @@ export default function LoginScreen() {
           </Link>
         </View>
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
-
-  // En Android, dejamos que el sistema maneje el resize
-  // nativamente (windowSoftInputMode="resize", configurado
-  // en app.json). En iOS, usamos KeyboardAvoidingView.
-  if (Platform.OS === 'ios') {
-    return (
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        {content}
-      </KeyboardAvoidingView>
-    );
-  }
-
-  return content;
 }
 
 const styles = StyleSheet.create({
