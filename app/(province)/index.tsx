@@ -1,16 +1,15 @@
+import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     StyleSheet,
     View,
 } from "react-native";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { router } from "expo-router";
-
-import ProvinceHeader from "../components/province/ProvinceHeader";
-import ProvinceSearch from "../components/province/ProvinceSearch";
-import ProvinceList from "../components/province/ProvinceList";
 import ContinueButton from "../components/province/ContinueButton";
+import ProvinceHeader from "../components/province/ProvinceHeader";
+import ProvinceList from "../components/province/ProvinceList";
+import ProvinceSearch from "../components/province/ProvinceSearch";
 
 import ProvinceService, {
     Province,
@@ -27,15 +26,19 @@ export default function ProvinceScreen() {
     }, []);
 
     async function loadProvinces() {
-        const data = await ProvinceService.getAll();
-        setProvinces(data);
+        try {
+            const data = await ProvinceService.getAll();
+            setProvinces(data);
+        } catch (error) {
+            console.error("Error al cargar provincias:", error);
+        }
     }
 
     const filteredProvinces = useMemo(() => {
         if (!search.trim()) return provinces;
 
         return provinces.filter((province) =>
-            province.name
+            province.nombre
                 .toLowerCase()
                 .includes(search.toLowerCase())
         );
@@ -48,16 +51,18 @@ export default function ProvinceScreen() {
 
         router.push({
             pathname: "/(province)/city",
-            params: { provinceId: selectedProvince.id, provinceName: selectedProvince.name },
+            params: {
+                provinceId: selectedProvince.id,
+                provinceName: selectedProvince.nombre,
+            },
         });
-        }
+    }
 
     return (
         <SafeAreaView style={styles.container}>
             <ProvinceHeader />
 
             <View style={styles.content}>
-
                 <ProvinceSearch
                     value={search}
                     onChangeText={setSearch}
@@ -73,7 +78,6 @@ export default function ProvinceScreen() {
                     disabled={!selectedProvince}
                     onPress={handleContinue}
                 />
-
             </View>
         </SafeAreaView>
     );
@@ -87,14 +91,10 @@ const styles = StyleSheet.create({
 
     content: {
         flex: 1,
-
         backgroundColor: "#FFFFFF",
-
         marginTop: -28,
-
         borderTopLeftRadius: 30,
         borderTopRightRadius: 30,
-
         paddingTop: 20,
         paddingHorizontal: 18,
     },

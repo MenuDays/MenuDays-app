@@ -1,15 +1,14 @@
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
 
+import CityList from "../components/province/CityList";
+import ContinueButton from "../components/province/ContinueButton";
 import ProvinceHeader from "../components/province/ProvinceHeader";
 import ProvinceSearch from "../components/province/ProvinceSearch";
-import ContinueButton from "../components/province/ContinueButton";
-import CityList from "../components/province/CityList";
 
 import LocationService, { City } from "../../services/location.service";
-import ProvinceService from "../../services/province.service";
 
 export default function CityScreen() {
   const { provinceId, provinceName } = useLocalSearchParams<{
@@ -22,16 +21,27 @@ export default function CityScreen() {
   const [cities, setCities] = useState<City[]>([]);
 
   useEffect(() => {
-    if (provinceId) {
-      const data = LocationService.getCitiesByProvince(Number(provinceId));
+  async function loadCities() {
+    if (!provinceId) return;
+
+    try {
+      const data = await LocationService.getCitiesByProvince(
+        Number(provinceId)
+      );
+
       setCities(data);
+    } catch (error) {
+      console.error("Error al cargar ciudades:", error);
     }
-  }, [provinceId]);
+  }
+
+  loadCities();
+}, [provinceId]);
 
   const filteredCities = useMemo(() => {
     if (!search.trim()) return cities;
     return cities.filter((city) =>
-      city.name.toLowerCase().includes(search.toLowerCase())
+      city.nombre.toLowerCase().includes(search.toLowerCase())
     );
   }, [search, cities]);
 
@@ -44,7 +54,7 @@ export default function CityScreen() {
         provinceId,
         provinceName,
         cityId: selectedCity.id,
-        cityName: selectedCity.name,
+        cityName: selectedCity.nombre,
       },
     });
   }

@@ -1,13 +1,24 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api } from "./api";
 
 export interface User {
   id: number;
-  name: string;
+  firstName: string;
   lastName: string;
   email: string;
-  profilePhoto?: string;
-  province?: { id: number; name: string };
-  city?: { id: number; name: string };
+  phoneNumber?: string;
+  profilePhotoUrl?: string;
+
+  province?: {
+    id: number;
+    name: string;
+  };
+
+  city?: {
+    id: number;
+    name: string;
+  };
+
   address?: string;
   latitude?: number;
   longitude?: number;
@@ -15,57 +26,51 @@ export interface User {
 
 const USER_STORAGE_KEY = "@MenuDays:user";
 
-// Mock temporal — Belén reemplaza esto por llamada a la API
-const mockUser: User = {
-  id: 1,
-  name: "Juan",
-  lastName: "Pérez",
-  email: "juan@gmail.com",
-  profilePhoto: undefined,
-  province: { id: 19, name: "Pichincha" },
-  city: { id: 1901, name: "Quito" },
-  address: "Av. Amazonas N34-183",
-  latitude: -0.1807,
-  longitude: -78.4678,
-};
-
 class UserService {
   /**
-   * Obtiene el usuario autenticado.
-   * reemplazar por GET /api/users/me con el token JWT
+   * Obtiene el perfil del usuario autenticado.
    */
   async getMe(): Promise<User> {
-    // TODO: return await api.get('/users/me');
-    return mockUser;
+    return await api<User>("/users/profile");
   }
 
   /**
-   * Actualiza el perfil del usuario.
-   * reemplazar por PATCH /api/users/me
+   * Actualiza el perfil.
    */
-  async updateProfile(data: Partial<User>): Promise<User> {
-    // TODO: return await api.patch('/users/me', data);
-    return { ...mockUser, ...data };
+  async updateProfile(
+    data: Partial<User>
+  ): Promise<User> {
+    return await api<User>("/users/profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
   }
 
   /**
-   * Guarda el usuario en caché local.
+   * Guarda el usuario localmente.
    */
   async saveLocal(user: User): Promise<void> {
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    await AsyncStorage.setItem(
+      USER_STORAGE_KEY,
+      JSON.stringify(user)
+    );
   }
 
   /**
-   * Obtiene el usuario del caché local.
+   * Obtiene el usuario guardado.
    */
   async getLocal(): Promise<User | null> {
-    const value = await AsyncStorage.getItem(USER_STORAGE_KEY);
+    const value = await AsyncStorage.getItem(
+      USER_STORAGE_KEY
+    );
+
     if (!value) return null;
+
     return JSON.parse(value);
   }
 
   /**
-   * Elimina el usuario del caché (logout).
+   * Elimina el usuario del almacenamiento local.
    */
   async clear(): Promise<void> {
     await AsyncStorage.removeItem(USER_STORAGE_KEY);

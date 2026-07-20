@@ -1,20 +1,20 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Image,
-  ActivityIndicator,
-  Dimensions,
-  Alert,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import UserService, { User } from "../../services/user.service";
 
 const { width } = Dimensions.get("window");
@@ -47,7 +47,7 @@ export default function PerfilScreen() {
 
   function startEditing() {
     if (!user) return;
-    setEditName(user.name);
+    setEditName(user.firstName);
     setEditLastName(user.lastName);
     setEditEmail(user.email);
     setIsEditing(true);
@@ -68,11 +68,11 @@ export default function PerfilScreen() {
     setSaving(true);
     try {
       const updated = await UserService.updateProfile({
-        name: editName.trim(),
+        firstName: editName.trim(),
         lastName: editLastName.trim(),
         email: editEmail.trim(),
       });
-      const newUser = updated ?? { ...user, name: editName.trim(), lastName: editLastName.trim(), email: editEmail.trim() };
+      const newUser = updated ?? { ...user, firstName: editName.trim(), lastName: editLastName.trim(), email: editEmail.trim() };
       setUser(newUser);
       await UserService.saveLocal(newUser);
       setIsEditing(false);
@@ -107,15 +107,15 @@ export default function PerfilScreen() {
 
           {/* Foto de perfil */}
           <View style={styles.avatarContainer}>
-            {user.profilePhoto ? (
+            {user.profilePhotoUrl ? (
               <Image
-                source={{ uri: user.profilePhoto }}
+                source={{ uri: user.profilePhotoUrl }}
                 style={styles.avatar}
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarInitials}>
-                  {user.name[0]}{user.lastName[0]}
+                  {user.firstName[0]}{user.lastName[0]}
                 </Text>
               </View>
             )}
@@ -125,7 +125,7 @@ export default function PerfilScreen() {
           </View>
 
           <Text style={styles.userName}>
-            {user.name} {user.lastName}
+            {user.firstName} {user.lastName}
           </Text>
           <Text style={styles.userEmail}>{user.email}</Text>
         </LinearGradient>
@@ -136,10 +136,19 @@ export default function PerfilScreen() {
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Información personal</Text>
             {!isEditing && (
-              <TouchableOpacity onPress={startEditing} style={styles.inlineEditTrigger}>
-                <Ionicons name="create-outline" size={16} color="#F5A800" />
-                <Text style={styles.inlineEditTriggerText}>Editar</Text>
-              </TouchableOpacity>
+              <TouchableOpacity
+  style={styles.inlineEditTrigger}
+  onPress={() => router.push("/(editPerfil)/editPerfil")}
+>
+  <Ionicons
+    name="create-outline"
+    size={16}
+    color="#F5A800"
+  />
+  <Text style={styles.inlineEditTriggerText}>
+    Editar
+  </Text>
+</TouchableOpacity>
             )}
           </View>
 
@@ -175,7 +184,7 @@ export default function PerfilScreen() {
                 <InfoRow
                   icon="person-outline"
                   label="Nombre"
-                  value={user.name}
+                  value={user.firstName}
                 />
                 <Divider />
                 <InfoRow
@@ -233,9 +242,6 @@ export default function PerfilScreen() {
                 <Text style={styles.locationCity}>
                   {user.city?.name}, {user.province?.name}
                 </Text>
-                {user.address ? (
-                  <Text style={styles.locationAddress}>{user.address}</Text>
-                ) : null}
               </View>
               <TouchableOpacity
                 style={styles.editLocationButton}

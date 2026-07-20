@@ -1,9 +1,9 @@
 import React from "react";
 import {
-    View,
+    StyleSheet,
     Text,
     TouchableOpacity,
-    StyleSheet,
+    View,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -38,7 +38,7 @@ export default function ProvinceCard({
                     ]}
                     numberOfLines={1}
                 >
-                    {province.name}
+                    {province.nombre}
                 </Text>
             </View>
 
