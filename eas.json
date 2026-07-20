@@ -1,6 +1,10 @@
 {
   "cli": {
+<<<<<<< HEAD
     "version": ">= 18.11.0",
+=======
+    "version": ">= 20.5.1",
+>>>>>>> 2d3aedfe33a47518ddabfa01cfdaa7b4cae2f704
     "appVersionSource": "remote"
   },
   "build": {

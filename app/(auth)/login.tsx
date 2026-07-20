@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ImageBackground, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from "expo-router";
-import { Ionicons } from '@expo/vector-icons';
-import { useState, useRef, useEffect } from 'react';
 import LottieView from 'lottie-react-native';
-
+import { useEffect, useState } from 'react';
+import { Alert, Dimensions, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import AuthService from "../../services/auth.service";
 
 const { width } = Dimensions.get('window');
 
@@ -46,6 +46,22 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  async function handleLogin() {
+  try {
+    await AuthService.login({
+      email,
+      password,
+    });
+
+    router.replace("/(province)");
+  } catch (error: any) {
+    Alert.alert(
+      "Error",
+      error.message || "No se pudo iniciar sesión."
+    );
+  }
+}
 
   // Auto carrusel
   useEffect(() => {
@@ -106,7 +122,7 @@ export default function LoginScreen() {
           <Ionicons name="mail-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Ingresá tu email o teléfono"
+            placeholder="Ingresa tu email o teléfono"
             placeholderTextColor="#9E9E9E"
             value={email}
             onChangeText={setEmail}
@@ -121,7 +137,7 @@ export default function LoginScreen() {
           <Ionicons name="lock-closed-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Ingresá tu contraseña"
+            placeholder="Ingresa tu contraseña"
             placeholderTextColor="#9E9E9E"
             value={password}
             onChangeText={setPassword}
@@ -144,7 +160,7 @@ export default function LoginScreen() {
         {/* Botón iniciar sesión */}
         <TouchableOpacity
             style={styles.button}
-            onPress={() => router.replace("/(province)" as any)}
+              onPress={handleLogin}
         >
           <LinearGradient
               colors={['#FFB74D', '#FB8C00']}

@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ImageBackground } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
+import { Alert, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import AuthService from "../../services/auth.service";
 
 export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
@@ -12,6 +13,39 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
+
+  async function handleRegister() {
+  if (password !== confirmPassword) {
+    Alert.alert("Error", "Las contraseñas no coinciden.");
+    return;
+  }
+
+  if (!acceptTerms) {
+    Alert.alert(
+      "Error",
+      "Debés aceptar los términos y condiciones."
+    );
+    return;
+  }
+
+  try {
+    const partes = nombre.trim().split(" ");
+
+    await AuthService.register({
+      nombre: partes[0],
+      apellido: partes.slice(1).join(" ") || "-",
+      email,
+      password,
+    });
+
+    router.replace("/(province)");
+  } catch (error: any) {
+    Alert.alert(
+      "Error",
+      error.message || "No se pudo registrar."
+    );
+  }
+}
 
   return (
     <ScrollView style={styles.container} bounces={false}>
@@ -47,7 +81,7 @@ export default function RegisterScreen() {
           <Ionicons name="person-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Ingresá tu nombre completo"
+            placeholder="Ingresa tu nombre completo"
             placeholderTextColor="#9E9E9E"
             value={nombre}
             onChangeText={setNombre}
@@ -60,7 +94,7 @@ export default function RegisterScreen() {
           <Ionicons name="mail-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Ingresá tu email"
+            placeholder="Ingresa tu email"
             placeholderTextColor="#9E9E9E"
             value={email}
             onChangeText={setEmail}
@@ -126,10 +160,13 @@ export default function RegisterScreen() {
         </TouchableOpacity>
 
         {/* Botón registrarse */}
-        <TouchableOpacity style={styles.button}>
-          <LinearGradient
-            colors={['#FFB74D', '#FB8C00']}
-            start={{ x: 0, y: 0 }}
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleRegister}
+        >
+  <LinearGradient
+    colors={['#FFB74D', '#FB8C00']}
+    start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.buttonGradient}
           >

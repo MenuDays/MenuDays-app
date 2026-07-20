@@ -44,12 +44,13 @@ export default function ProvinceScreen() {
     async function handleContinue() {
         if (!selectedProvince) return;
 
-        await ProvinceService.saveSelectedProvince(
-            selectedProvince
-        );
+        await ProvinceService.saveSelectedProvince(selectedProvince);
 
-        router.replace("/(home)");
-    }
+        router.push({
+            pathname: "/(province)/city",
+            params: { provinceId: selectedProvince.id, provinceName: selectedProvince.name },
+        });
+        }
 
     return (
         <SafeAreaView style={styles.container}>
