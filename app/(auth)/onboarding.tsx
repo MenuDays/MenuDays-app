@@ -5,15 +5,19 @@ import {
   Image,
   StyleSheet,
   ScrollView,
+  Animated,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+const { width } = Dimensions.get('window');
+const SCREEN_WIDTH = Math.round(width);
+const SCREEN_HEIGHT = Math.round(Dimensions.get('screen').height);
+
 type Slide = {
   key: string;
   title: string;
@@ -47,7 +51,11 @@ const SLIDES: Slide[] = [
 ];
 
 export default function OnboardingScreen() {
+  const insets = useSafeAreaInsets();
+  const fullHeight = SCREEN_HEIGHT + insets.bottom;
+
   const scrollRef = useRef<ScrollView>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
   const [activeIndex, setActiveIndex] = useState(0);
 
   const isLastSlide = activeIndex === SLIDES.length - 1;
@@ -73,36 +81,103 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.container}>
 
-      <ScrollView
+      {/* Capa de imágenes superpuestas, fuera del scroll, con cross-fade */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {SLIDES.map((slide, index) => {
+          const inputRange = [
+            (index - 1) * SCREEN_WIDTH,
+            index * SCREEN_WIDTH,
+            (index + 1) * SCREEN_WIDTH,
+          ];
+
+          const opacity = scrollX.interpolate({
+            inputRange,
+            outputRange: [0, 1, 0],
+            extrapolate: 'clamp',
+          });
+
+          // Zoom sutil: la imagen entra un pelín más grande y se asienta
+          const scale = scrollX.interpolate({
+            inputRange,
+            outputRange: [1.08, 1, 1.08],
+            extrapolate: 'clamp',
+          });
+
+          return (
+            <Animated.Image
+              key={slide.key}
+              source={slide.image}
+              style={[
+                styles.foodImage,
+                {
+                  height: fullHeight,
+                  opacity,
+                  transform: [{ scale }],
+                },
+              ]}
+              resizeMode="cover"
+            />
+          );
+        })}
+      </View>
+
+      <Animated.ScrollView
         ref={scrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleMomentumScrollEnd}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: true }
+        )}
         scrollEventThrottle={16}
+        style={{ flex: 1 }}
       >
-        {SLIDES.map((slide) => (
-          <View key={slide.key} style={[styles.slide, { width: SCREEN_WIDTH }]}>
+        {SLIDES.map((slide, index) => {
+          const inputRange = [
+            (index - 1) * SCREEN_WIDTH,
+            index * SCREEN_WIDTH,
+            (index + 1) * SCREEN_WIDTH,
+          ];
 
-            {/* La imagen va PRIMERO (queda atrás). El texto se renderiza
-                después, así queda siempre por encima y nunca desaparece. */}
-            <Image
-              source={slide.image}
-              style={styles.foodImage}
-              resizeMode="cover"
-            />
+          const textOpacity = scrollX.interpolate({
+            inputRange,
+            outputRange: [0, 1, 0],
+            extrapolate: 'clamp',
+          });
 
-            <Text style={styles.title}>
-              {slide.title}
-            </Text>
+          const textTranslateY = scrollX.interpolate({
+            inputRange,
+            outputRange: [16, 0, 16],
+            extrapolate: 'clamp',
+          });
 
-            <Text style={styles.subtitle}>
-              {slide.subtitle}
-            </Text>
+          return (
+            <View key={slide.key} style={[styles.slide, { width: SCREEN_WIDTH }]}>
 
-          </View>
-        ))}
-      </ScrollView>
+              <Animated.Text
+                style={[
+                  styles.title,
+                  { opacity: textOpacity, transform: [{ translateY: textTranslateY }] },
+                ]}
+              >
+                {slide.title}
+              </Animated.Text>
+
+              <Animated.Text
+                style={[
+                  styles.subtitle,
+                  { opacity: textOpacity, transform: [{ translateY: textTranslateY }] },
+                ]}
+              >
+                {slide.subtitle}
+              </Animated.Text>
+
+            </View>
+          );
+        })}
+      </Animated.ScrollView>
 
 
       {/* Dots + botón, fijos abajo, encima del carrusel */}
@@ -174,7 +249,6 @@ const styles = StyleSheet.create({
   foodImage: {
     position: 'absolute',
     width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
     top: 0,
     left: 0,
   },

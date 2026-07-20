@@ -3,7 +3,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from "expo-router";
 import LottieView from 'lottie-react-native';
 import { useEffect, useState } from 'react';
-import { Alert, Dimensions, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  Dimensions,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import AuthService from "../../services/auth.service";
 
 const { width } = Dimensions.get('window');
@@ -48,20 +60,20 @@ export default function LoginScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   async function handleLogin() {
-  try {
-    await AuthService.login({
-      email,
-      password,
-    });
+    try {
+      await AuthService.login({
+        email,
+        password,
+      });
 
-    router.replace("/(province)");
-  } catch (error: any) {
-    Alert.alert(
-      "Error",
-      error.message || "No se pudo iniciar sesión."
-    );
+      router.replace("/(province)");
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error.message || "No se pudo iniciar sesión."
+      );
+    }
   }
-}
 
   // Auto carrusel
   useEffect(() => {
@@ -73,8 +85,12 @@ export default function LoginScreen() {
 
   const current = CATEGORIES[currentIndex];
 
-  return (
-    <ScrollView style={styles.container} bounces={false}>
+  const content = (
+    <ScrollView
+      style={styles.container}
+      bounces={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Parte superior con carrusel */}
       <ImageBackground
         source={current.image}
@@ -195,6 +211,19 @@ export default function LoginScreen() {
       </View>
     </ScrollView>
   );
+
+  // En Android, dejamos que el sistema maneje el resize
+  // nativamente (windowSoftInputMode="resize", configurado
+  // en app.json). En iOS, usamos KeyboardAvoidingView.
+  if (Platform.OS === 'ios') {
+    return (
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        {content}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({

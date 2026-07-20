@@ -32,7 +32,7 @@ export default function CityCard({ city, selected, onPress }: CityCardProps) {
           style={[styles.title, selected && styles.titleSelected]}
           numberOfLines={1}
         >
-          {city.name}
+          {city.nombre}
         </Text>
       </View>
       <Ionicons

@@ -3,7 +3,7 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 
 const VB_WIDTH = 412;
 const VB_HEIGHT = 20;
-const BITE = 3; // cuánto "muerde" hacia arriba, en la misma escala del viewBox
+const BITE = 2; // cuánto "muerde" hacia arriba, en la misma escala del viewBox
 
 export default function WaveTop() {
   const { width } = useWindowDimensions();

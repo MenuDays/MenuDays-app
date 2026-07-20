@@ -138,7 +138,7 @@ export default function PerfilScreen() {
             {!isEditing && (
               <TouchableOpacity
   style={styles.inlineEditTrigger}
-  onPress={() => router.push("/(editPerfil)/editPerfil")}
+  onPress={startEditing}
 >
   <Ionicons
     name="create-outline"
@@ -374,6 +374,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8F8F8",
+    paddingBottom: 30,
   },
   loadingContainer: {
     flex: 1,
