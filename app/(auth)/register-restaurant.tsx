@@ -312,7 +312,7 @@ export default function RegisterRestaurantScreen() {
           style={styles.inputContainer}
           onPress={() => setProvincePickerVisible(true)}
         >
-          <Ionicons name="bag-outline" size={20} color="#FFA726" style={styles.inputIcon} />
+          <Ionicons name="location-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <Text style={[styles.input, !province && styles.placeholderText]}>
             {province ? province.nombre : 'Elige la provincia'}
           </Text>
@@ -326,7 +326,7 @@ export default function RegisterRestaurantScreen() {
           onPress={openCityPicker}
           disabled={!province}
         >
-          <Ionicons name="bag-outline" size={20} color="#FFA726" style={styles.inputIcon} />
+          <Ionicons name="location-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <Text style={[styles.input, !city && styles.placeholderText]}>
             {city ? city.nombre : province ? 'Elige la  ciudad' : 'Elegí primero la provincia'}
           </Text>
@@ -336,7 +336,7 @@ export default function RegisterRestaurantScreen() {
         {/* Ubicación en el mapa */}
         <Text style={styles.label}>Ubicacion del restaurante</Text>
         <TouchableOpacity style={styles.locationButton} onPress={pickLocationOnMap}>
-          <Ionicons name="flash" size={18} color="#FB8C00" style={styles.inputIcon} />
+          <Ionicons name="pin" size={18} color="#FB8C00" style={styles.inputIcon} />
           <Text style={styles.locationButtonText} numberOfLines={1}>
             {location ? location.address : 'Seleccionar ubicación en el mapa'}
           </Text>
