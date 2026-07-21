@@ -1,29 +1,37 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import RestaurantRequestService from "../../services/restaurant-request.service";
 
 import RequestStatusCard from "./componentes/RequestStatusCard";
 import RequestStatusHeader from "./componentes/RequestStatusHeader";
 import RequestStatusInfo from "./componentes/RequestStatusInfo";
 import RequestStatusTimeline from "./componentes/RequestStatusTimeline";
+import RequestStatusMessage from "./componentes/RequestStatusMessage";
+import RequestStatusActions from "./componentes/RequestStatusActions";
 
-type Status = "PENDING" | "APPROVED" | "REJECTED";
+type Status =
+  | "pendiente"
+  | "aprobada"
+  | "rechazada";
 
 export default function RequestStatusScreen() {
   const [loading, setLoading] = useState(true);
 
   const [status, setStatus] =
-    useState<Status>("PENDING");
+    useState<Status>("pendiente");
 
   const [restaurantName, setRestaurantName] =
-    useState("Mi Restaurante");
+    useState("");
 
   const [createdAt, setCreatedAt] =
-    useState("20 de julio de 2026");
+    useState("");
 
   useEffect(() => {
     loadStatus();
@@ -31,18 +39,28 @@ export default function RequestStatusScreen() {
 
   async function loadStatus() {
     try {
-      /**
-       * Cuando esté listo el backend solamente reemplaza
-       * estos valores por la respuesta del endpoint.
-       */
+      const response =
+        await RestaurantRequestService.getStatus();
 
-      setStatus("PENDING");
+      setStatus(response.status);
+      setRestaurantName(response.restaurantName);
 
-      setRestaurantName("Mi Restaurante");
+      const date = new Date(response.requestDate);
 
-      setCreatedAt("20 de julio de 2026");
+      setCreatedAt(
+        date.toLocaleDateString("es-EC", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      );
     } catch (error) {
       console.log(error);
+
+      Alert.alert(
+        "Solicitud",
+        "No se encontró ninguna solicitud registrada."
+      );
     } finally {
       setLoading(false);
     }
@@ -68,16 +86,25 @@ export default function RequestStatusScreen() {
         <RequestStatusHeader />
 
         <RequestStatusCard
-          restaurantName={restaurantName}
           status={status}
+          restaurantName={restaurantName}
         />
 
         <RequestStatusTimeline
           status={status}
-          createdAt={createdAt}
         />
 
-        <RequestStatusInfo status={status} />
+        <RequestStatusInfo
+          status={status}
+        />
+
+        <RequestStatusMessage
+          status={status}
+        />
+
+        <RequestStatusActions
+          status={status}
+        />
       </ScrollView>
     </SafeAreaView>
   );
