@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,10 +11,13 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WaveBottom from '../components/home/WaveBottom';
 import WaveTop from '../components/home/WaveTop';
 import Colors from '../../constants/Colors'; // ajustá el path si tu estructura es distinta
+import UserService, { User } from '../../services/user.service';
+import { useDeviceLocation } from '../../hooks/useDeviceLocation'; // ⬅️ nuevo, mismo hook que en perfil.tsx
 
 const C = Colors.light; // por ahora fijo en light, luego se puede swapear con useColorScheme
 
@@ -75,6 +79,33 @@ const MENUS = [
 ];
 
 export default function HomeScreen() {
+  const [user, setUser] = useState<User | null>(null);
+
+  // ⬅️ Ubicación GPS ahora viene del hook compartido (evita la carrera con Perfil)
+  const { street, cityProvince, loading: locationLoading } = useDeviceLocation();
+  const gpsAddress = [street, cityProvince].filter(Boolean).join(', ') || null;
+
+  useEffect(() => {
+    loadUser();
+  }, []); // ⬅️ ya no llama a loadGpsLocation, eso lo maneja el hook
+
+  async function loadUser() {
+    try {
+      const data = await UserService.getMe();
+      console.log('[HomeScreen] usuario recibido:', JSON.stringify(data, null, 2));
+      setUser(data);
+    } catch (e) {
+      console.log('[HomeScreen] ERROR cargando usuario:', e);
+    }
+  }
+
+  // Texto a mostrar en el pill: primero la dirección exacta por GPS
+  // (calle, ciudad, provincia); si no hay permiso o falló, cae a la
+  // ciudad guardada en el perfil; si tampoco hay, muestra un placeholder
+  // (el backend traduce ciudad.nombre -> city.name en buildProfileResponse)
+  const locationLabel =
+    gpsAddress ?? user?.city?.name ?? (locationLoading ? 'Buscando...' : 'Ubicación');
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -82,15 +113,17 @@ export default function HomeScreen() {
         {/* HEADER NARANJA */}
         <LinearGradient colors={[C.primaryLight, C.primaryDark]} style={styles.header}>
 
-          {/* Todo el contenido con padding horizontal va acá adentro,
-              NO en el LinearGradient, para que WaveBottom (fuera de este
-              wrapper) pueda usar el 100% del ancho real de pantalla */}
           <View style={styles.headerContent}>
 
             {/* Selector ubicación */}
-            <TouchableOpacity style={styles.locationPill}>
+            <TouchableOpacity
+              style={styles.locationPill}
+              onPress={() => router.push('/(province)')}
+            >
               <Ionicons name="location-outline" size={18} color={C.text} />
-              <Text style={styles.locationText}>Ubicación</Text>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {locationLabel}
+              </Text>
               <Ionicons name="chevron-down" size={16} color={C.text} />
             </TouchableOpacity>
 
@@ -126,12 +159,8 @@ export default function HomeScreen() {
 
           </View>
 
-          {/* Ondas al final del header — hijo directo del LinearGradient,
-              sin padding horizontal de por medio → ancho completo */}
           <WaveBottom />
 
-          {/* Botón Ver todos: absolute, flota sobre la onda sin ocupar
-              espacio en el flujo */}
           <View style={styles.verTodosContainer}>
             <TouchableOpacity style={styles.verTodosButton}>
               <Text style={styles.verTodosText}>Ver todas</Text>
@@ -143,10 +172,8 @@ export default function HomeScreen() {
         {/* CONTENIDO BLANCO con onda superior */}
         <View style={styles.contentWrapper}>
 
-          {/* Wave hijo directo de content, sin padding horizontal de por medio */}
           <WaveTop />
           <View style={styles.content}>
-          {/* Todo el contenido con padding horizontal va en este wrapper */}
           <View style={styles.contentInner}>
 
             {/* Buscador */}
@@ -249,13 +276,8 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.primaryDark },
-
-  // Sin paddingHorizontal acá: así WaveBottom (hijo directo) toma el ancho completo
-  // position: relative para que el botón "Ver todos" (absolute) se ancle acá adentro
   header: { paddingTop: 16, position: 'relative' },
-  // El padding horizontal que tenía "header" se movió acá adentro
   headerContent: { paddingHorizontal: 16 },
-
   locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,9 +286,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     alignSelf: 'center',
+    maxWidth: '80%',
     gap: 8,
   },
-  locationText: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
+  locationText: { fontSize: 15, fontWeight: '600', color: Colors.light.text, flexShrink: 1 },
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginVertical: 12 },
   categoriesGrid: { gap: 12 },
   categoriesRow: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
@@ -278,7 +301,7 @@ const styles = StyleSheet.create({
   backgroundColor: Colors.light.background,
   overflow: 'hidden',
   borderWidth: 2,
-  borderColor: Colors.light.primaryDark, // el borde naranja tipo el SVG
+  borderColor: Colors.light.primaryDark,
 },
   categoryImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   categoryPill: {
@@ -294,12 +317,12 @@ const styles = StyleSheet.create({
   categoryName: { fontSize: 12, fontWeight: '600', color: Colors.light.text },
   verTodosContainer: {
     position: 'absolute',
-    bottom: 6, // valor para que quede montado justo sobre la curva de la onda
+    bottom: 6,
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 20,   // más alto que WaveTop (10), para ganar siempre el orden de pintado
-    elevation: 20, // elevation manda sobre el orden del árbol
+    zIndex: 20,
+    elevation: 20,
   },
   verTodosButton: {
     backgroundColor: Colors.light.background,
@@ -313,12 +336,8 @@ const styles = StyleSheet.create({
     elevation: 4,
 },
 verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700' },
-
-  // Sin paddingHorizontal acá así WaveTop toma el ancho completo
   content: { backgroundColor: Colors.light.background, paddingBottom: 100 },
-  // El padding horizontal que tenía "content" se movió acá adentro
   contentInner: { paddingHorizontal: 16 },
-
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',

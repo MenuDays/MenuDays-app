@@ -24,6 +24,20 @@ export interface User {
   longitude?: number;
 }
 
+/**
+ * Forma que espera el backend en el body del PATCH /users/profile
+ * (coincide con UpdateProfileDto de NestJS). A diferencia de `User`,
+ * provinceId/cityId van como IDs sueltos, no como objetos anidados
+ * {id, name} -- esa forma anidada es solo la de la respuesta.
+ */
+export interface UpdateProfilePayload {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  provinceId?: number;
+  cityId?: number;
+}
+
 const USER_STORAGE_KEY = "@MenuDays:user";
 
 class UserService {
@@ -38,7 +52,7 @@ class UserService {
    * Actualiza el perfil.
    */
   async updateProfile(
-    data: Partial<User>
+    data: UpdateProfilePayload
   ): Promise<User> {
     return await api<User>("/users/profile", {
       method: "PATCH",

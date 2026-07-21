@@ -9,11 +9,12 @@ export async function api<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = await AsyncStorage.getItem("@MenuDays:token");
+  const isFormData = options.body instanceof FormData;
 
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(!isFormData && { "Content-Type": "application/json" }),
       ...(token && {
         Authorization: `Bearer ${token}`,
       }),

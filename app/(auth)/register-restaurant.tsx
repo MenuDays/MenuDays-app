@@ -9,6 +9,7 @@ import {
   Image,
   Modal,
   FlatList,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -18,6 +19,8 @@ import { useCallback, useEffect, useState } from 'react';
 import ProvinceService, { Province } from '../../services/province.service';
 import LocationService, { City } from '../../services/location.service';
 import RestaurantLocationPickerBridge from '../../services/restaurantLocationPicker.bridge';
+import { api } from '../../services/api';
+import * as ImagePicker from 'expo-image-picker';
 
 interface CountryCode {
   code: string; // ISO
@@ -75,7 +78,6 @@ export default function RegisterRestaurantScreen() {
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const [description, setDescription] = useState('');
-  const [schedule, setSchedule] = useState(''); // NUEVO: horarios de atención
   const [instagram, setInstagram] = useState('');
   const [facebook, setFacebook] = useState('');
   const [tiktok, setTiktok] = useState('');
@@ -89,12 +91,19 @@ export default function RegisterRestaurantScreen() {
     ProvinceService.getAll().then(setProvinces);
   }, []);
 
-  function handleSelectProvince(selected: Province) {
+  async function handleSelectProvince(selected: Province) {
     setProvince(selected);
     setCity(null); // la ciudad depende de la provincia, se resetea
-    setCities(LocationService.getCitiesByProvince(selected.id));
     setProvincePickerVisible(false);
     setProvinceSearch('');
+
+    try {
+      const data = await LocationService.getCitiesByProvince(selected.id);
+      setCities(data);
+    } catch (e) {
+      console.log('Error cargando ciudades:', e);
+      setCities([]);
+    }
   }
 
   function handleSelectCity(selected: City) {
@@ -109,34 +118,47 @@ export default function RegisterRestaurantScreen() {
   }
 
   const filteredProvinces = provinces.filter((p) =>
-    p.name.toLowerCase().includes(provinceSearch.toLowerCase())
+    p.nombre.toLowerCase().includes(provinceSearch.toLowerCase())
   );
 
   const filteredCities = cities.filter((c) =>
-    c.name.toLowerCase().includes(citySearch.toLowerCase())
+    c.nombre.toLowerCase().includes(citySearch.toLowerCase())
   );
 
-  function pickLogo() {
-    // TODO: integrar expo-image-picker
-    // const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
-    // if (!result.canceled) setLogo(result.assets[0].uri);
+  async function pickLogo() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso necesario', 'Necesitamos acceso a tus fotos para el logo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      aspect: [1, 1],
+      allowsEditing: true,
+    });
+    if (!result.canceled) setLogo(result.assets[0].uri);
   }
 
-  function pickDocument(side: 'front' | 'back') {
-    // TODO: integrar expo-image-picker
-    // const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    // if (!result.canceled) {
-    //   if (side === 'front') setIdFront(result.assets[0].uri);
-    //   else setIdBack(result.assets[0].uri);
-    // }
+  async function pickDocument(side: 'front' | 'back') {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso necesario', 'Necesitamos acceso a la cámara para la cédula.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (!result.canceled) {
+      if (side === 'front') setIdFront(result.assets[0].uri);
+      else setIdBack(result.assets[0].uri);
+    }
   }
 
   function pickLocationOnMap() {
     router.push({
       pathname: '/(auth)/select-restaurant-location',
       params: {
-        cityName: city?.name ?? '',
-        provinceName: province?.name ?? '',
+        cityName: city?.nombre ?? '',
+        provinceName: province?.nombre ?? '',
       },
     });
   }
@@ -154,30 +176,77 @@ export default function RegisterRestaurantScreen() {
 
   async function handleSubmit() {
     if (!restaurantName.trim() || !province || !city || !phone.trim()) {
-      // TODO: reemplazar por feedback visual (toast / mensaje inline)
-      console.log('Completa los campos obligatorios');
+      Alert.alert('Campos incompletos', 'Completa nombre, provincia, ciudad y teléfono.');
+      return;
+    }
+
+    if (!location) {
+      Alert.alert('Ubicación requerida', 'Seleccioná la ubicación del restaurante en el mapa.');
+      return;
+    }
+
+    if (!logo) {
+      Alert.alert('Logo requerido', 'Subí el logo de tu restaurante.');
+      return;
+    }
+
+    if (!idFront || !idBack) {
+      Alert.alert('Documentos requeridos', 'Subí el frente y el dorso de tu cédula.');
       return;
     }
 
     setSubmitting(true);
     try {
-      // TODO: reemplazar por llamada real a la API
-      // await RestaurantService.register({
-      //   name: restaurantName,
-      //   provinceId: province.id,
-      //   cityId: city.id,
-      //   location,
-      //   phone: `${selectedCountry.dialCode}${phone}`,
-      //   schedule,
-      //   description,
-      //   socials: { instagram, facebook, tiktok },
-      //   logo,
-      //   idFront,
-      //   idBack,
-      // });
+      const formData = new FormData();
+      formData.append('commercialName', restaurantName.trim());
+      formData.append('address', location.address);
+      formData.append('provinceId', String(province.id));
+      formData.append('cityId', String(city.id));
+      formData.append('latitude', String(location.latitude));
+      formData.append('longitude', String(location.longitude));
+      formData.append('contactPhone', `${selectedCountry.dialCode}${phone.trim()}`);
+
+      if (description.trim()) {
+        formData.append('description', description.trim());
+      }
+
+      const socialNetworks: Record<string, string> = {};
+      if (instagram.trim()) socialNetworks.instagram = instagram.trim();
+      if (facebook.trim()) socialNetworks.facebook = facebook.trim();
+      if (tiktok.trim()) socialNetworks.tiktok = tiktok.trim();
+      if (Object.keys(socialNetworks).length > 0) {
+        formData.append('socialNetworks', JSON.stringify(socialNetworks));
+      }
+
+      // React Native: los archivos van como { uri, name, type }, no como Blob
+      formData.append('logo', {
+        uri: logo,
+        name: 'logo.jpg',
+        type: 'image/jpeg',
+      } as any);
+
+      formData.append('cedulaFront', {
+        uri: idFront,
+        name: 'cedula_front.jpg',
+        type: 'image/jpeg',
+      } as any);
+
+      formData.append('cedulaBack', {
+        uri: idBack,
+        name: 'cedula_back.jpg',
+        type: 'image/jpeg',
+      } as any);
+
+      await api('/restaurant-requests', {
+        method: 'POST',
+        body: formData,
+      });
+
+      Alert.alert('Solicitud enviada', 'Tu solicitud fue enviada y está en revisión.');
       router.back();
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error registrando restaurante:', e);
+      Alert.alert('Error', e.message || 'No se pudo enviar la solicitud.');
     } finally {
       setSubmitting(false);
     }
@@ -245,7 +314,7 @@ export default function RegisterRestaurantScreen() {
         >
           <Ionicons name="bag-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <Text style={[styles.input, !province && styles.placeholderText]}>
-            {province ? province.name : 'Elige la provincia'}
+            {province ? province.nombre : 'Elige la provincia'}
           </Text>
           <Ionicons name="chevron-down" size={18} color="#3E2723" />
         </TouchableOpacity>
@@ -259,7 +328,7 @@ export default function RegisterRestaurantScreen() {
         >
           <Ionicons name="bag-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <Text style={[styles.input, !city && styles.placeholderText]}>
-            {city ? city.name : province ? 'Elige la  ciudad' : 'Elegí primero la provincia'}
+            {city ? city.nombre : province ? 'Elige la  ciudad' : 'Elegí primero la provincia'}
           </Text>
           <Ionicons name="chevron-down" size={18} color="#3E2723" />
         </TouchableOpacity>
@@ -313,19 +382,6 @@ export default function RegisterRestaurantScreen() {
           <Text style={styles.charCount}>
             {description.length}/{DESCRIPTION_MAX}
           </Text>
-        </View>
-
-        {/* Horarios de atención — NUEVO */}
-        <Text style={styles.label}>Horarios de atención</Text>
-        <View style={styles.inputContainer}>
-          <Ionicons name="time-outline" size={20} color="#FFA726" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Lun a Dom, 11:00 - 22:00"
-            placeholderTextColor="#9E9E9E"
-            value={schedule}
-            onChangeText={setSchedule}
-          />
         </View>
 
         {/* Redes sociales */}
@@ -450,7 +506,7 @@ export default function RegisterRestaurantScreen() {
                   style={styles.countryRow}
                   onPress={() => handleSelectProvince(item)}
                 >
-                  <Text style={styles.countryRowName}>{item.name}</Text>
+                  <Text style={styles.countryRowName}>{item.nombre}</Text>
                 </TouchableOpacity>
               )}
               ItemSeparatorComponent={() => <View style={styles.countryDivider} />}
@@ -470,7 +526,7 @@ export default function RegisterRestaurantScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Elegí la ciudad{province ? ` (${province.name})` : ''}
+                Elegí la ciudad{province ? ` (${province.nombre})` : ''}
               </Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
@@ -497,7 +553,7 @@ export default function RegisterRestaurantScreen() {
                   style={styles.countryRow}
                   onPress={() => handleSelectCity(item)}
                 >
-                  <Text style={styles.countryRowName}>{item.name}</Text>
+                  <Text style={styles.countryRowName}>{item.nombre}</Text>
                 </TouchableOpacity>
               )}
               ItemSeparatorComponent={() => <View style={styles.countryDivider} />}

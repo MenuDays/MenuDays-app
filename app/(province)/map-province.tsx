@@ -1,12 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
+import { Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
+import UserService from "../../services/user.service";
 import LocationService from "../../services/location.service";
 import MapLocationPicker, {
   MapLocationResult,
 } from "../components/map/MapLocationPicker";
 
 export default function MapScreen() {
+  const [saving, setSaving] = useState(false);
+
   const { provinceId, provinceName, cityId, cityName } =
     useLocalSearchParams<{
       provinceId: string;
@@ -16,18 +20,39 @@ export default function MapScreen() {
     }>();
 
   async function handleConfirm(result: MapLocationResult) {
-    const userLocation = {
-      province: { id: Number(provinceId), name: provinceName ?? "" },
-      city: { id: Number(cityId), name: cityName ?? "" },
-      address: result.address,
-      latitude: result.latitude,
-      longitude: result.longitude,
-    };
-    await LocationService.saveUserLocation(userLocation);
-    // TODO: reemplazar por llamada real cuando el backend esté listo
-    // POST /api/user/location
-    console.log("[MOCK] Enviaría al backend:", userLocation);
-    router.replace("/(home)");
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      // 1) Guardar en el backend: esto es lo que realmente persiste
+      //    la ciudad/provincia del usuario en la base de datos.
+      await UserService.updateProfile({
+        provinceId: Number(provinceId),
+        cityId: Number(cityId),
+      });
+
+      // 2) Guardar copia local (coordenadas exactas del mapa, dirección
+      //    textual, etc.) para lo que uses de LocationService en otras
+      //    pantallas. El backend no tiene columnas para esto todavía,
+      //    así que se mantiene solo local por ahora.
+      await LocationService.saveUserLocation({
+        province: { id: Number(provinceId), name: provinceName ?? "" },
+        city: { id: Number(cityId), name: cityName ?? "" },
+        address: result.address,
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+
+      router.replace("/(home)");
+    } catch (error) {
+      console.error("Error guardando ubicación:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo guardar tu ubicación. Intenta de nuevo."
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -35,7 +60,7 @@ export default function MapScreen() {
       <MapLocationPicker
         title="Tu ubicación"
         subtitle={`${cityName}, ${provinceName}`}
-        confirmLabel="Confirmar ubicación"
+        confirmLabel={saving ? "Guardando..." : "Confirmar ubicación"}
         onBack={() => router.back()}
         onConfirm={handleConfirm}
       />

@@ -16,6 +16,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import UserService, { User } from "../../services/user.service";
+import AuthService from "../../services/auth.service";
+import { useDeviceLocation } from "../../hooks/useDeviceLocation";  
 
 const { width } = Dimensions.get("window");
 
@@ -24,15 +26,21 @@ export default function PerfilScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  
+  const {
+    street: gpsStreet,
+    cityProvince: gpsCityProvince,
+    loading: locationLoading,
+  } = useDeviceLocation();
+
   // Modo edición
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editLastName, setEditLastName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
 
   useEffect(() => {
     loadUser();
-  }, []);
+  }, []); 
 
   async function loadUser() {
     try {
@@ -49,7 +57,6 @@ export default function PerfilScreen() {
     if (!user) return;
     setEditName(user.firstName);
     setEditLastName(user.lastName);
-    setEditEmail(user.email);
     setIsEditing(true);
   }
 
@@ -60,8 +67,8 @@ export default function PerfilScreen() {
   async function saveEditing() {
     if (!user) return;
 
-    if (!editName.trim() || !editLastName.trim() || !editEmail.trim()) {
-      Alert.alert("Datos incompletos", "Completa nombre, apellido y email.");
+    if (!editName.trim() || !editLastName.trim()) {
+      Alert.alert("Datos incompletos", "Completa nombre y apellido.");
       return;
     }
 
@@ -70,9 +77,8 @@ export default function PerfilScreen() {
       const updated = await UserService.updateProfile({
         firstName: editName.trim(),
         lastName: editLastName.trim(),
-        email: editEmail.trim(),
       });
-      const newUser = updated ?? { ...user, firstName: editName.trim(), lastName: editLastName.trim(), email: editEmail.trim() };
+      const newUser = updated ?? { ...user, firstName: editName.trim(), lastName: editLastName.trim() };
       setUser(newUser);
       await UserService.saveLocal(newUser);
       setIsEditing(false);
@@ -84,6 +90,30 @@ export default function PerfilScreen() {
     }
   }
 
+
+  async function handleLogout() {
+    Alert.alert(
+      "Cerrar sesión",
+      "¿Estás seguro que querés salir?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Cerrar sesión",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await AuthService.logout();
+            } catch (e) {
+              console.log("Error en logout remoto, limpiando sesión local igual:", e);
+            } finally {
+              router.replace("/(auth)/login");
+            }
+          },
+        },
+      ]
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -93,6 +123,15 @@ export default function PerfilScreen() {
   }
 
   if (!user) return null;
+
+  const streetLabel = gpsStreet;
+  const cityProvinceLabel =
+    gpsCityProvince ??
+    (user.city?.name && user.province?.name
+      ? `${user.city.name}, ${user.province.name}`
+      : null);
+
+  const showPlaceholder = !streetLabel && !cityProvinceLabel;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -137,18 +176,18 @@ export default function PerfilScreen() {
             <Text style={styles.sectionTitle}>Información personal</Text>
             {!isEditing && (
               <TouchableOpacity
-  style={styles.inlineEditTrigger}
-  onPress={startEditing}
->
-  <Ionicons
-    name="create-outline"
-    size={16}
-    color="#F5A800"
-  />
-  <Text style={styles.inlineEditTriggerText}>
-    Editar
-  </Text>
-</TouchableOpacity>
+                style={styles.inlineEditTrigger}
+                onPress={startEditing}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={16}
+                  color="#F5A800"
+                />
+                <Text style={styles.inlineEditTriggerText}>
+                  Editar
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -170,13 +209,10 @@ export default function PerfilScreen() {
                   onChangeText={setEditLastName}
                 />
                 <Divider />
-                <EditableRow
-                  icon="mail-outline"
+                <InfoRow
+                  icon="lock-closed-outline"
                   label="Email"
-                  value={editEmail}
-                  onChangeText={setEditEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
+                  value={user.email}
                 />
               </>
             ) : (
@@ -202,7 +238,6 @@ export default function PerfilScreen() {
             )}
           </View>
 
-          {/* Botones guardar/cancelar cuando está editando */}
           {isEditing && (
             <View style={styles.editActionsRow}>
               <TouchableOpacity
@@ -238,11 +273,28 @@ export default function PerfilScreen() {
               <View style={styles.locationIcon}>
                 <Ionicons name="location" size={20} color="#F5A800" />
               </View>
+
               <View style={styles.locationInfo}>
-                <Text style={styles.locationCity}>
-                  {user.city?.name}, {user.province?.name}
-                </Text>
+                {showPlaceholder ? (
+                  <Text style={styles.locationCity}>
+                    {locationLoading ? "Buscando..." : "Ubicación no disponible"}
+                  </Text>
+                ) : (
+                  <>
+                    {streetLabel && (
+                      <Text style={styles.locationCity} numberOfLines={1}>
+                        {streetLabel}
+                      </Text>
+                    )}
+                    {cityProvinceLabel && (
+                      <Text style={styles.locationAddress} numberOfLines={1}>
+                        {cityProvinceLabel}
+                      </Text>
+                    )}
+                  </>
+                )}
               </View>
+
               <TouchableOpacity
                 style={styles.editLocationButton}
                 onPress={() => router.push("/(province)")}
@@ -292,7 +344,8 @@ export default function PerfilScreen() {
           </TouchableOpacity>
 
           {/* Cerrar sesión */}
-          <TouchableOpacity style={styles.logoutButton}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            {/* ⬅️ onPress agregado */}
             <Ionicons name="log-out-outline" size={20} color="#F44336" />
             <Text style={styles.logoutText}>Cerrar sesión</Text>
           </TouchableOpacity>
@@ -478,6 +531,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 20,
     shadowColor: "#000",
     shadowOpacity: 0.04,
@@ -572,13 +626,13 @@ const styles = StyleSheet.create({
   },
   locationCity: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1A1A1A",
   },
   locationAddress: {
     fontSize: 13,
     color: "#757575",
-    marginTop: 2,
+    marginTop: 4,
   },
   editLocationButton: {
     flexDirection: "row",

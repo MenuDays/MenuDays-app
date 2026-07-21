@@ -33,7 +33,10 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      ["expo-location", {
+        "locationAlwaysAndWhenInUsePermission": "Permití el acceso a tu ubicación para mostrarte restaurantes cercanos."
+      }]
     ],
     "experiments": {
       "typedRoutes": true
