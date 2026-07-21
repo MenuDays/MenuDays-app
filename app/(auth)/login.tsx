@@ -59,12 +59,21 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     try {
-      await AuthService.login({
+      const response = await AuthService.login({
         email,
         password,
       });
 
-      router.replace("/(province)");
+      const rol = response.user?.rol;
+
+      if (rol === "administrador") {
+        router.replace("/(admin)/dashboard");
+      } else if (rol === "restaurante") {
+        router.replace("/(restaurant)/dashboard");
+      } else {
+        // comensal (o cualquier otro caso no contemplado)
+        router.replace("/(province)");
+      }
     } catch (error: any) {
       Alert.alert(
         "Error",
