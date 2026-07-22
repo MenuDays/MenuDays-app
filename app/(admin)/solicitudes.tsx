@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { View, StyleSheet, FlatList, ActivityIndicator, Text } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 
 import SolicitudHeader from "../components/admin/SolicitudHeader";
 
-import SolicitudTabs from "../components/admin/SolicitudTabs";
-import SolicitudCard from "../components/admin/SolicitudCard";
-import Pagination from "../components/admin/Pagination";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
+import Pagination from "../components/admin/Pagination";
+import SolicitudCard from "../components/admin/SolicitudCard";
+import SolicitudTabs from "../components/admin/SolicitudTabs";
 
 import RestaurantApplicationsAdminService, {
   AdminApplicationStatus,
@@ -16,11 +16,15 @@ import RestaurantApplicationsAdminService, {
 } from "../../services/restaurantApplicationsAdmin.service";
 
 export default function SolicitudesScreen() {
-  const [status, setStatus] = useState<AdminApplicationStatus>("accepted");
+  const [status, setStatus] = useState<AdminApplicationStatus>("pendiente");
   const [items, setItems] = useState<RestaurantApplicationSummary[]>([]);
   const [counts, setCounts] = useState<Record<AdminApplicationStatus, number>>(
-    { accepted: 0, pending: 0, rejected: 0 }
-  );
+  {
+    pendiente: 0,
+    aprobada: 0,
+    rechazada: 0,
+  }
+);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -123,8 +127,8 @@ export default function SolicitudesScreen() {
 }
 
 function statusLabel(status: AdminApplicationStatus) {
-  if (status === "accepted") return "aceptadas";
-  if (status === "pending") return "pendientes";
+  if (status === "aprobada") return "aprobadas";
+  if (status === "pendiente") return "pendientes";
   return "rechazadas";
 }
 

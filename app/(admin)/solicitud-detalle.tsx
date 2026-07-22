@@ -1,25 +1,25 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ImageBackground,
-  Image,
-  ActivityIndicator,
-  Linking,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  ImageBackground,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import InfoRow from "../components/admin/InfoRow";
-import AdminBottomNav from "../components/admin/AdminBottomNav";
 import RestaurantApplicationsAdminService, {
   RestaurantApplicationDetail,
   buildWhatsAppNumber,
 } from "../../services/restaurantApplicationsAdmin.service";
+import AdminBottomNav from "../components/admin/AdminBottomNav";
+import InfoRow from "../components/admin/InfoRow";
 
 export default function SolicitudDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,7 +38,10 @@ export default function SolicitudDetalleScreen() {
     if (!detail) return;
     setActionLoading(true);
     try {
-      await RestaurantApplicationsAdminService.approve(detail.id);
+      await RestaurantApplicationsAdminService.reject(
+  detail.id,
+  "Solicitud rechazada por el administrador."
+);
       router.back();
     } finally {
       setActionLoading(false);
@@ -49,7 +52,10 @@ export default function SolicitudDetalleScreen() {
     if (!detail) return;
     setActionLoading(true);
     try {
-      await RestaurantApplicationsAdminService.reject(detail.id);
+      await RestaurantApplicationsAdminService.reject(
+  detail.id,
+  "Solicitud rechazada por el administrador."
+);
       router.back();
     } finally {
       setActionLoading(false);
