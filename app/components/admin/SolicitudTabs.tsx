@@ -23,23 +23,23 @@ export default function SolicitudTabs({
 }: SolicitudTabsProps) {
   const tabs: Tab[] = [
     {
-      status: "accepted",
+      status: "aprobada",
       label: "Aceptadas",
-      count: counts.accepted,
+      count: counts.aprobada,
       color: "#43A047",
       backgroundColor: "#E8F5E9",
     },
     {
-      status: "pending",
+      status: "pendiente",
       label: "Pendientes",
-      count: counts.pending,
+      count: counts.pendiente,
       color: "#FB8C00",
       backgroundColor: "#FFF3E0",
     },
     {
-      status: "rejected",
+      status: "rechazada",
       label: "Rechazadas",
-      count: counts.rejected,
+      count: counts.rechazada,
       color: "#E53935",
       backgroundColor: "#FFEBEE",
     },

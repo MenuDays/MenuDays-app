@@ -12,6 +12,8 @@ export interface RestaurantApplicationSummary {
   avatarColor: string;
   /** Ionicon a mostrar dentro del avatar cuando no hay logo real */
   avatarIcon: string;
+  /** URL del logo real del restaurante, si existe */
+  logoUrl?: string;
 }
 
 interface PaginatedResult {
@@ -37,6 +39,8 @@ export interface ApplicationDocument {
 }
 
 export interface RestaurantApplicationDetail extends RestaurantApplicationSummary {
+  status: AdminApplicationStatus;
+  logoUrl: string;
   description: string;
   province: string;
   city: string;
@@ -94,6 +98,7 @@ class RestaurantApplicationsAdminService {
     submittedAt: new Date(r.created_at).toLocaleDateString("es-EC"),
     avatarColor: "#F5A800",
     avatarIcon: "restaurant",
+    logoUrl: r.logo_url,
   }));
 
   return {
@@ -119,6 +124,9 @@ class RestaurantApplicationsAdminService {
     name: r.nombre_comercial,
     submittedAt: new Date(r.created_at).toLocaleDateString("es-EC"),
 
+    status: r.estado,
+    logoUrl: r.logo_url,
+
     avatarColor: "#F5A800",
     avatarIcon: "restaurant",
 
@@ -133,7 +141,7 @@ class RestaurantApplicationsAdminService {
   address: r.direccion,
 },
 
-    dialCode: "+593",
+    dialCode: "",
     phone: r.telefono_contacto,
 
     schedule: "",
@@ -146,11 +154,6 @@ class RestaurantApplicationsAdminService {
     createdAt: new Date(r.created_at).toLocaleDateString("es-EC"),
 
     documents: [
-      {
-        id: "logo",
-        label: "Logo",
-        uri: r.logo_url,
-      },
       {
         id: "front",
         label: "Cédula frontal",

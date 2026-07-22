@@ -5,19 +5,17 @@ import { RestaurantApplicationSummary } from "../../../services/restaurantApplic
 
 interface SolicitudCardProps {
   application: RestaurantApplicationSummary;
-  logoUri?: string; // si en el futuro hay logo real, se muestra en vez del avatar de color
   onPress: () => void;
 }
 
 export default function SolicitudCard({
   application,
-  logoUri,
   onPress,
 }: SolicitudCardProps) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      {logoUri ? (
-        <Image source={{ uri: logoUri }} style={styles.avatarImage} />
+      {application.logoUrl ? (
+        <Image source={{ uri: application.logoUrl }} style={styles.avatarImage} />
       ) : (
         <View
           style={[styles.avatar, { backgroundColor: application.avatarColor }]}

@@ -21,6 +21,17 @@ import RestaurantApplicationsAdminService, {
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import InfoRow from "../components/admin/InfoRow";
 
+function getStatusInfo(status: RestaurantApplicationDetail["status"]) {
+  switch (status) {
+    case "aprobada":
+      return { label: "Solicitud aprobada", color: "#43A047", background: "#E8F5E9" };
+    case "rechazada":
+      return { label: "Solicitud rechazada", color: "#E53935", background: "#FFEBEE" };
+    default:
+      return { label: "Solicitud en revisión", color: "#FB8C00", background: "#FFF3E0" };
+  }
+}
+
 export default function SolicitudDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [detail, setDetail] = useState<RestaurantApplicationDetail | null>(null);
@@ -38,11 +49,10 @@ export default function SolicitudDetalleScreen() {
     if (!detail) return;
     setActionLoading(true);
     try {
-      await RestaurantApplicationsAdminService.reject(
-  detail.id,
-  "Solicitud rechazada por el administrador."
-);
+      await RestaurantApplicationsAdminService.approve(detail.id);
       router.back();
+    } catch (e) {
+      console.log("Error al aprobar solicitud:", e);
     } finally {
       setActionLoading(false);
     }
@@ -53,10 +63,12 @@ export default function SolicitudDetalleScreen() {
     setActionLoading(true);
     try {
       await RestaurantApplicationsAdminService.reject(
-  detail.id,
-  "Solicitud rechazada por el administrador."
-);
+        detail.id,
+        "Solicitud rechazada por el administrador."
+      );
       router.back();
+    } catch (e) {
+      console.log("Error al rechazar solicitud:", e);
     } finally {
       setActionLoading(false);
     }
@@ -82,6 +94,9 @@ export default function SolicitudDetalleScreen() {
     );
   }
 
+  const statusInfo = getStatusInfo(detail.status);
+  const showActions = detail.status === "pendiente";
+
   return (
     <View style={styles.container}>
       <ImageBackground
@@ -105,18 +120,32 @@ export default function SolicitudDetalleScreen() {
 
       <ScrollView
         style={styles.card}
-        contentContainerStyle={styles.cardContent}
+        contentContainerStyle={[
+          styles.cardContent,
+          !showActions && styles.cardContentNoButtons,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topRow}>
           <View style={styles.logoPlaceholder}>
-            <Ionicons name={detail.avatarIcon as any} size={28} color="#FB8C00" />
+            {detail.logoUrl ? (
+              <Image source={{ uri: detail.logoUrl }} style={styles.logoImage} />
+            ) : (
+              <Ionicons name={detail.avatarIcon as any} size={28} color="#FB8C00" />
+            )}
           </View>
           <View style={styles.nameCol}>
             <Text style={styles.name}>{detail.name}</Text>
-            <View style={styles.statusBadge}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusText}>Solicitud en revisión</Text>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: statusInfo.background },
+              ]}
+            >
+              <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
+              <Text style={[styles.statusText, { color: statusInfo.color }]}>
+                {statusInfo.label}
+              </Text>
             </View>
           </View>
         </View>
@@ -131,8 +160,7 @@ export default function SolicitudDetalleScreen() {
             value={`${detail.location.latitude.toFixed(4)}, ${detail.location.longitude.toFixed(4)} · Ver en mapa`}
           />
         </TouchableOpacity>
-        <InfoRow icon="call-outline" label="Tel." value={`${detail.dialCode} ${detail.phone}`} />
-        <InfoRow icon="time-outline" label="Horarios de atención" value={detail.schedule} />
+        <InfoRow icon="call-outline" label="Tel." value={detail.phone} />
         <InfoRow icon="fast-food-outline" label="Descripción" value={detail.description} />
         <InfoRow icon="person-outline" label="Usuario solicitante" value={detail.requestingUser} />
         <InfoRow icon="calendar-outline" label="Fecha de creación" value={detail.createdAt} />
@@ -160,7 +188,7 @@ export default function SolicitudDetalleScreen() {
             ) : null}
             <TouchableOpacity style={styles.socialItem} onPress={openWhatsApp}>
               <Ionicons name="logo-whatsapp" size={16} color="#FB8C00" />
-              <Text style={styles.socialText}>{`${detail.dialCode} ${detail.phone}`}</Text>
+              <Text style={styles.socialText}>{detail.phone}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -175,24 +203,26 @@ export default function SolicitudDetalleScreen() {
           ))}
         </View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.rejectButton}
-            onPress={handleReject}
-            disabled={actionLoading}
-          >
-            <Ionicons name="close-circle-outline" size={18} color="#FB8C00" />
-            <Text style={styles.rejectText}>Rechazar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.approveButton}
-            onPress={handleApprove}
-            disabled={actionLoading}
-          >
-            <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.approveText}>Aprobar</Text>
-          </TouchableOpacity>
-        </View>
+        {showActions && (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={handleReject}
+              disabled={actionLoading}
+            >
+              <Ionicons name="close-circle-outline" size={18} color="#FB8C00" />
+              <Text style={styles.rejectText}>Rechazar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.approveButton}
+              onPress={handleApprove}
+              disabled={actionLoading}
+            >
+              <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.approveText}>Aprobar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       <AdminBottomNav />
@@ -261,6 +291,9 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 24,
   },
+  cardContentNoButtons: {
+    paddingBottom: 120,
+  },
   topRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -276,6 +309,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFF3E0",
+    overflow: "hidden",
+  },
+  logoImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   nameCol: {
     flex: 1,

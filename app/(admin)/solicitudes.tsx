@@ -76,50 +76,59 @@ export default function SolicitudesScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      <SolicitudHeader
-        title="Solicitudes de"
-        highlight="Restaurantes"
-        subtitle="Gestioná y revisá las solicitudes de nuevos restaurantes"
-      />
-
-      <View style={styles.content}>
-        <SolicitudTabs
-          selected={status}
-          counts={counts}
-          onSelect={handleSelectStatus}
-        />
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FB8C00" />
+      <FlatList
+        data={items}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={({ item }) => (
+          <View style={styles.cardWrapper}>
+            <SolicitudCard
+              application={item}
+              onPress={() => handleOpenApplication(item.id)}
+            />
           </View>
-        ) : items.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              No hay solicitudes {statusLabel(status)} por ahora
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={items}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => (
-              <SolicitudCard
-                application={item}
-                onPress={() => handleOpenApplication(item.id)}
-              />
-            )}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
-          />
         )}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <>
+            <SolicitudHeader
+              title="Solicitudes de"
+              highlight="Restaurantes"
+              subtitle="Gestioná y revisá las solicitudes de nuevos restaurantes"
+            />
+            <View style={styles.content}>
+              <SolicitudTabs
+                selected={status}
+                counts={counts}
+                onSelect={handleSelectStatus}
+              />
 
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          onChangePage={handleChangePage}
-        />
-      </View>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#FB8C00" />
+                </View>
+              ) : items.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    No hay solicitudes {statusLabel(status)} por ahora
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </>
+        }
+        ListFooterComponent={
+          items.length > 0 ? (
+            <View style={styles.content}>
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onChangePage={handleChangePage}
+              />
+            </View>
+          ) : null
+        }
+      />
 
       <AdminBottomNav />
     </View>
@@ -138,23 +147,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F8F8",
   },
   content: {
-    flex: 1,
     paddingHorizontal: 18,
     paddingTop: 16,
+  },
+  cardWrapper: {
+    paddingHorizontal: 18,
   },
   listContent: {
     paddingBottom: 8,
   },
   loadingContainer: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 40,
   },
   emptyContainer: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: 80,
+    paddingVertical: 60,
   },
   emptyText: {
     fontSize: 14,
