@@ -122,7 +122,6 @@ export default function SolicitudDetalleScreen() {
         style={styles.card}
         contentContainerStyle={[
           styles.cardContent,
-          !showActions && styles.cardContentNoButtons,
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -289,9 +288,6 @@ const styles = StyleSheet.create({
   cardContent: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 24,
-  },
-  cardContentNoButtons: {
     paddingBottom: 120,
   },
   topRow: {

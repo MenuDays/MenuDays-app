@@ -30,7 +30,11 @@ export interface CreateRestaurantRequestPayload {
 
 class RestaurantRequestService {
   async getStatus(): Promise<RestaurantRequestStatus> {
-    return api<RestaurantRequestStatus>("/restaurant-requests/status");
+    return api<RestaurantRequestStatus>("/restaurant-requests/status", {
+      // 404 acá significa "todavía no hiciste ninguna solicitud",
+      // es un resultado válido, no un error real.
+      silentStatuses: [404],
+    });
   }
 
   async create(payload: CreateRestaurantRequestPayload) {

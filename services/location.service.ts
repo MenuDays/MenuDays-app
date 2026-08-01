@@ -4,6 +4,8 @@ import { api } from "./api";
 export interface City {
   id: number;
   nombre: string;
+  latitud: number | null;
+  longitud: number | null;
 }
 
 export interface UserLocation {

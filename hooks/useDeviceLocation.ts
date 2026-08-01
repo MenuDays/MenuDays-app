@@ -1,96 +1,125 @@
-import { useEffect, useState } from 'react';
-import * as Location from 'expo-location';
+  import { useEffect, useState } from 'react';
+  import * as Location from 'expo-location';
 
-export interface DeviceLocationState {
-  street: string | null;
-  cityProvince: string | null;
-  loading: boolean;
-}
-
-type LocationResult = Omit<DeviceLocationState, 'loading'>;
-
-const EMPTY: LocationResult = { street: null, cityProvince: null };
-
-// Cache a nivel de módulo: una vez resuelto, todas las pantallas
-// que usen el hook reciben el mismo resultado sin volver a pedir GPS.
-let cachedResult: LocationResult | null = null;
-// Si ya hay un pedido en curso, los llamados concurrentes esperan
-// la MISMA promesa en vez de disparar otro getCurrentPositionAsync
-// (esto es lo que evita la carrera entre Home y Perfil).
-let inFlightPromise: Promise<LocationResult> | null = null;
-
-async function fetchDeviceLocation(): Promise<LocationResult> {
-  const { status } = await Location.requestForegroundPermissionsAsync();
-  if (status !== 'granted') {
-    console.log('[useDeviceLocation] permiso denegado');
-    return EMPTY;
+  export interface DeviceLocationState {
+    street: string | null;
+    cityProvince: string | null;
+    loading: boolean;
   }
 
-  const servicesEnabled = await Location.hasServicesEnabledAsync();
-  if (!servicesEnabled) {
-    console.log('[useDeviceLocation] servicios de ubicación desactivados');
-    return EMPTY;
+  type LocationResult = Omit<DeviceLocationState, 'loading'>;
+
+  const EMPTY: LocationResult = { street: null, cityProvince: null };
+
+  // Cache por coordenadas: si ya resolvimos la dirección para este par
+  // lat/lng, no volvemos a pegarle a reverseGeocodeAsync.
+  const cache = new Map<string, LocationResult>();
+  const inFlight = new Map<string, Promise<LocationResult>>();
+
+  function cacheKey(latitude: number, longitude: number) {
+    return `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
   }
 
-  try {
-    const position = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
+  async function fetchAddressForCoords(
+    latitude: number,
+    longitude: number
+  ): Promise<LocationResult> {
+    try {
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
 
-    const [place] = await Location.reverseGeocodeAsync({
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-    });
+      if (!place) return EMPTY;
 
-    if (!place) return EMPTY;
+      const street =
+        place.street && place.streetNumber
+          ? `${place.street} ${place.streetNumber}`
+          : place.street ?? null;
 
-    const street =
-      place.street && place.streetNumber
-        ? `${place.street} ${place.streetNumber}`
-        : place.street ?? null;
+      const cityProvince =
+        [place.city, place.region].filter(Boolean).join(', ') || null;
 
-    const cityProvince = [place.city, place.region].filter(Boolean).join(', ') || null;
-
-    return { street, cityProvince };
-  } catch (e) {
-    console.log('[useDeviceLocation] ERROR obteniendo ubicación:', e);
-    return EMPTY;
-  }
-}
-
-function getDeviceLocation(): Promise<LocationResult> {
-  if (cachedResult) return Promise.resolve(cachedResult);
-  if (!inFlightPromise) {
-    inFlightPromise = fetchDeviceLocation().then((result) => {
-      cachedResult = result;
-      inFlightPromise = null;
-      return result;
-    });
-  }
-  return inFlightPromise;
-}
-
-export function useDeviceLocation(): DeviceLocationState {
-  const [result, setResult] = useState<LocationResult>(cachedResult ?? EMPTY);
-  const [loading, setLoading] = useState(!cachedResult);
-
-  useEffect(() => {
-    let mounted = true;
-    if (cachedResult) {
-      setResult(cachedResult);
-      setLoading(false);
-      return;
+      return { street, cityProvince };
+    } catch (e) {
+      console.log('[useDeviceLocation] ERROR en reverse geocode:', e);
+      return EMPTY;
     }
-    getDeviceLocation().then((r) => {
-      if (mounted) {
-        setResult(r);
-        setLoading(false);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  }
 
-  return { ...result, loading };
-}
+  function getAddressForCoords(
+    latitude: number,
+    longitude: number
+  ): Promise<LocationResult> {
+    const key = cacheKey(latitude, longitude);
+
+    if (cache.has(key)) {
+      return Promise.resolve(cache.get(key)!);
+    }
+
+    if (!inFlight.has(key)) {
+      const promise = fetchAddressForCoords(latitude, longitude).then((result) => {
+        cache.set(key, result);
+        inFlight.delete(key);
+        return result;
+      });
+      inFlight.set(key, promise);
+    }
+
+    return inFlight.get(key)!;
+  }
+
+  /**
+   * Reverse-geocodea la ubicación GUARDADA del usuario (la que se fijó
+   * en el mapa al registrarse / al cambiar ubicación desde Perfil).
+   *
+   * NO usa el GPS en vivo del dispositivo — ese caso ya lo maneja
+   * MapLocationPicker por separado, con el botón "mi ubicación".
+   *
+   * Pasar undefined/null en latitude o longitude significa "todavía
+   * no hay ubicación guardada" (perfil sin cargar, o usuario que nunca
+   * pasó por el flujo de mapa).
+   */
+  export function useDeviceLocation(
+    latitude?: number | null,
+    longitude?: number | null
+  ): DeviceLocationState {
+    const hasCoords = latitude != null && longitude != null;
+    const initialKey = hasCoords ? cacheKey(latitude, longitude) : null;
+
+    const [result, setResult] = useState<LocationResult>(
+      initialKey && cache.has(initialKey) ? cache.get(initialKey)! : EMPTY
+    );
+    const [loading, setLoading] = useState(hasCoords && !cache.has(initialKey!));
+
+    useEffect(() => {
+      let mounted = true;
+
+      if (!hasCoords) {
+        setResult(EMPTY);
+        setLoading(false);
+        return;
+      }
+
+      const key = cacheKey(latitude, longitude);
+      if (cache.has(key)) {
+        setResult(cache.get(key)!);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      getAddressForCoords(latitude, longitude).then((r) => {
+        if (mounted) {
+          setResult(r);
+          setLoading(false);
+        }
+      });
+
+      return () => {
+        mounted = false;
+      };
+    }, [latitude, longitude]);
+
+    return { ...result, loading };
+  }

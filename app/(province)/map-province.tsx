@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import UserService from "../../services/user.service";
@@ -7,17 +6,25 @@ import LocationService from "../../services/location.service";
 import MapLocationPicker, {
   MapLocationResult,
 } from "../components/map/MapLocationPicker";
+import { AppAlert } from "../components/common/AppAlert";
 
 export default function MapScreen() {
   const [saving, setSaving] = useState(false);
 
-  const { provinceId, provinceName, cityId, cityName } =
+  const { provinceId, provinceName, cityId, cityName, cityLatitude, cityLongitude } =
     useLocalSearchParams<{
       provinceId: string;
       provinceName: string;
       cityId: string;
       cityName: string;
+      cityLatitude?: string;
+      cityLongitude?: string;
     }>();
+
+  const cityCoords =
+    cityLatitude && cityLongitude
+      ? { latitude: Number(cityLatitude), longitude: Number(cityLongitude) }
+      : null;
 
   async function handleConfirm(result: MapLocationResult) {
     if (saving) return;
@@ -25,19 +32,19 @@ export default function MapScreen() {
 
     try {
       // 1) Guardar en el backend: esto es lo que realmente persiste
-      //    la ciudad/provincia del usuario en la base de datos.
+      //    la ciudad/provincia/ubicación del usuario en la base de datos.
       await UserService.updateProfile({
         provinceId: Number(provinceId),
         cityId: Number(cityId),
+        latitude: result.latitude,
+        longitude: result.longitude,
       });
 
-      // 2) Guardar copia local (coordenadas exactas del mapa, dirección
-      //    textual, etc.) para lo que uses de LocationService en otras
-      //    pantallas. El backend no tiene columnas para esto todavía,
-      //    así que se mantiene solo local por ahora.
+      // 2) Guardar copia local (dirección textual, coordenadas, etc.)
+      //    para lo que uses de LocationService en otras pantallas.
       await LocationService.saveUserLocation({
-        province: { id: Number(provinceId), name: provinceName ?? "" },
-        city: { id: Number(cityId), name: cityName ?? "" },
+        province: { id: Number(provinceId), nombre: provinceName ?? "" },
+        city: { id: Number(cityId), nombre: cityName ?? "" },
         address: result.address,
         latitude: result.latitude,
         longitude: result.longitude,
@@ -45,8 +52,12 @@ export default function MapScreen() {
 
       router.replace("/(home)");
     } catch (error) {
-      console.error("Error guardando ubicación:", error);
-      Alert.alert(
+      console.error("Error completo:", error);
+
+      if (error instanceof Error) {
+        console.error("Mensaje:", error.message);
+      }
+      AppAlert.alert(
         "Error",
         "No se pudo guardar tu ubicación. Intenta de nuevo."
       );
@@ -63,6 +74,7 @@ export default function MapScreen() {
         confirmLabel={saving ? "Guardando..." : "Confirmar ubicación"}
         onBack={() => router.back()}
         onConfirm={handleConfirm}
+        cityCoords={cityCoords}
       />
     </SafeAreaView>
   );

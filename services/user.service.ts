@@ -36,6 +36,8 @@ export interface UpdateProfilePayload {
   phoneNumber?: string;
   provinceId?: number;
   cityId?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 const USER_STORAGE_KEY = "@MenuDays:user";

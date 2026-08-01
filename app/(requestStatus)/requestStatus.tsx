@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 
 import RestaurantRequestService from "../../services/restaurant-request.service";
 
@@ -15,6 +15,7 @@ import RequestStatusInfo from "./componentes/RequestStatusInfo";
 import RequestStatusTimeline from "./componentes/RequestStatusTimeline";
 import RequestStatusMessage from "./componentes/RequestStatusMessage";
 import RequestStatusActions from "./componentes/RequestStatusActions";
+import { AppAlert } from "../components/common/AppAlert";
 
 type Status =
   | "pendiente"
@@ -54,15 +55,26 @@ export default function RequestStatusScreen() {
           year: "numeric",
         })
       );
-    } catch (error) {
-      console.log(error);
 
-      Alert.alert(
-        "Solicitud",
-        "No se encontró ninguna solicitud registrada."
-      );
-    } finally {
       setLoading(false);
+    } catch (error: any) {
+      // 404 = el usuario todavía no tiene ninguna solicitud.
+      // No es un error real: lo mandamos directo al formulario
+      // en vez de dejarlo en esta pantalla con datos vacíos.
+      const isNotFound =
+        error?.message === "No se encontró ninguna solicitud registrada.";
+
+      if (!isNotFound) {
+        console.log(error);
+        AppAlert.alert(
+          "Solicitud",
+          "No pudimos cargar el estado de tu solicitud. Intenta de nuevo."
+        );
+        setLoading(false);
+        return;
+      }
+
+      router.replace("/(auth)/register-restaurant");
     }
   }
 

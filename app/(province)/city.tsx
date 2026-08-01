@@ -55,6 +55,10 @@ export default function CityScreen() {
         provinceName,
         cityId: selectedCity.id,
         cityName: selectedCity.nombre,
+        // Coordenadas del centro de la ciudad (tabla ciudades),
+        // para centrar el mapa ahí en vez de en todo Ecuador.
+        cityLatitude: selectedCity.latitud != null ? String(selectedCity.latitud) : "",
+        cityLongitude: selectedCity.longitud != null ? String(selectedCity.longitud) : "",
       },
     });
   }

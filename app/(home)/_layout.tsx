@@ -101,16 +101,25 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="favoritos"
+        name="pedidos"
         options={{
-          title: "Favoritos",
+          title: "Pedidos",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
-              name={focused ? "heart" : "heart-outline"}
+              name={focused ? "receipt" : "receipt-outline"}
               color={color}
               focused={focused}
             />
           ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="favoritos"
+        options={{
+          // Sigue existiendo como ruta (se accede desde Perfil),
+          // pero ya no aparece como tab en la barra inferior.
+          href: null,
         }}
       />
 

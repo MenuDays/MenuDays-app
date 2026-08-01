@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { AppAlertProvider } from "./components/common/AppAlert";
 
 
 export default function RootLayout() {
@@ -10,10 +11,12 @@ export default function RootLayout() {
 //  }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-      }}
-    />
+    <AppAlertProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+        }}
+      />
+    </AppAlertProvider>
   );
 }

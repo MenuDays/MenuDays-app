@@ -13,6 +13,7 @@ import MapView, { Marker, Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { AppAlert } from "../common/AppAlert";
 
 // Coordenadas por defecto de Ecuador
 const ECUADOR_DEFAULT: Region = {
@@ -41,6 +42,13 @@ interface MapLocationPickerProps {
   onConfirm: (result: MapLocationResult) => void | Promise<void>;
   /** Ubicación inicial del marcador, si ya hay una elegida previamente */
   initialLocation?: { latitude: number; longitude: number } | null;
+  /**
+   * Coordenadas del centro de la ciudad elegida en los pasos anteriores
+   * (Provincia → Ciudad), ya resueltas por el backend (tabla ciudades).
+   * Si no hay initialLocation, se usan para centrar el mapa ahí en vez
+   * de en todo Ecuador -- sin geocoding, es directo.
+   */
+  cityCoords?: { latitude: number; longitude: number } | null;
 }
 
 export default function MapLocationPicker({
@@ -50,16 +58,23 @@ export default function MapLocationPicker({
   onBack,
   onConfirm,
   initialLocation,
+  cityCoords,
 }: MapLocationPickerProps) {
   const mapRef = useRef<MapView>(null);
-  const [region, setRegion] = useState<Region>(
-    initialLocation
-      ? { ...initialLocation, latitudeDelta: 0.005, longitudeDelta: 0.005 }
-      : ECUADOR_DEFAULT
-  );
+  const startingPoint = initialLocation ?? cityCoords ?? ECUADOR_DEFAULT;
+  const startingDelta = initialLocation
+    ? { latitudeDelta: 0.005, longitudeDelta: 0.005 }
+    : cityCoords
+      ? { latitudeDelta: 0.05, longitudeDelta: 0.05 }
+      : { latitudeDelta: ECUADOR_DEFAULT.latitudeDelta, longitudeDelta: ECUADOR_DEFAULT.longitudeDelta };
+  const [region, setRegion] = useState<Region>({
+    latitude: startingPoint.latitude,
+    longitude: startingPoint.longitude,
+    ...startingDelta,
+  });
   const [marker, setMarker] = useState({
-    latitude: initialLocation?.latitude ?? ECUADOR_DEFAULT.latitude,
-    longitude: initialLocation?.longitude ?? ECUADOR_DEFAULT.longitude,
+    latitude: startingPoint.latitude,
+    longitude: startingPoint.longitude,
   });
   const [address, setAddress] = useState("");
   const [loading, setLoading] = useState(true);
@@ -67,39 +82,40 @@ export default function MapLocationPicker({
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
-    // Si ya venía con una ubicación previa, no recentramos con el GPS
+    // Si ya venía con una ubicación previa, no preguntamos nada:
+    // solo geocodificamos esa ubicación y listo.
     if (initialLocation) {
       reverseGeocode(initialLocation.latitude, initialLocation.longitude);
       setLoading(false);
       return;
     }
-    requestLocationAndCenter();
+
+    // Sin ubicación previa: si hay coordenadas de la ciudad elegida,
+    // el mapa ya arrancó centrado ahí (ver startingPoint arriba).
+    // Solo resolvemos la dirección textual para mostrarla en el panel.
+    if (cityCoords) {
+      reverseGeocode(cityCoords.latitude, cityCoords.longitude);
+    }
+
+    setLoading(false);
+    promptLocationChoice();
   }, []);
 
-  async function requestLocationAndCenter() {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        const { latitude, longitude } = location.coords;
-        const newRegion = {
-          latitude,
-          longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        };
-        setRegion(newRegion);
-        setMarker({ latitude, longitude });
-        mapRef.current?.animateToRegion(newRegion, 800);
-        await reverseGeocode(latitude, longitude);
-      }
-    } catch (e) {
-      console.log("Error obteniendo ubicación:", e);
-    } finally {
-      setLoading(false);
-    }
+  function promptLocationChoice() {
+    AppAlert.alert(
+      "¿Cómo querés fijar tu ubicación?",
+      "Podés usar tu ubicación actual o elegirla manualmente en el mapa.",
+      [
+        {
+          text: "Elegir en el mapa",
+          style: "cancel",
+        },
+        {
+          text: "Usar mi ubicación actual",
+          onPress: handleMyLocation,
+        },
+      ]
+    );
   }
 
   async function reverseGeocode(lat: number, lng: number) {
@@ -129,6 +145,15 @@ export default function MapLocationPicker({
   async function handleMyLocation() {
     setLocating(true);
     try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        AppAlert.alert(
+          "Permiso denegado",
+          "No se pudo acceder a tu ubicación. Podés elegirla manualmente tocando el mapa."
+        );
+        return;
+      }
+
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
@@ -184,7 +209,7 @@ export default function MapLocationPicker({
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#F5A800" />
-            <Text style={styles.loadingText}>Obteniendo tu ubicación...</Text>
+            <Text style={styles.loadingText}>Cargando mapa...</Text>
           </View>
         ) : (
           <MapView

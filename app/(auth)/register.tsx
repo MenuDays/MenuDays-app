@@ -2,8 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ImageBackground, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthService from "../../services/auth.service";
+import { AppAlert } from "../components/common/AppAlert";
 
 export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
@@ -16,12 +18,12 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
   if (password !== confirmPassword) {
-    Alert.alert("Error", "Las contraseñas no coinciden.");
+    AppAlert.alert("Error", "Las contraseñas no coinciden.");
     return;
   }
 
   if (!acceptTerms) {
-    Alert.alert(
+    AppAlert.alert(
       "Error",
       "Debés aceptar los términos y condiciones."
     );
@@ -40,7 +42,7 @@ export default function RegisterScreen() {
 
     router.replace("/(province)");
   } catch (error: any) {
-    Alert.alert(
+    AppAlert.alert(
       "Error",
       error.message || "No se pudo registrar."
     );
@@ -48,7 +50,13 @@ export default function RegisterScreen() {
 }
 
   return (
-    <ScrollView style={styles.container} bounces={false}>
+    <KeyboardAwareScrollView
+      style={styles.container}
+      contentContainerStyle={{ flexGrow: 1 }}
+      bottomOffset={20}
+      bounces={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Parte superior */}
       <ImageBackground
         source={require('../../assets/images/splash.png')}
@@ -195,7 +203,7 @@ export default function RegisterScreen() {
           </Link>
         </View>
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

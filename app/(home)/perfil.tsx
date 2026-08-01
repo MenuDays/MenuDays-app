@@ -4,43 +4,51 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import UserService, { User } from "../../services/user.service";
 import AuthService from "../../services/auth.service";
-import { useDeviceLocation } from "../../hooks/useDeviceLocation";  
+import RestaurantRequestService, {
+  RestaurantRequestStatus,
+} from "../../services/restaurant-request.service";
+import { useDeviceLocation } from "../../hooks/useDeviceLocation";
 
-const { width } = Dimensions.get("window");
+import ProfileHero from "../components/profile/ProfileHero";
+import ProfileCard from "../components/profile/ProfileCard";
+import LocationCard from "../components/profile/LocationCard";
+import InfoRow from "../components/profile/InfoRow";
+import EditableRow from "../components/profile/EditableRow";
+import Divider from "../components/profile/Divider";
+import { AppAlert } from "../components/common/AppAlert";
 
 export default function PerfilScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  
+  const [requestStatus, setRequestStatus] =
+    useState<RestaurantRequestStatus | null>(null);
+  const [checkingRequest, setCheckingRequest] = useState(true);
+
   const {
     street: gpsStreet,
     cityProvince: gpsCityProvince,
     loading: locationLoading,
-  } = useDeviceLocation();
+  } = useDeviceLocation(user?.latitude, user?.longitude);
 
-  // Modo edición
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editLastName, setEditLastName] = useState("");
 
   useEffect(() => {
     loadUser();
-  }, []); 
+    checkRequestStatus();
+  }, []);
 
   async function loadUser() {
     try {
@@ -50,6 +58,17 @@ export default function PerfilScreen() {
       console.log("Error cargando usuario:", e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function checkRequestStatus() {
+    try {
+      const data = await RestaurantRequestService.getStatus();
+      setRequestStatus(data);
+    } catch {
+      setRequestStatus(null); // 404 = nunca solicitó
+    } finally {
+      setCheckingRequest(false);
     }
   }
 
@@ -68,7 +87,7 @@ export default function PerfilScreen() {
     if (!user) return;
 
     if (!editName.trim() || !editLastName.trim()) {
-      Alert.alert("Datos incompletos", "Completa nombre y apellido.");
+      AppAlert.alert("Datos incompletos", "Completa nombre y apellido.");
       return;
     }
 
@@ -84,15 +103,14 @@ export default function PerfilScreen() {
       setIsEditing(false);
     } catch (e) {
       console.log("Error guardando perfil:", e);
-      Alert.alert("Error", "No se pudo guardar el perfil. Intenta de nuevo.");
+      AppAlert.alert("Error", "No se pudo guardar el perfil. Intenta de nuevo.");
     } finally {
       setSaving(false);
     }
   }
 
-
   async function handleLogout() {
-    Alert.alert(
+    AppAlert.alert(
       "Cerrar sesión",
       "¿Estás seguro que querés salir?",
       [
@@ -114,6 +132,15 @@ export default function PerfilScreen() {
     );
   }
 
+  function handleRestaurantCardPress() {
+    if (checkingRequest) return;
+    if (!requestStatus) {
+      router.push("/(auth)/register-restaurant");
+      return;
+    }
+    router.push("/requestStatus");
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -124,127 +151,61 @@ export default function PerfilScreen() {
 
   if (!user) return null;
 
-  const streetLabel = gpsStreet;
   const cityProvinceLabel =
     gpsCityProvince ??
     (user.city?.name && user.province?.name
       ? `${user.city.name}, ${user.province.name}`
       : null);
 
-  const showPlaceholder = !streetLabel && !cityProvinceLabel;
+  const restaurantCardConfig = getRestaurantCardConfig(requestStatus);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
-        <LinearGradient
-          colors={["#FFB640", "#F58A07"]}
-          style={styles.header}
-        >
-          <Text style={styles.headerTitle}>Mi perfil</Text>
-
-          {/* Foto de perfil */}
-          <View style={styles.avatarContainer}>
-            {user.profilePhotoUrl ? (
-              <Image
-                source={{ uri: user.profilePhotoUrl }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarInitials}>
-                  {user.firstName[0]}{user.lastName[0]}
-                </Text>
-              </View>
-            )}
-            <TouchableOpacity style={styles.cameraButton}>
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.userName}>
-            {user.firstName} {user.lastName}
-          </Text>
-          <Text style={styles.userEmail}>{user.email}</Text>
-        </LinearGradient>
+        <ProfileHero
+          mode="avatar"
+          title={`${user.firstName} ${user.lastName}`}
+          subtitle={user.email}
+          photoUrl={user.profilePhotoUrl}
+          initials={`${user.firstName[0]}${user.lastName[0]}`}
+        />
 
         <View style={styles.content}>
 
-          {/* Información personal */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Información personal</Text>
-            {!isEditing && (
-              <TouchableOpacity
-                style={styles.inlineEditTrigger}
-                onPress={startEditing}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={16}
-                  color="#F5A800"
-                />
-                <Text style={styles.inlineEditTriggerText}>
-                  Editar
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.card}>
+          <ProfileCard
+            title="Información personal"
+            headerRight={
+              !isEditing && (
+                <TouchableOpacity style={styles.inlineEditTrigger} onPress={startEditing}>
+                  <Ionicons name="create-outline" size={16} color="#F5A800" />
+                  <Text style={styles.inlineEditTriggerText}>Editar</Text>
+                </TouchableOpacity>
+              )
+            }
+          >
             {isEditing ? (
               <>
-                <EditableRow
-                  icon="person-outline"
-                  label="Nombre"
-                  value={editName}
-                  onChangeText={setEditName}
-                  autoFocus
-                />
+                <EditableRow icon="person-outline" label="Nombre" value={editName} onChangeText={setEditName} autoFocus />
                 <Divider />
-                <EditableRow
-                  icon="person-outline"
-                  label="Apellido"
-                  value={editLastName}
-                  onChangeText={setEditLastName}
-                />
+                <EditableRow icon="person-outline" label="Apellido" value={editLastName} onChangeText={setEditLastName} />
                 <Divider />
-                <InfoRow
-                  icon="lock-closed-outline"
-                  label="Email"
-                  value={user.email}
-                />
+                <InfoRow icon="lock-closed-outline" label="Email" value={user.email} />
               </>
             ) : (
               <>
-                <InfoRow
-                  icon="person-outline"
-                  label="Nombre"
-                  value={user.firstName}
-                />
+                <InfoRow icon="person-outline" label="Nombre" value={user.firstName} />
                 <Divider />
-                <InfoRow
-                  icon="person-outline"
-                  label="Apellido"
-                  value={user.lastName}
-                />
+                <InfoRow icon="person-outline" label="Apellido" value={user.lastName} />
                 <Divider />
-                <InfoRow
-                  icon="mail-outline"
-                  label="Email"
-                  value={user.email}
-                />
+                <InfoRow icon="mail-outline" label="Email" value={user.email} />
               </>
             )}
-          </View>
+          </ProfileCard>
 
           {isEditing && (
             <View style={styles.editActionsRow}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={cancelEditing}
-                disabled={saving}
-              >
+              <TouchableOpacity style={styles.cancelButton} onPress={cancelEditing} disabled={saving}>
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
 
@@ -265,87 +226,60 @@ export default function PerfilScreen() {
             </View>
           )}
 
-          {/* Ubicación */}
           <Text style={styles.sectionTitle}>Ubicación</Text>
+          <LocationCard
+            primaryLabel={gpsStreet}
+            secondaryLabel={cityProvinceLabel}
+            loading={locationLoading}
+            onPressChange={() => router.push("/(province)")}
+          />
 
-          <View style={styles.card}>
-            <View style={styles.locationRow}>
-              <View style={styles.locationIcon}>
-                <Ionicons name="location" size={20} color="#F5A800" />
-              </View>
-
-              <View style={styles.locationInfo}>
-                {showPlaceholder ? (
-                  <Text style={styles.locationCity}>
-                    {locationLoading ? "Buscando..." : "Ubicación no disponible"}
-                  </Text>
-                ) : (
-                  <>
-                    {streetLabel && (
-                      <Text style={styles.locationCity} numberOfLines={1}>
-                        {streetLabel}
-                      </Text>
-                    )}
-                    {cityProvinceLabel && (
-                      <Text style={styles.locationAddress} numberOfLines={1}>
-                        {cityProvinceLabel}
-                      </Text>
-                    )}
-                  </>
-                )}
-              </View>
-
-              <TouchableOpacity
-                style={styles.editLocationButton}
-                onPress={() => router.push("/(province)")}
-              >
-                <Text style={styles.editLocationText}>Cambiar</Text>
-                <Ionicons name="chevron-forward" size={14} color="#F5A800" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Card registrar restaurante */}
           <TouchableOpacity
-            style={styles.restaurantCard}
-            onPress={() => router.push("/(auth)/register-restaurant")}
+            style={styles.menuRow}
             activeOpacity={0.85}
+            onPress={() => router.push("/(home)/favoritos")}
           >
-            <View style={styles.restaurantCardHeader}>
-              <View style={styles.restaurantIcon}>
-                <Ionicons name="storefront" size={22} color="#F5A800" />
+            <View style={styles.menuRowLeft}>
+              <View style={styles.menuRowIcon}>
+                <Ionicons name="heart-outline" size={20} color="#F5A800" />
               </View>
-              <View style={styles.restaurantCardText}>
-                <Text style={styles.restaurantCardTitle}>
-                  ¿Eres dueño de un negocio?
-                </Text>
-                <Text style={styles.restaurantCardSubtitle}>
-                  Quiero registrar mi restaurante
-                </Text>
-              </View>
+              <Text style={styles.menuRowText}>Favoritos</Text>
             </View>
-
-            <Text style={styles.restaurantCardBody}>
-              Únete a la red más grande de gastronomía en Ecuador. Completa
-              el formulario y solicita convertirte en un restaurante
-              verificado para llegar a miles de comensales.
-            </Text>
-
-            <LinearGradient
-              colors={["#FFB640", "#F58A07"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.restaurantButton}
-            >
-              <Text style={styles.restaurantButtonText}>
-                Registrar restaurante
-              </Text>
-            </LinearGradient>
+            <Ionicons name="chevron-forward" size={18} color="#BDBDBD" />
           </TouchableOpacity>
 
-          {/* Cerrar sesión */}
+          {!checkingRequest && (
+            <TouchableOpacity
+              style={styles.restaurantCard}
+              onPress={handleRestaurantCardPress}
+              activeOpacity={0.85}
+            >
+              <View style={styles.restaurantCardHeader}>
+                <View style={[styles.restaurantIcon, { backgroundColor: restaurantCardConfig.iconBg }]}>
+                  <Ionicons name={restaurantCardConfig.icon} size={22} color={restaurantCardConfig.iconColor} />
+                </View>
+                <View style={styles.restaurantCardText}>
+                  <Text style={styles.restaurantCardTitle}>{restaurantCardConfig.title}</Text>
+                  <Text style={[styles.restaurantCardSubtitle, { color: restaurantCardConfig.iconColor }]}>
+                    {restaurantCardConfig.subtitle}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.restaurantCardBody}>{restaurantCardConfig.body}</Text>
+
+              <LinearGradient
+                colors={restaurantCardConfig.buttonColors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.restaurantButton}
+              >
+                <Text style={styles.restaurantButtonText}>{restaurantCardConfig.buttonText}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            {/* ⬅️ onPress agregado */}
             <Ionicons name="log-out-outline" size={20} color="#F44336" />
             <Text style={styles.logoutText}>Cerrar sesión</Text>
           </TouchableOpacity>
@@ -356,71 +290,60 @@ export default function PerfilScreen() {
   );
 }
 
-// Componentes auxiliares
-function InfoRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <View style={styles.infoRow}>
-      <Ionicons
-        name={icon as any}
-        size={18}
-        color="#F5A800"
-        style={styles.infoIcon}
-      />
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  );
-}
+function getRestaurantCardConfig(requestStatus: RestaurantRequestStatus | null) {
+  if (!requestStatus) {
+    return {
+      icon: "storefront" as const,
+      iconBg: "#FFF9EC",
+      iconColor: "#F5A800",
+      title: "¿Eres dueño de un negocio?",
+      subtitle: "Quiero registrar mi restaurante",
+      body:
+        "Únete a la red más grande de gastronomía en Ecuador. Completa el formulario y solicita convertirte en un restaurante verificado para llegar a miles de comensales.",
+      buttonText: "Registrar restaurante",
+      buttonColors: ["#FFB640", "#F58A07"] as const,
+    };
+  }
 
-function EditableRow({
-  icon,
-  label,
-  value,
-  onChangeText,
-  autoFocus,
-  keyboardType,
-  autoCapitalize,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  autoFocus?: boolean;
-  keyboardType?: "default" | "email-address";
-  autoCapitalize?: "none" | "sentences" | "words" | "characters";
-}) {
-  return (
-    <View style={styles.infoRow}>
-      <Ionicons
-        name={icon as any}
-        size={18}
-        color="#F5A800"
-        style={styles.infoIcon}
-      />
-      <Text style={styles.infoLabel}>{label}</Text>
-      <TextInput
-        style={styles.infoInput}
-        value={value}
-        onChangeText={onChangeText}
-        autoFocus={autoFocus}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        placeholderTextColor="#BDBDBD"
-      />
-    </View>
-  );
-}
-
-function Divider() {
-  return <View style={styles.divider} />;
+  switch (requestStatus.status) {
+    case "pendiente":
+      return {
+        icon: "time" as const,
+        iconBg: "#FFF3E0",
+        iconColor: "#F5A800",
+        title: "Solicitud en revisión",
+        subtitle: "Estado: pendiente",
+        body: `Tu solicitud para "${requestStatus.restaurantName}" está siendo revisada por nuestro equipo. Te notificaremos cuando haya una respuesta.`,
+        buttonText: "Ver estado",
+        buttonColors: ["#FFB640", "#F58A07"] as const,
+      };
+    case "aprobada":
+      return {
+        icon: "checkmark-circle" as const,
+        iconBg: "#E8F5E9",
+        iconColor: "#4CAF50",
+        title: "¡Solicitud aprobada!",
+        subtitle: "Ya eres restaurante",
+        body: `Tu solicitud para "${requestStatus.restaurantName}" fue aprobada. Cerrá sesión y volvé a ingresar para acceder al panel de restaurante.`,
+        buttonText: "Ver estado",
+        buttonColors: ["#66BB6A", "#43A047"] as const,
+      };
+    case "rechazada":
+    default:
+      return {
+        icon: "close-circle" as const,
+        iconBg: "#FFEBEE",
+        iconColor: "#E53935",
+        title: "Solicitud rechazada",
+        subtitle: "Podés volver a intentarlo",
+        body:
+          requestStatus.adminObservations
+            ? `Motivo: ${requestStatus.adminObservations}`
+            : "Tu solicitud anterior no fue aprobada. Podés revisar los detalles y enviar una nueva solicitud.",
+        buttonText: "Ver detalle",
+        buttonColors: ["#EF5350", "#E53935"] as const,
+      };
+  }
 }
 
 const styles = StyleSheet.create({
@@ -434,66 +357,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  header: {
-    alignItems: "center",
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 20,
-  },
-  avatarContainer: {
-    position: "relative",
-    marginBottom: 12,
-  },
-  avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  avatarPlaceholder: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  avatarInitials: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  cameraButton: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#F58A07",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-  },
   content: {
     backgroundColor: "#F8F8F8",
     borderTopLeftRadius: 28,
@@ -502,20 +365,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 24,
     paddingBottom: 40,
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 10,
-    marginTop: 4,
   },
   inlineEditTrigger: {
     flexDirection: "row",
@@ -526,50 +375,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#F5A800",
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-  },
-  infoIcon: {
-    marginRight: 12,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: "#757575",
-    width: 80,
-  },
-  infoValue: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1A1A1A",
-    textAlign: "right",
-  },
-  infoInput: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1A1A1A",
-    textAlign: "right",
-    paddingVertical: 0,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#F5F5F5",
   },
   editActionsRow: {
     flexDirection: "row",
@@ -607,42 +412,45 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFFFFF",
   },
-  locationRow: {
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  menuRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  locationIcon: {
+  menuRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  menuRowIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     backgroundColor: "#FFF9EC",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
-  locationInfo: {
-    flex: 1,
-  },
-  locationCity: {
+  menuRowText: {
     fontSize: 15,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  locationAddress: {
-    fontSize: 13,
-    color: "#757575",
-    marginTop: 4,
-  },
-  editLocationButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  editLocationText: {
-    fontSize: 13,
-    color: "#F5A800",
     fontWeight: "600",
+    color: "#1A1A1A",
   },
   restaurantCard: {
     backgroundColor: "#FFFFFF",
@@ -681,6 +489,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#F5A800",
     marginTop: 2,
+    fontWeight: "600",
   },
   restaurantCardBody: {
     fontSize: 14,

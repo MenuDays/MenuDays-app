@@ -9,7 +9,6 @@ import {
   Image,
   Modal,
   FlatList,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -21,6 +20,7 @@ import LocationService, { City } from '../../services/location.service';
 import RestaurantLocationPickerBridge from '../../services/restaurantLocationPicker.bridge';
 import { api } from '../../services/api';
 import * as ImagePicker from 'expo-image-picker';
+import { AppAlert } from "../components/common/AppAlert";
 
 interface CountryCode {
   code: string; // ISO
@@ -128,7 +128,7 @@ export default function RegisterRestaurantScreen() {
   async function pickLogo() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permiso necesario', 'Necesitamos acceso a tus fotos para el logo.');
+      AppAlert.alert('Permiso necesario', 'Necesitamos acceso a tus fotos para el logo.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -143,7 +143,7 @@ export default function RegisterRestaurantScreen() {
   async function pickDocument(side: 'front' | 'back') {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permiso necesario', 'Necesitamos acceso a la cámara para la cédula.');
+      AppAlert.alert('Permiso necesario', 'Necesitamos acceso a la cámara para la cédula.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
@@ -176,22 +176,22 @@ export default function RegisterRestaurantScreen() {
 
   async function handleSubmit() {
     if (!restaurantName.trim() || !province || !city || !phone.trim()) {
-      Alert.alert('Campos incompletos', 'Completa nombre, provincia, ciudad y teléfono.');
+      AppAlert.alert('Campos incompletos', 'Completa nombre, provincia, ciudad y teléfono.');
       return;
     }
 
     if (!location) {
-      Alert.alert('Ubicación requerida', 'Seleccioná la ubicación del restaurante en el mapa.');
+      AppAlert.alert('Ubicación requerida', 'Seleccioná la ubicación del restaurante en el mapa.');
       return;
     }
 
     if (!logo) {
-      Alert.alert('Logo requerido', 'Subí el logo de tu restaurante.');
+      AppAlert.alert('Logo requerido', 'Subí el logo de tu restaurante.');
       return;
     }
 
     if (!idFront || !idBack) {
-      Alert.alert('Documentos requeridos', 'Subí el frente y el dorso de tu cédula.');
+      AppAlert.alert('Documentos requeridos', 'Subí el frente y el dorso de tu cédula.');
       return;
     }
 
@@ -242,11 +242,11 @@ export default function RegisterRestaurantScreen() {
         body: formData,
       });
 
-      Alert.alert('Solicitud enviada', 'Tu solicitud fue enviada y está en revisión.');
+      AppAlert.alert('Solicitud enviada', 'Tu solicitud fue enviada y está en revisión.');
       router.back();
     } catch (e: any) {
       console.log('Error registrando restaurante:', e);
-      Alert.alert('Error', e.message || 'No se pudo enviar la solicitud.');
+      AppAlert.alert('Error', e.message || 'No se pudo enviar la solicitud.');
     } finally {
       setSubmitting(false);
     }

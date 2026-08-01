@@ -4,7 +4,6 @@ import { Link, router } from "expo-router";
 import LottieView from 'lottie-react-native';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Dimensions,
   ImageBackground,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthService from "../../services/auth.service";
+import { AppAlert } from "../components/common/AppAlert";
 
 const { width } = Dimensions.get('window');
 
@@ -75,7 +75,7 @@ export default function LoginScreen() {
         router.replace("/(province)");
       }
     } catch (error: any) {
-      Alert.alert(
+      AppAlert.alert(
         "Error",
         error.message || "No se pudo iniciar sesión."
       );

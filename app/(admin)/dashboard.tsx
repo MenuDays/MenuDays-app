@@ -1,33 +1,26 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ImageBackground,
   Dimensions,
+  Animated,
+  Easing,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import WaveTop from "../components/home/WaveTop";
+import AdminBottomNav from "../components/admin/AdminBottomNav";
+import OverviewCard from "../components/admin/OverviewCard";
+import StatCard from "../components/admin/StatCard";
+import RankingCard from "../components/admin/RankingCard";
+import { StatCardData, RankingRow } from "../components/admin/types";
 
 const { width } = Dimensions.get("screen");
-
-type Breakdown = { label: string; value: number; color: string };
-
-type StatCardData = {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  value: string;
-  breakdown?: Breakdown[];
-  subtitle?: string;
-};
 
 const STATS: StatCardData[] = [
   {
@@ -39,12 +32,16 @@ const STATS: StatCardData[] = [
       { label: "Suspendidos", value: 2, color: "#F5A800" },
       { label: "Eliminados", value: 3, color: "#E53935" },
     ],
+    trend: "+8%",
+    trendPositive: true,
   },
   {
     icon: "people",
     title: "Comensales",
     value: "1500",
     subtitle: "Registrados en total",
+    trend: "+12%",
+    trendPositive: true,
   },
   {
     icon: "clipboard",
@@ -55,16 +52,22 @@ const STATS: StatCardData[] = [
       { label: "Pendientes", value: 1, color: "#F5A800" },
       { label: "Rechazadas", value: 7, color: "#E53935" },
     ],
+    trend: "+18%",
+    trendPositive: true,
   },
   {
     icon: "alert-circle",
     title: "Reportes",
     value: "7",
     subtitle: "Registrados en total",
+    trend: "3 nuevos",
+    trendPositive: false,
   },
 ];
 
-type RankingRow = { position: number; name: string; value: number };
+// Mock: reemplazar con data real del backend
+const WEEKLY_REQUESTS = [4, 7, 5, 9, 6, 11, 8];
+const WEEKLY_LABELS = ["L", "M", "M", "J", "V", "S", "D"];
 
 const TOP_REPORTS: RankingRow[] = [
   { position: 1, name: "Restaurante", value: 7 },
@@ -82,462 +85,233 @@ const TOP_REVIEWS: RankingRow[] = [
   { position: 5, name: "Restaurante", value: 113 },
 ];
 
-const RANK_COLORS = ["#F5A800", "#1A1A1A", "#E53935", "#F5C518", "#BDBDBD"];
-
-const NAV_ITEMS = [
-  { icon: "home" as const, label: "Inicio", route: "/(admin)/dashboard" },
-  { icon: "clipboard-outline" as const, label: "Solicitudes", route: "/(admin)/solicitudes" },
-  { icon: "shield-checkmark-outline" as const, label: "Moderación", route: "/(admin)/moderacion" },
-  { icon: "person-outline" as const, label: "Perfil", route: "/(admin)/perfil" },
-];
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Buenos días";
+  if (hour < 19) return "Buenas tardes";
+  return "Buenas noches";
+}
 
 export default function AdminDashboard() {
-  // insets.top = alto real de la barra de estado en este dispositivo
   const insets = useSafeAreaInsets();
+  const greeting = getGreeting();
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
+  const heroScale = useRef(new Animated.Value(0.96)).current;
+  const headerFadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Pulso real de la pill "En vivo" — antes era decorativa, ahora
+  // transmite que los datos se están actualizando de verdad.
+  const livePulseAnim = useRef(new Animated.Value(1)).current;
+
+  const cardAnims = useRef(
+    STATS.map(() => ({
+      opacity: new Animated.Value(0),
+      translateY: new Animated.Value(20),
+    }))
+  ).current;
+
+  const rankingAnims = useRef([
+    { opacity: new Animated.Value(0), translateY: new Animated.Value(18) },
+    { opacity: new Animated.Value(0), translateY: new Animated.Value(18) },
+  ]).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 450, useNativeDriver: true }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(heroScale, { toValue: 1, friction: 8, tension: 55, useNativeDriver: true }),
+      Animated.timing(headerFadeAnim, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
+    ]).start();
+
+    Animated.stagger(
+      75,
+      cardAnims.map((anim) =>
+        Animated.parallel([
+          Animated.timing(anim.opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(anim.translateY, {
+            toValue: 0,
+            duration: 450,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ).start();
+
+    Animated.stagger(
+      120,
+      rankingAnims.map((anim) =>
+        Animated.parallel([
+          Animated.timing(anim.opacity, { toValue: 1, duration: 450, useNativeDriver: true }),
+          Animated.timing(anim.translateY, {
+            toValue: 0,
+            duration: 450,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulseAnim, {
+          toValue: 1.3,
+          duration: 850,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(livePulseAnim, {
+          toValue: 1,
+          duration: 850,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   return (
-    // View normal en vez de SafeAreaView: dejamos que el header naranja
-    // pinte hasta el borde superior real de la pantalla (full-bleed)
     <View style={styles.container}>
-      {/* Iconos de la barra de estado en blanco, para que combinen con el naranja */}
       <StatusBar style="light" />
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-
-        {/* Header con imagen (mismo patrón que RestaurantDashboard) */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* HEADER */}
         <View style={styles.headerWrapper}>
           <ImageBackground
             source={require("../../assets/images/restauranteHeader.png")}
-            style={[
-              styles.headerImage,
-              {
-                // el header crece exactamente lo que mide la barra de estado,
-                // así queda naranja también detrás del reloj/batería
-                height: 190 + insets.top,
-                paddingTop: insets.top + 16,
-              },
-            ]}
+            style={[styles.headerImage, { height: 190 + insets.top, paddingTop: insets.top + 16 }]}
             resizeMode="cover"
           >
-            <View style={styles.headerContent}>
+            <LinearGradient
+              colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.5)"]}
+              style={StyleSheet.absoluteFill}
+            />
+
+            <Animated.View style={{ opacity: headerFadeAnim, gap: 4 }}>
               <Text style={styles.headerBrand}>MenuDays</Text>
-              <Text style={styles.headerWelcome}>¡Bienvenido, Admin!</Text>
-            </View>
+              <Text style={styles.headerGreeting}>{greeting}</Text>
+              <Text style={styles.headerWelcome}>Panel de administración</Text>
+            </Animated.View>
           </ImageBackground>
 
-          {/* Onda blanca reutilizada, anclada siempre al borde inferior real
-              del header (no importa cuánto mida el header en cada equipo) */}
           <View style={styles.waveWrapper}>
             <WaveTop />
           </View>
         </View>
 
-        {/* Contenido */}
-        <View style={styles.content}>
+        <Animated.View
+          style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+        >
+          <OverviewCard
+            totalLabel="Solicitudes esta semana"
+            totalValue={43}
+            growthLabel="+18%"
+            weeklyData={WEEKLY_REQUESTS}
+            weeklyLabels={WEEKLY_LABELS}
+            scaleAnim={heroScale}
+          />
 
-          {/* Stats 2x2 con desglose */}
+          <View style={styles.sectionHeadingRow}>
+            <View>
+              <Text style={styles.sectionEyebrow}>RESUMEN</Text>
+              <Text style={styles.sectionTitle}>Vista general</Text>
+            </View>
+
+            <View style={styles.overviewPill}>
+              <Animated.View style={{ transform: [{ scale: livePulseAnim }] }}>
+                <Ionicons name="ellipse" size={8} color="#F5A800" />
+              </Animated.View>
+              <Text style={styles.overviewPillText}>En vivo</Text>
+            </View>
+          </View>
+
           <View style={styles.statsGrid}>
             {STATS.map((stat, i) => (
-              <View key={i} style={styles.statCard}>
-                <View style={styles.statIconCircle}>
-                  <Ionicons name={stat.icon} size={20} color="#FFFFFF" />
-                </View>
-
-                <Text style={styles.statTitle}>{stat.title}</Text>
-                <Text style={styles.statValue}>{stat.value}</Text>
-
-                {stat.breakdown ? (
-                  <View style={styles.breakdownList}>
-                    {stat.breakdown.map((b, j) => (
-                      <View key={j} style={styles.breakdownRow}>
-                        <View style={styles.breakdownLeft}>
-                          <View
-                            style={[
-                              styles.breakdownDot,
-                              { backgroundColor: b.color },
-                            ]}
-                          />
-                          <Text style={styles.breakdownLabel}>{b.label}</Text>
-                        </View>
-                        <Text style={styles.breakdownValue}>{b.value}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={styles.statSubtitle}>{stat.subtitle}</Text>
-                )}
-              </View>
+              <StatCard
+                key={i}
+                stat={stat}
+                opacity={cardAnims[i].opacity}
+                translateY={cardAnims[i].translateY}
+              />
             ))}
           </View>
 
-          {/* Ranking de restaurantes */}
-          <Text style={styles.sectionTitleCentered}>
-            Ranking de restaurantes
-          </Text>
+          <View style={styles.sectionHeadingRowRanking}>
+            <Text style={styles.sectionEyebrow}>PERFORMANCE</Text>
+            <Text style={styles.sectionTitle}>Restaurantes destacados</Text>
+          </View>
 
-          <RankingCard
-            title="Top restaurantes por reportes"
-            color="#E53935"
-            columnLabel="Reportes"
-            linkText="Ver todos los reportes"
-            data={TOP_REPORTS}
-          />
+          <Animated.View
+            style={{ opacity: rankingAnims[0].opacity, transform: [{ translateY: rankingAnims[0].translateY }] }}
+          >
+            <RankingCard
+              title="Top restaurantes por reportes"
+              subtitle="Los que requieren mayor atención"
+              icon="flag"
+              color="#E53935"
+              columnLabel="Reportes"
+              linkText="Ver todos los reportes"
+              data={TOP_REPORTS}
+            />
+          </Animated.View>
 
-          <RankingCard
-            title="Top restaurantes por Reseñas"
-            color="#F5A800"
-            columnLabel="Reseñas"
-            linkText="Ver todas las reseñas"
-            data={TOP_REVIEWS}
-          />
-
-        </View>
+          <Animated.View
+            style={{ opacity: rankingAnims[1].opacity, transform: [{ translateY: rankingAnims[1].translateY }] }}
+          >
+            <RankingCard
+              title="Top restaurantes por reseñas"
+              subtitle="Los que generan mayor actividad"
+              icon="star"
+              color="#F5A800"
+              columnLabel="Reseñas"
+              linkText="Ver todas las reseñas"
+              data={TOP_REVIEWS}
+            />
+          </Animated.View>
+        </Animated.View>
       </ScrollView>
 
-      {/* Nav bar */}
-      <SafeAreaView edges={["bottom"]} style={styles.navBarSafeArea}>
-        <View style={styles.navBar}>
-          {NAV_ITEMS.map((item) => (
-            <NavItem
-              key={item.route}
-              icon={item.icon}
-              label={item.label}
-              active={item.route === "/(admin)/dashboard"}
-              onPress={() => router.push(item.route as any)}
-            />
-          ))}
-        </View>
-      </SafeAreaView>
-
+      <AdminBottomNav />
     </View>
-  );
-}
-
-function RankingCard({
-  title,
-  color,
-  columnLabel,
-  linkText,
-  data,
-}: {
-  title: string;
-  color: string;
-  columnLabel: string;
-  linkText: string;
-  data: RankingRow[];
-}) {
-  return (
-    <View style={styles.rankingCard}>
-      <View style={[styles.rankingHeader, { backgroundColor: color }]}>
-        <Ionicons name="flag" size={16} color="#FFFFFF" />
-        <Text style={styles.rankingHeaderText}>{title}</Text>
-      </View>
-
-      <View style={styles.rankingBody}>
-        <View style={styles.rankingTableHeader}>
-          <Text style={styles.rankingTableHeaderCol}>#</Text>
-          <Text style={[styles.rankingTableHeaderCol, styles.rankingNameCol]}>
-            Restaurante
-          </Text>
-          <Text style={styles.rankingTableHeaderCol}>{columnLabel}</Text>
-        </View>
-
-        {data.map((row) => (
-          <View key={row.position} style={styles.rankingRow}>
-            <View style={styles.rankingPositionCell}>
-              <View
-                style={[
-                  styles.rankingBadge,
-                  {
-                    backgroundColor:
-                      RANK_COLORS[(row.position - 1) % RANK_COLORS.length],
-                  },
-                ]}
-              >
-                <Ionicons name="restaurant" size={11} color="#FFFFFF" />
-              </View>
-              <Text style={styles.rankingPositionText}>{row.position}</Text>
-            </View>
-            <Text style={[styles.rankingName, styles.rankingNameCol]}>
-              {row.name}
-            </Text>
-            <Text style={styles.rankingValue}>{row.value}</Text>
-          </View>
-        ))}
-
-        <TouchableOpacity>
-          <Text style={[styles.rankingLink, { color }]}>{linkText}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-function NavItem({
-  icon,
-  label,
-  active,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  active?: boolean;
-  onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity style={styles.navItem} onPress={onPress}>
-      <Ionicons
-        name={icon}
-        size={24}
-        color={active ? "#F5A800" : "#9E9E9E"}
-      />
-      <Text style={[styles.navLabel, active && styles.navLabelActive]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  headerWrapper: {
-    width: width,
-    position: "relative",
-  },
-  waveWrapper: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  headerImage: {
-    width: width,
-    justifyContent: "flex-start",
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    gap: 4,
-  },
-  headerBrand: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  headerWelcome: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.9)",
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 100,
-  },
-
-  // Stats
-  statsGrid: {
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  scrollContent: { paddingBottom: 100 },
+  headerWrapper: { width: width, position: "relative" },
+  waveWrapper: { position: "absolute", bottom: 0, left: 0, right: 0 },
+  headerImage: { width: width, justifyContent: "flex-start", paddingHorizontal: 20 },
+  headerBrand: { fontSize: 15, fontWeight: "800", color: "rgba(255,255,255,0.85)", letterSpacing: 1 },
+  headerGreeting: { fontSize: 15, color: "rgba(255,255,255,0.85)", fontWeight: "500", marginTop: 8 },
+  headerWelcome: { fontSize: 26, fontWeight: "900", color: "#FFFFFF", letterSpacing: -0.3 },
+  content: { paddingHorizontal: 16, paddingTop: 20 },
+  sectionHeadingRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 8,
-  },
-  statCard: {
-    width: (width - 44) / 2,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "flex-start",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  statIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F5A800",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  statTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  statValue: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#F5A800",
-    marginTop: 4,
-  },
-  statSubtitle: {
-    fontSize: 12,
-    color: "#9E9E9E",
-    marginTop: 6,
-  },
-  breakdownList: {
-    marginTop: 10,
-    gap: 4,
-    width: "100%",
-  },
-  breakdownRow: {
-    flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 13,
   },
-  breakdownLeft: {
+  sectionHeadingRowRanking: { marginTop: 8, marginBottom: 13 },
+  sectionEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: "#B0B0B0", marginBottom: 3 },
+  sectionTitle: { fontSize: 21, fontWeight: "900", color: "#1A1A1A" },
+  overviewPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "#FFF6E2",
   },
-  breakdownDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  breakdownLabel: {
-    fontSize: 11,
-    color: "#757575",
-  },
-  breakdownValue: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-
-  // Section title
-  sectionTitleCentered: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    textAlign: "center",
-    marginTop: 24,
-    marginBottom: 16,
-  },
-
-  // Ranking cards
-  rankingCard: {
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: "#FFFFFF",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  rankingHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  rankingHeaderText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  rankingBody: {
-    padding: 16,
-  },
-  rankingTableHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  rankingTableHeaderCol: {
-    fontSize: 11,
-    color: "#9E9E9E",
-    width: 60,
-  },
-  rankingNameCol: {
-    flex: 1,
-    width: undefined,
-  },
-  rankingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-  },
-  rankingPositionCell: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    width: 60,
-  },
-  rankingBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankingPositionText: {
-    fontSize: 13,
-    color: "#1A1A1A",
-  },
-  rankingName: {
-    fontSize: 13,
-    color: "#1A1A1A",
-  },
-  rankingValue: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    width: 60,
-    textAlign: "right",
-  },
-  rankingLink: {
-    fontSize: 12,
-    fontWeight: "700",
-    textAlign: "center",
-    marginTop: 12,
-  },
-
-  // Nav bar
-  navBarSafeArea: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "transparent",
-  },
-  navBar: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    marginHorizontal: 10,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -3 },
-    elevation: 10,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-  },
-  navLabel: {
-    fontSize: 11,
-    color: "#9E9E9E",
-    fontWeight: "500",
-  },
-  navLabelActive: {
-    color: "#F5A800",
-    fontWeight: "700",
-  },
+  overviewPillText: { fontSize: 10, fontWeight: "800", color: "#F5A800" },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 25 },
 });

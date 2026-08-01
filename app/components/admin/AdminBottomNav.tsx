@@ -18,7 +18,6 @@ const ITEMS: NavItem[] = [
   { label: "Perfil", icon: "person-outline", activeIcon: "person", route: "/(admin)/perfil" },
 ];
 
-// Saca los segmentos de grupo "(algo)" para poder comparar contra usePathname()
 function stripGroups(route: string) {
   return route
     .split("/")
@@ -42,12 +41,15 @@ export default function AdminBottomNav() {
               key={item.route}
               style={styles.item}
               onPress={() => router.push(item.route as any)}
+              activeOpacity={0.75}
             >
-              <Ionicons
-                name={(isActive ? item.activeIcon : item.icon) as any}
-                size={24}
-                color={isActive ? "#F5A800" : "#9E9E9E"}
-              />
+              <View style={[styles.iconWrap, isActive && styles.iconWrapActive]}>
+                <Ionicons
+                  name={(isActive ? item.activeIcon : item.icon) as any}
+                  size={22}
+                  color={isActive ? "#F5A800" : "#9E9E9E"}
+                />
+              </View>
               <Text style={[styles.label, isActive && styles.labelActive]}>
                 {item.label}
               </Text>
@@ -71,29 +73,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 8,
     marginHorizontal: 10,
     marginBottom: 10,
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
     elevation: 10,
   },
   item: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 2,
+  },
+  iconWrap: {
+    width: 38,
+    height: 28,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconWrapActive: {
+    backgroundColor: "#FFF6E2",
   },
   label: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#9E9E9E",
     fontWeight: "500",
   },
   labelActive: {
     color: "#F5A800",
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });

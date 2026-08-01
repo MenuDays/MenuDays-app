@@ -17,7 +17,7 @@ import WaveBottom from '../components/home/WaveBottom';
 import WaveTop from '../components/home/WaveTop';
 import Colors from '../../constants/Colors'; // ajustá el path si tu estructura es distinta
 import UserService, { User } from '../../services/user.service';
-import { useDeviceLocation } from '../../hooks/useDeviceLocation'; // ⬅️ nuevo, mismo hook que en perfil.tsx
+import { useDeviceLocation } from '../../hooks/useDeviceLocation';
 
 const C = Colors.light; // por ahora fijo en light, luego se puede swapear con useColorScheme
 
@@ -81,13 +81,17 @@ const MENUS = [
 export default function HomeScreen() {
   const [user, setUser] = useState<User | null>(null);
 
-  // ⬅️ Ubicación GPS ahora viene del hook compartido (evita la carrera con Perfil)
-  const { street, cityProvince, loading: locationLoading } = useDeviceLocation();
+  // Ubicación reverse-geocodeada a partir de la lat/lng GUARDADA
+  // en el perfil (la que se fijó en el mapa), NO del GPS en vivo.
+  const { street, cityProvince, loading: locationLoading } = useDeviceLocation(
+    user?.latitude,
+    user?.longitude
+  );
   const gpsAddress = [street, cityProvince].filter(Boolean).join(', ') || null;
 
   useEffect(() => {
     loadUser();
-  }, []); // ⬅️ ya no llama a loadGpsLocation, eso lo maneja el hook
+  }, []);
 
   async function loadUser() {
     try {
@@ -99,10 +103,10 @@ export default function HomeScreen() {
     }
   }
 
-  // Texto a mostrar en el pill: primero la dirección exacta por GPS
-  // (calle, ciudad, provincia); si no hay permiso o falló, cae a la
-  // ciudad guardada en el perfil; si tampoco hay, muestra un placeholder
-  // (el backend traduce ciudad.nombre -> city.name en buildProfileResponse)
+  // Texto a mostrar en el pill: primero la dirección exacta reverse-geocodeada
+  // a partir de la ubicación guardada en el perfil; si no hay coords guardadas
+  // o falló el geocoding, cae a la ciudad guardada en el perfil; si tampoco
+  // hay, muestra un placeholder.
   const locationLabel =
     gpsAddress ?? user?.city?.name ?? (locationLoading ? 'Buscando...' : 'Ubicación');
 
