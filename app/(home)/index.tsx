@@ -8,6 +8,7 @@ import {
   TextInput,
   Image,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,17 +18,17 @@ import WaveBottom from '../components/home/WaveBottom';
 import WaveTop from '../components/home/WaveTop';
 import Colors from '../../constants/Colors'; // ajustá el path si tu estructura es distinta
 import UserService, { User } from '../../services/user.service';
+import CategoryService, { Category } from '../../services/category.service';
 import { useDeviceLocation } from '../../hooks/useDeviceLocation';
 
 const C = Colors.light; // por ahora fijo en light, luego se puede swapear con useColorScheme
 
-const CATEGORIES = [
-  { id: 1, name: 'Ejecutivo', image:  require('../../assets/images/ejecutivo.png') },
-  { id: 2, name: 'Mariscos', image: require('../../assets/images/mariscos.png') },
-  { id: 3, name: 'Parillas', image: require('../../assets/images/parrillas.png') },
-  { id: 4, name: 'Sopas', image: require('../../assets/images/sopas.png') },
-  { id: 5, name: 'Pollo', image: require('../../assets/images/pollo.png') },
-];
+// Categorías: vienen del back (GET /categories), con el ícono en
+// item.iconos.url. El back las devuelve ordenadas alfabéticamente, así
+// que acá se buscan por nombre las 5 curadas para Inicio (mismas que
+// antes eran hardcodeadas) y se conservan en este orden. El resto de
+// las categorías se ve en la pantalla "Explorar" (grilla completa).
+const HOME_CATEGORY_NAMES = ['Ejecutivo', 'Mariscos', 'Parrillas', 'Sopas', 'Pollo'];
 
 const RESTAURANTS = [
   { id: 1, name: 'El Banquito', logo: require('../../assets/images/logo-banquito.jpg') },
@@ -80,6 +81,8 @@ const MENUS = [
 
 export default function HomeScreen() {
   const [user, setUser] = useState<User | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   // Ubicación reverse-geocodeada a partir de la lat/lng GUARDADA
   // en el perfil (la que se fijó en el mapa), NO del GPS en vivo.
@@ -91,6 +94,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadUser();
+    loadCategories();
   }, []);
 
   async function loadUser() {
@@ -102,6 +106,24 @@ export default function HomeScreen() {
       console.log('[HomeScreen] ERROR cargando usuario:', e);
     }
   }
+
+  async function loadCategories() {
+    try {
+      const data = await CategoryService.getAll();
+      setCategories(data);
+    } catch (e) {
+      console.log('[HomeScreen] ERROR cargando categorías:', e);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }
+
+  // Las 5 curadas de Inicio, en el orden fijo de HOME_CATEGORY_NAMES
+  // (no las primeras 5 alfabéticas que devuelve el back). Si alguna
+  // todavía no existe en el back, simplemente no se muestra.
+  const homeCategories = HOME_CATEGORY_NAMES.map((name) =>
+    categories.find((c) => c.nombre.toLowerCase() === name.toLowerCase())
+  ).filter((c): c is Category => !!c);
 
   // Texto a mostrar en el pill: primero la dirección exacta reverse-geocodeada
   // a partir de la ubicación guardada en el perfil; si no hay coords guardadas
@@ -134,39 +156,65 @@ export default function HomeScreen() {
             <View style={styles.divider} />
 
             {/* Categorías */}
-            <View style={styles.categoriesGrid}>
-              <View style={styles.categoriesRow}>
-                {CATEGORIES.slice(0, 3).map(cat => (
-                  <TouchableOpacity key={cat.id} style={styles.categoryItem}>
-                    <View style={styles.categoryCircle}>
-                      <Image source={cat.image} style={styles.categoryImage} />
-                    </View>
-                    <View style={styles.categoryPill}>
-                      <Text style={styles.categoryName}>{cat.name}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+            {categoriesLoading ? (
+              <View style={styles.categoriesLoadingWrap}>
+                <ActivityIndicator size="small" color={C.text} />
               </View>
-              <View style={styles.categoriesRow}>
-                {CATEGORIES.slice(3, 5).map(cat => (
-                  <TouchableOpacity key={cat.id} style={styles.categoryItem}>
-                    <View style={styles.categoryCircle}>
-                      <Image source={cat.image} style={styles.categoryImage} />
-                    </View>
-                    <View style={styles.categoryPill}>
-                      <Text style={styles.categoryName}>{cat.name}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+            ) : (
+              <View style={styles.categoriesGrid}>
+                <View style={styles.categoriesRow}>
+                  {homeCategories.slice(0, 3).map(cat => (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={styles.categoryItem}
+                      onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre } })}
+                    >
+                      <View style={styles.categoryCircle}>
+                        {cat.iconos?.url ? (
+                          <Image source={{ uri: cat.iconos.url }} style={styles.categoryImage} />
+                        ) : (
+                          <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
+                            <Ionicons name="restaurant-outline" size={28} color="#BDBDBD" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.categoryPill}>
+                        <Text style={styles.categoryName}>{cat.nombre}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.categoriesRow}>
+                  {homeCategories.slice(3, 5).map(cat => (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={styles.categoryItem}
+                      onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre } })}
+                    >
+                      <View style={styles.categoryCircle}>
+                        {cat.iconos?.url ? (
+                          <Image source={{ uri: cat.iconos.url }} style={styles.categoryImage} />
+                        ) : (
+                          <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
+                            <Ionicons name="restaurant-outline" size={28} color="#BDBDBD" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.categoryPill}>
+                        <Text style={styles.categoryName}>{cat.nombre}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
 
           </View>
 
           <WaveBottom />
 
           <View style={styles.verTodosContainer}>
-            <TouchableOpacity style={styles.verTodosButton}>
+            <TouchableOpacity style={styles.verTodosButton} onPress={() => router.push('/(home)/explorar')}>
               <Text style={styles.verTodosText}>Ver todas</Text>
             </TouchableOpacity>
           </View>
@@ -241,9 +289,6 @@ export default function HomeScreen() {
                   <View style={styles.menuHeader}>
                     <Image source={menu.logo} style={styles.menuLogo} />
                     <Text style={styles.restaurantName}>{menu.restaurant}</Text>
-                    <TouchableOpacity style={styles.favoriteButton}>
-                      <Ionicons name="heart-outline" size={18} color={C.placeholder} />
-                    </TouchableOpacity>
                   </View>
 
                   <Text style={styles.dishName}>{menu.dish}</Text>
@@ -311,6 +356,8 @@ const styles = StyleSheet.create({
   borderColor: Colors.light.primaryDark,
 },
   categoryImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  categoryImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5' },
+  categoriesLoadingWrap: { paddingVertical: 30, alignItems: 'center' },
   categoryPill: {
     backgroundColor: Colors.light.background,
     borderRadius: 12,
@@ -428,7 +475,6 @@ verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700'
   menuHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   menuLogo: { width: 24, height: 24, borderRadius: 12, resizeMode: 'contain' },
   restaurantName: { fontSize: 13, color: Colors.light.textSecondary, flex: 1 },
-  favoriteButton: { padding: 2 },
   dishName: { fontSize: 15, fontWeight: 'bold', color: Colors.light.text, marginBottom: 2 },
   dishDescription: { fontSize: 12, color: Colors.light.placeholder },
   menuMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },

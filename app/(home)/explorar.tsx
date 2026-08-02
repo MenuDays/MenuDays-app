@@ -1,55 +1,51 @@
-import React from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  ImageBackground,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+
+import CategoryService, { Category } from "../../services/category.service";
 
 // Tab "Explorar": grilla de categorías. Al tocar una, se navega a
 // explorar-resultados.tsx (buscador + filtros completos), precargada
 // con esa categoría.
 //
-// Solo 5 categorías tienen ilustración propia en assets/images (las
-// mismas que ya usa el carrusel de Inicio); el resto usa un ícono de
-// Ionicons como fallback hasta que existan las ilustraciones.
-
-interface Category {
-  name: string;
-  image?: any;
-  icon?: keyof typeof Ionicons.glyphMap;
-}
-
-const CATEGORIES: Category[] = [
-  { name: "Ejecutivo", image: require("../../assets/images/ejecutivo.png") },
-  { name: "Mariscos", image: require("../../assets/images/mariscos.png") },
-  { name: "Parrillas", image: require("../../assets/images/parrillas.png") },
-  { name: "Sopas", image: require("../../assets/images/sopas.png") },
-  { name: "Pollo", image: require("../../assets/images/pollo.png") },
-  { name: "Cevicherías", icon: "fish-outline" },
-  { name: "Comida Típica", icon: "restaurant-outline" },
-  { name: "Hamburguesas", icon: "fast-food-outline" },
-  { name: "Pizzas", icon: "pizza-outline" },
-  { name: "Pastas", icon: "restaurant-outline" },
-  { name: "Sushi", icon: "fish-outline" },
-  { name: "Comida China", icon: "restaurant-outline" },
-  { name: "Mexicana", icon: "restaurant-outline" },
-  { name: "Sándwiches", icon: "fast-food-outline" },
-  { name: "Comida Rápida", icon: "fast-food-outline" },
-  { name: "Desayunos", icon: "cafe-outline" },
-  { name: "Cafetería", icon: "cafe-outline" },
-  { name: "Postres", icon: "ice-cream-outline" },
-  { name: "Heladería", icon: "ice-cream-outline" },
-  { name: "Bebidas", icon: "wine-outline" },
-  { name: "Bares", icon: "beer-outline" },
-  { name: "Vegana", icon: "leaf-outline" },
-  { name: "Ensaladas", icon: "leaf-outline" },
-  { name: "Postres Saludables", icon: "nutrition-outline" },
-  { name: "Panadería", icon: "restaurant-outline" },
-  { name: "Empanadas", icon: "restaurant-outline" },
-  { name: "Bolones", icon: "restaurant-outline" },
-];
+// Conectado a GET /categories (CategoryService del back). El ícono de
+// cada categoría viene de item.iconos.url; si una categoría todavía
+// no tiene ícono cargado, se usa un ícono genérico de Ionicons como
+// fallback.
 
 export default function ExplorarCategoriasScreen() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  async function loadCategories() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await CategoryService.getAll();
+      setCategories(data);
+    } catch (e: any) {
+      setError(e.message || "No se pudieron cargar las categorías.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleSelectCategory(category: string) {
     router.push({
       pathname: "/(home)/explorar-resultados",
@@ -58,40 +54,63 @@ export default function ExplorarCategoriasScreen() {
   }
 
   return (
-    <LinearGradient colors={["#FFB74D", "#FB8C00"]} style={styles.gradient}>
+    <ImageBackground
+      source={require("../../assets/images/explorar-bg.png")}
+      style={styles.gradient}
+      resizeMode="cover"
+    >
       <SafeAreaView style={styles.container} edges={["top"]}>
         <Text style={styles.title}>Explorar por categoría</Text>
 
-        <FlatList
-          data={CATEGORIES}
-          keyExtractor={(item) => item.name}
-          numColumns={3}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.item}
-              activeOpacity={0.85}
-              onPress={() => handleSelectCategory(item.name)}
-            >
-              <View style={styles.iconCircle}>
-                {item.image ? (
-                  <Image source={item.image} style={styles.iconImage} />
-                ) : (
-                  <Ionicons name={item.icon!} size={26} color="#FB8C00" />
-                )}
-              </View>
-              <View style={styles.labelPill}>
-                <Text style={styles.labelText} numberOfLines={1}>
-                  {item.name}
-                </Text>
-              </View>
+        {loading ? (
+          <View style={styles.centerWrap}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          </View>
+        ) : error ? (
+          <View style={styles.centerWrap}>
+            <Ionicons name="cloud-offline-outline" size={36} color="#FFFFFF" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadCategories}>
+              <Text style={styles.retryButtonText}>Reintentar</Text>
             </TouchableOpacity>
-          )}
-        />
+          </View>
+        ) : (
+          <FlatList
+            data={categories}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.grid}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.centerWrap}>
+                <Text style={styles.errorText}>Todavía no hay categorías cargadas.</Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.item}
+                activeOpacity={0.85}
+                onPress={() => handleSelectCategory(item.nombre)}
+              >
+                <View style={styles.iconCircle}>
+                  {item.iconos?.url ? (
+                    <Image source={{ uri: item.iconos.url }} style={styles.iconImage} />
+                  ) : (
+                    <Ionicons name="restaurant-outline" size={26} color="#FB8C00" />
+                  )}
+                </View>
+                <View style={styles.labelPill}>
+                  <Text style={styles.labelText} numberOfLines={1}>
+                    {item.nombre}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        )}
       </SafeAreaView>
-    </LinearGradient>
+    </ImageBackground>
   );
 }
 
@@ -106,6 +125,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 14,
   },
+  centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
+  errorText: { textAlign: "center", color: "#FFFFFF", fontSize: 13, lineHeight: 19 },
+  retryButton: {
+    marginTop: 4,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+  },
+  retryButtonText: { color: "#FB8C00", fontSize: 13, fontWeight: "700" },
   grid: { paddingBottom: 110 },
   row: { justifyContent: "space-between", marginBottom: 22 },
   item: { width: "31%", alignItems: "center" },
@@ -116,13 +145,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  iconImage: { width: 56, height: 56, borderRadius: 28 },
+  iconImage: { width: "100%", height: "100%", resizeMode: "cover" },
   labelPill: {
     marginTop: -10,
     backgroundColor: "#FFFFFF",

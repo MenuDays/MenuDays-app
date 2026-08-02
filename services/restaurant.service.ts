@@ -1,9 +1,5 @@
 import { api } from "./api";
 
-// Shape tal cual la devuelve RestaurantService.getProfile() en el backend
-// (objeto crudo de Prisma con el include armado -- a diferencia de
-// UsersService, acá no hay una función tipo buildProfileResponse que
-// traduzca los nombres de columna, así que llegan en snake_case).
 
 export interface RestaurantPhone {
   id: number;
@@ -69,6 +65,82 @@ export interface UpdateRestaurantPayload {
   portadaUrl?: string;
 }
 
+// ==========================================================================
+// Vista pública de restaurante (comensal) -- GET /restaurants/:id.
+// Shape tal cual RestaurantPublicService.buildResponse() en el backend.
+// ==========================================================================
+
+export interface PublicRestaurantCity {
+  id: number;
+  nombre: string;
+  provincia: { id: number; nombre: string };
+}
+
+export interface PublicRestaurantCategory {
+  restaurante_id: number;
+  categoria_id: number;
+  categoria: {
+    id: number;
+    nombre: string;
+    iconos: { id: number; nombre: string; url: string } | null;
+  };
+}
+
+export interface PublicGalleryImage {
+  id: number;
+  url: string;
+  es_portada: boolean;
+  orden: number;
+}
+
+export interface PublicMenuDelDia {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  precio: number;
+  foto_url: string | null;
+  estado: string;
+}
+
+export interface PublicDish {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  precio: number;
+  categorias: { id: number; nombre: string };
+  plato_imagenes: { id: number; url: string; orden: number }[];
+}
+
+export interface PublicPromotion {
+  id: number;
+  titulo: string;
+  descripcion: string | null;
+  precio: number;
+  imagen_url: string | null;
+}
+
+export interface RestaurantPublicDetail {
+  id: number;
+  nombreComercial: string;
+  descripcion: string | null;
+  logoUrl: string | null;
+  portadaUrl: string | null;
+  direccion: string | null;
+  ciudad: PublicRestaurantCity | null;
+  ubicacion: { lat: number | null; lng: number | null };
+  estadoOperativo: string;
+  calificacionPromedio: number;
+  cantidadResenas: number;
+  horarios: RestaurantSchedule[];
+  telefonos: RestaurantPhone[];
+  redesSociales: RestaurantSocialLink[];
+  categorias: PublicRestaurantCategory[];
+  galeria: PublicGalleryImage[];
+  menus: PublicMenuDelDia[];
+  platos: PublicDish[];
+  promociones: PublicPromotion[];
+}
+
 class RestaurantService {
   async getProfile(): Promise<Restaurant> {
     return await api<Restaurant>("/restaurants/profile");
@@ -79,6 +151,16 @@ class RestaurantService {
       method: "PATCH",
       body: JSON.stringify(data),
     });
+  }
+
+  // Vista pública (comensal) de un restaurante -- GET /restaurants/:id.
+  // OJO: la forma de este endpoint (buildResponse() en
+  // RestaurantPublicService) es distinta a la de /restaurants/profile
+  // de arriba: viene en camelCase y con menús/platos/promociones/reseñas
+  // ya incluidos, por eso usa su propio tipo (RestaurantPublicDetail) en
+  // vez de reusar "Restaurant".
+  async getPublicDetail(id: string | number): Promise<RestaurantPublicDetail> {
+    return await api<RestaurantPublicDetail>(`/restaurants/${id}`);
   }
 
   // TODO: cuando existan los endpoints, agregar acá:

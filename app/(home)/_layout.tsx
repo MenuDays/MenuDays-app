@@ -133,6 +133,15 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="restaurante-detalle"
+        options={{
+          // Se accede desde una card de restaurante (listado/explorar),
+          // no es un tab.
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="favoritos"
         options={{
           // Sigue existiendo como ruta (se accede desde Perfil),

@@ -1,35 +1,79 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { MOCK_RESTAURANTS } from "./mockRestaurants";
+import { router } from "expo-router";
 
-// TODO: mock a propósito (sin conexión a backend todavía). Cuando se
-// conecte, reemplazar por ExploreService pegándole a
-// GET /explore/restaurants?search=... (sin filtros extra, esta
-// pantalla es solo buscador + lista -- los filtros completos viven
-// en la pantalla "Explorar" del tab bar).
+import ExploreService, { ExploreRestaurant } from "../../services/explore.service";
+import UserService from "../../services/user.service";
+
+// Listado completo de restaurantes ("ver todos" desde Inicio). Solo
+// muestra ícono/logo + nombre -- sin rating, categoría ni distancia --
+// mismo criterio visual que la tira de Inicio. El detalle completo se
+// ve recién al entrar a restaurante-detalle.tsx.
+//
+// Conectado a GET /explore/restaurants (ExploreController del back):
+// - search: nombre del restaurante.
+// - latitude/longitude/radius: se arma con la ubicación guardada en el
+//   perfil del usuario (la fijada en el mapa), igual que en Inicio.
+//   Si el usuario no tiene ubicación guardada, el filtro de distancia
+//   queda deshabilitado y solo se lista/busca por nombre.
 
 const DISTANCE_OPTIONS = [1, 3, 5, 10, 0]; // 0 = "cualquiera"
 
 export default function RestaurantesScreen() {
   const [search, setSearch] = useState("");
   const [maxDistance, setMaxDistance] = useState(0);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
-  const results = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    let data = term
-      ? MOCK_RESTAURANTS.filter((r) => r.nombre.toLowerCase().includes(term))
-      : MOCK_RESTAURANTS;
+  const [results, setResults] = useState<ExploreRestaurant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    if (maxDistance !== 0) {
-      data = data
-        .filter((r) => r.distanciaKm <= maxDistance)
-        .sort((a, b) => a.distanciaKm - b.distanciaKm);
+  // Ubicación guardada del perfil, para poder filtrar por distancia.
+  useEffect(() => {
+    UserService.getMe()
+      .then((u) => {
+        if (u.latitude != null && u.longitude != null) {
+          setUserCoords({ lat: u.latitude, lng: u.longitude });
+        }
+      })
+      .catch((e) => console.log("[RestaurantesScreen] no se pudo obtener ubicación:", e));
+  }, []);
+
+  const fetchRestaurants = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const useDistance = maxDistance !== 0 && userCoords != null;
+      const data = await ExploreService.findRestaurants({
+        search: search.trim() || undefined,
+        radius: useDistance ? maxDistance : undefined,
+        latitude: useDistance ? userCoords!.lat : undefined,
+        longitude: useDistance ? userCoords!.lng : undefined,
+      });
+      setResults(data);
+    } catch (e: any) {
+      setError(e.message || "No se pudieron cargar los restaurantes.");
+    } finally {
+      setLoading(false);
     }
+  }, [search, maxDistance, userCoords]);
 
-    return data;
-  }, [search, maxDistance]);
+  // Debounce simple para no pegarle al back en cada tecla.
+  useEffect(() => {
+    const timeout = setTimeout(fetchRestaurants, 350);
+    return () => clearTimeout(timeout);
+  }, [fetchRestaurants]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -59,11 +103,13 @@ export default function RestaurantesScreen() {
         contentContainerStyle={styles.distanceList}
         renderItem={({ item }) => {
           const active = item === maxDistance;
+          const disabled = item !== 0 && userCoords == null;
           return (
             <TouchableOpacity
-              style={[styles.sortChip, active && styles.sortChipActive]}
+              style={[styles.sortChip, active && styles.sortChipActive, disabled && styles.sortChipDisabled]}
               onPress={() => setMaxDistance(item)}
               activeOpacity={0.85}
+              disabled={disabled}
             >
               {item === 0 && (
                 <Ionicons
@@ -80,52 +126,58 @@ export default function RestaurantesScreen() {
         }}
       />
 
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.resultsList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Ionicons name="restaurant-outline" size={36} color="#D9D9D9" />
-            <Text style={styles.emptyText}>No encontramos restaurantes con ese nombre.</Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.9}>
-            <View style={[styles.logo, styles.logoPlaceholder]}>
-              <Ionicons name="storefront-outline" size={20} color="#BDBDBD" />
+      {loading ? (
+        <View style={styles.centerWrap}>
+          <ActivityIndicator size="large" color="#FB8C00" />
+        </View>
+      ) : error ? (
+        <View style={styles.centerWrap}>
+          <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+          <Text style={styles.emptyText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchRestaurants}>
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={results}
+          numColumns={3}
+          keyExtractor={(item) => item.id}
+          columnWrapperStyle={styles.row}
+          contentContainerStyle={styles.resultsList}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Ionicons name="restaurant-outline" size={36} color="#D9D9D9" />
+              <Text style={styles.emptyText}>No encontramos restaurantes con ese nombre.</Text>
             </View>
-
-            <View style={styles.cardInfo}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardName} numberOfLines={1}>
-                  {item.nombre}
-                </Text>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              activeOpacity={0.85}
+              onPress={() => router.push({ pathname: "/(home)/restaurante-detalle", params: { id: item.id } })}
+            >
+              <View style={styles.logoCircle}>
+                {item.logo_url ? (
+                  <Image source={{ uri: item.logo_url }} style={styles.logoImage} />
+                ) : (
+                  <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
+                )}
                 <View
                   style={[
                     styles.statusDot,
-                    { backgroundColor: item.abierto ? "#43A047" : "#E53935" },
+                    { backgroundColor: item.estado_operativo === "abierto" ? "#43A047" : "#E53935" },
                   ]}
                 />
               </View>
-
-              <Text style={styles.cardMeta} numberOfLines={1}>
-                {item.categoria} · {item.ciudad}
+              <Text style={styles.cardName} numberOfLines={2}>
+                {item.nombre_comercial}
               </Text>
-
-              <View style={styles.bottomRow}>
-                <View style={styles.ratingWrap}>
-                  <Ionicons name="star" size={13} color="#F5A800" />
-                  <Text style={styles.ratingText}>{item.calificacion.toFixed(1)}</Text>
-                  <Text style={styles.reviewsText}>({item.cantidadResenas})</Text>
-                </View>
-                <Text style={styles.distanceText}>{item.distanciaKm.toFixed(1)} km</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-      />
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -161,41 +213,57 @@ const styles = StyleSheet.create({
     borderColor: "#EFEFEF",
   },
   sortChipActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
+  sortChipDisabled: { opacity: 0.4 },
   sortChipText: { fontSize: 12, fontWeight: "700", color: "#3E2723" },
   sortChipTextActive: { color: "#FFFFFF" },
 
+  centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
+  retryButton: {
+    marginTop: 4,
+    backgroundColor: "#FB8C00",
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+  },
+  retryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+
   resultsList: { paddingBottom: 120 },
+  row: { justifyContent: "space-between", marginBottom: 22 },
   emptyWrap: { alignItems: "center", marginTop: 60, paddingHorizontal: 30, gap: 10 },
   emptyText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
 
-  card: {
-    flexDirection: "row",
-    gap: 12,
+  card: { width: "31%", alignItems: "center" },
+  logoCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#EFEFEF",
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  logo: { width: 52, height: 52, borderRadius: 12, backgroundColor: "#F0F0F0" },
-  logoPlaceholder: { alignItems: "center", justifyContent: "center" },
-  cardInfo: { flex: 1, justifyContent: "center" },
-  cardHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardName: { fontSize: 15, fontWeight: "700", color: "#1A1A1A", flexShrink: 1 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  cardMeta: { fontSize: 12, color: "#9E9E9E", marginTop: 2 },
-  bottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 6,
+  logoImage: { width: "100%", height: "100%", borderRadius: 38, resizeMode: "cover" },
+  statusDot: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
-  ratingWrap: { flexDirection: "row", alignItems: "center", gap: 3 },
-  ratingText: { fontSize: 13, fontWeight: "700", color: "#1A1A1A" },
-  reviewsText: { fontSize: 12, color: "#9E9E9E" },
-  distanceText: { fontSize: 12, fontWeight: "600", color: "#3E2723" },
+  cardName: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    textAlign: "center",
+  },
 });
