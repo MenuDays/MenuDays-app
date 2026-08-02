@@ -115,6 +115,15 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="restaurantes"
+        options={{
+          // Sigue existiendo como ruta (se accede desde la flecha de
+          // la sección "Restaurantes" en Inicio), pero no es un tab.
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="favoritos"
         options={{
           // Sigue existiendo como ruta (se accede desde Perfil),

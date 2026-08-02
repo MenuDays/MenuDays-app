@@ -211,7 +211,10 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               )}
               ListFooterComponent={
-                <TouchableOpacity style={styles.arrowButton}>
+                <TouchableOpacity
+                  style={styles.arrowButton}
+                  onPress={() => router.push("/(home)/restaurantes")}
+                >
                   <Ionicons name="chevron-forward" size={20} color={C.textSecondary} />
                 </TouchableOpacity>
               }
