@@ -124,6 +124,15 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="explorar-resultados"
+        options={{
+          // Se accede desde "Explorar" al aplicar filtros/buscar, pero
+          // no tiene que aparecer como tab propio en la barra inferior.
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="favoritos"
         options={{
           // Sigue existiendo como ruta (se accede desde Perfil),
@@ -131,6 +140,13 @@ export default function TabLayout() {
           href: null,
         }}
       />
+
+      {/* Flujo de pedido (mockeado, ver TODOs en cada pantalla y en
+          services/order.service.ts). Se accede desde el detalle de un
+          producto (plato/menú/promoción), no son tabs. */}
+      <Tabs.Screen name="pedido-producto" options={{ href: null }} />
+      <Tabs.Screen name="pedido-entrega" options={{ href: null }} />
+      <Tabs.Screen name="pedido-confirmar" options={{ href: null }} />
 
       <Tabs.Screen
         name="perfil"
