@@ -21,6 +21,7 @@ import * as Clipboard from "expo-clipboard";
 import RestaurantService, { RestaurantPublicDetail } from "../../services/restaurant.service";
 import ReviewService, { Review } from "../../services/review.service";
 import FavoriteService from "../../services/favorite.service";
+import LocationService from "../../services/location.service";
 import { AppAlert } from "../components/common/AppAlert";
 
 const DAY_NAMES = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
@@ -33,13 +34,33 @@ export default function RestauranteDetalleScreen() {
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  // Distancia calculada en el cliente a partir de la última ubicación
+  // guardada del usuario (LocationService) + lat/lng del restaurante.
+  // No hay endpoint que la devuelva calculada desde el back.
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([RestaurantService.getPublicDetail(id), ReviewService.getRestaurantReviews(id)])
-      .then(([restaurantData, reviewsData]) => {
+    setLoading(true);
+    Promise.all([
+      RestaurantService.getPublicDetail(id),
+      ReviewService.getRestaurantReviews(id),
+      // GET /favorites ya existe y trae el listado completo del usuario;
+      // no hay un endpoint "¿es favorito?" puntual, así que se deriva acá.
+      FavoriteService.getAll().catch(() => []),
+      LocationService.getUserLocation().catch(() => null),
+    ])
+      .then(([restaurantData, reviewsData, favoritesData, userLocation]) => {
         setRestaurant(restaurantData);
         setReviews(reviewsData);
+        setIsFavorite(favoritesData.some((f) => f.restaurant.id === restaurantData.id));
+
+        const { lat, lng } = restaurantData.ubicacion;
+        if (userLocation && lat != null && lng != null) {
+          setDistanceKm(
+            haversineKm(userLocation.latitude, userLocation.longitude, lat, lng)
+          );
+        }
       })
       .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar el restaurante."))
       .finally(() => setLoading(false));
@@ -54,15 +75,17 @@ export default function RestauranteDetalleScreen() {
 
   async function handleToggleFavorite() {
     if (!restaurant) return;
+    const previous = isFavorite;
+    setIsFavorite(!previous); // optimista
     setFavoriteLoading(true);
     try {
-      if (isFavorite) {
+      if (previous) {
         await FavoriteService.remove(restaurant.id);
       } else {
         await FavoriteService.add(restaurant.id);
       }
-      setIsFavorite(!isFavorite);
     } catch (e: any) {
+      setIsFavorite(previous); // revertir si el back rechazó la operación
       AppAlert.alert("Error", e.message || "No se pudo actualizar favoritos.");
     } finally {
       setFavoriteLoading(false);
@@ -181,6 +204,9 @@ export default function RestauranteDetalleScreen() {
                     {" "}
                     · {restaurant.categorias.map((c) => c.categoria.nombre).join(", ")}
                   </Text>
+                )}
+                {distanceKm != null && (
+                  <Text style={styles.metaText}> · {formatDistance(distanceKm)}</Text>
                 )}
               </View>
             </View>
@@ -428,6 +454,27 @@ interface ScheduleGroup {
   cerrado: boolean;
   horaApertura: string;
   horaCierre: string;
+}
+
+// Distancia en línea recta entre el usuario y el restaurante, calculada
+// en el cliente (fórmula de Haversine) a partir de la última ubicación
+// guardada (LocationService.getUserLocation()) y ubicacion.lat/lng que
+// ya viene en RestaurantPublicDetail. El back no expone esto calculado.
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  return `${km.toFixed(1)} km`;
 }
 
 function formatHour(iso: string | null): string {

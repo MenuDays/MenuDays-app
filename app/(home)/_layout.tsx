@@ -158,6 +158,16 @@ export default function TabLayout() {
       <Tabs.Screen name="pedido-confirmar" options={{ href: null }} />
 
       <Tabs.Screen
+        name="pedido-detalle"
+        options={{
+          // Detalle de un pedido ya existente (vista comensal, solo
+          // lectura) -- se accede desde la lista en "Pedidos", no es
+          // un tab en sí.
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="perfil"
         options={{
           title: "Perfil",

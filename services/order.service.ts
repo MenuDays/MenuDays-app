@@ -71,6 +71,46 @@ export interface Order {
   mensajeWhatsapp: string | null;
 }
 
+// ==========================================================================
+// Detalle real de un pedido -- GET /orders/:id (comensal, findOne() en el
+// backend). Shape tal cual OrderService.serializeOrder() en el backend.
+//
+// OJO diferencias con el "Order" de arriba (que es 100% mock, usado por
+// el flujo pedido-producto -> pedido-entrega -> pedido-confirmar):
+// - metodoEntrega viene en mayúsculas ("DELIVERY" / "RETIRO_EN_LOCAL",
+//   enum metodo_entrega de Prisma), no "delivery" / "retiro_presencial".
+// - No trae codigoUnico ni mensajeWhatsapp: la columna codigo_unico
+//   existe en la tabla "pedidos" pero ningún endpoint la devuelve
+//   todavía (ni create, ni findOne, ni getHistory) -- avisar al back.
+// - No trae el teléfono/WhatsApp del restaurante (solo id/nombre/
+//   portada); para contactarlo hay que pedir aparte
+//   RestaurantService.getPublicDetail(restauranteId) y usar
+//   telefonos[0], igual que en restaurante-detalle.tsx.
+// - No incluye "historial" (eso solo se arma para el lado restaurante,
+//   vía GET /orders/restaurant/:id).
+// ==========================================================================
+
+export type BackendDeliveryMethod = "DELIVERY" | "RETIRO_EN_LOCAL";
+
+export interface OrderDetail {
+  id: string;
+  usuario: { id: string; nombre: string; foto: string | null };
+  restaurante: { id: string; nombre: string; portada: string | null };
+  pedido: {
+    tipo: OrderItemType;
+    estado: OrderStatus;
+    total: number;
+    observaciones: string | null;
+    metodoEntrega: BackendDeliveryMethod;
+    fecha: string;
+  };
+  producto: OrderProduct;
+}
+
+export interface WhatsAppSummary {
+  mensajeWhatsapp: string;
+}
+
 class OrderService {
   async create(input: CreateOrderInput): Promise<Order> {
     // Llamada real, para cuando el back soporte medioEntrega y arme
@@ -82,6 +122,25 @@ class OrderService {
     // });
 
     return mockCreateOrder(input);
+  }
+
+  // Historial de pedidos del comensal autenticado -- GET /orders/history.
+  // Devuelve la misma forma que OrderDetail pero sin el detalle completo
+  // (ver serializeListOrder() en el backend); alcanza para listar.
+  async getHistory(): Promise<OrderDetail[]> {
+    return await api<OrderDetail[]>("/orders/history");
+  }
+
+  // Detalle de un pedido puntual, vista comensal -- GET /orders/:id.
+  async getById(id: string | number): Promise<OrderDetail> {
+    return await api<OrderDetail>(`/orders/${id}`);
+  }
+
+  // Texto armado por el back para mandar por WhatsApp -- GET
+  // /orders/:id/whatsapp-summary. No incluye el teléfono del
+  // restaurante, hay que conseguirlo aparte (ver nota en OrderDetail).
+  async getWhatsAppSummary(id: string | number): Promise<WhatsAppSummary> {
+    return await api<WhatsAppSummary>(`/orders/${id}/whatsapp-summary`);
   }
 }
 
