@@ -1,20 +1,30 @@
 import { api } from "./api";
+import RestaurantService from "./restaurant.service";
 
 // ==========================================================================
-// 1) El modelo "pedidos" ya tiene una columna "mensaje_whatsapp" pensada
-//    para esto, pero OrderService.create() nunca la completa. Idealmente
-//    el back arma y guarda ahí el texto final (con código de pedido,
-//    producto, medio de entrega, etc.) y el front solo lo muestra/copia.
-// 2) CreateOrderDto usa dishId/menuId/promotionId como number, pero acá
-//    (igual que en DishService) los ids se manejan como string porque el
-//    back serializa los BigInt de Prisma como string. Ojo con eso al
-//    armar el body real.
-// 4) El teléfono de WhatsApp del restaurante hay que traerlo del back
-//    (restaurante_telefonos / telefono_contacto) — acá se mockea.
+// Conectado a los endpoints reales del back (antes esto estaba mockeado).
 //
-// Cuando esto esté resuelto del lado del back, reemplazar mockCreateOrder
-// por el fetch real (dejo la llamada comentada abajo, lista para
-// descomentar).
+// - POST /orders          -- ya soporta menuId/dishId/promotionId +
+//   metodoEntrega (DELIVERY | RETIRO_EN_LOCAL). Responde solo un resumen
+//   (id, estado, tipo, metodoEntrega, fechaPedido, total), no el pedido
+//   completo con restaurante/producto embebidos.
+// - GET /orders/:id       -- sí trae el detalle completo (restaurante,
+//   producto, medio de entrega, etc.), así que create() encadena un
+//   fetch acá para armar el objeto "Order" que espera la UI.
+// - GET /orders/:id/whatsapp-summary -- el back arma el texto real, ya
+//   no hace falta el mock ni el fallback local salvo que falle el fetch.
+// - Teléfono/WhatsApp del restaurante: no viene en ningún endpoint de
+//   /orders, se pide aparte con RestaurantService.getPublicDetail().
+//
+// PENDIENTE (pedirle a Belén, no es urgente):
+// - La tabla "pedidos" ya tiene columna "codigo_unico" (autogenerada en
+//   la base), pero ningún endpoint de OrderService (back) la devuelve
+//   todavía -- ni create(), ni findOne()/serializeOrder(), ni
+//   getHistory()/serializeListOrder(). Acá ya está todo listo para
+//   cuando la agregue: OrderDetail.codigoUnico es opcional y
+//   buildFullOrder() ya lo lee de la respuesta si existe. Hasta que
+//   eso pase, codigoUnico queda en null y pedido-confirmar.tsx usa un
+//   fallback (ver ese archivo).
 // ==========================================================================
 
 export type OrderItemType = "plato" | "menu_dia" | "promocion";
@@ -30,6 +40,19 @@ export type OrderStatus =
 
 export type DeliveryMethod = "delivery" | "retiro_presencial";
 
+// Enum metodo_entrega de Prisma tal cual lo espera/devuelve el back.
+export type BackendDeliveryMethod = "DELIVERY" | "RETIRO_EN_LOCAL";
+
+const DELIVERY_TO_BACKEND: Record<DeliveryMethod, BackendDeliveryMethod> = {
+  delivery: "DELIVERY",
+  retiro_presencial: "RETIRO_EN_LOCAL",
+};
+
+const DELIVERY_FROM_BACKEND: Record<BackendDeliveryMethod, DeliveryMethod> = {
+  DELIVERY: "delivery",
+  RETIRO_EN_LOCAL: "retiro_presencial",
+};
+
 export interface OrderProduct {
   id: string;
   nombre: string;
@@ -42,32 +65,27 @@ export interface CreateOrderInput {
   menuId?: string;
   promotionId?: string;
   observaciones?: string;
-  // TODO(back): no existe todavía en el CreateOrderDto, ver nota arriba.
   medioEntrega: DeliveryMethod;
 }
 
+// Objeto completo que arma buildFullOrder(), usado por
+// pedido-confirmar.tsx. Combina GET /orders/:id + GET /restaurants/:id +
+// GET /orders/:id/whatsapp-summary en un solo shape para la UI.
 export interface Order {
   id: string;
-  codigoUnico: string;
+  // null hasta que el back devuelva codigo_unico (ver nota arriba).
+  codigoUnico: string | null;
   usuario: { id: string; nombre: string; foto: string | null };
-  restaurante: {
-    id: string;
-    nombre: string;
-    // TODO(back): traer del back (restaurante_telefonos tipo "whatsapp",
-    // o telefono_contacto). Se mockea acá mientras tanto.
-    whatsapp: string | null;
-  };
+  restaurante: { id: string; nombre: string; whatsapp: string | null };
   pedido: {
     tipo: OrderItemType;
     estado: OrderStatus;
     total: number;
     observaciones: string | null;
-    fecha: string;
-    // TODO(back): idem medioEntrega arriba.
     medioEntrega: DeliveryMethod;
+    fecha: string;
   };
   producto: OrderProduct;
-  // TODO(back): hoy siempre viene null porque el service no la completa.
   mensajeWhatsapp: string | null;
 }
 
@@ -75,25 +93,24 @@ export interface Order {
 // Detalle real de un pedido -- GET /orders/:id (comensal, findOne() en el
 // backend). Shape tal cual OrderService.serializeOrder() en el backend.
 //
-// OJO diferencias con el "Order" de arriba (que es 100% mock, usado por
-// el flujo pedido-producto -> pedido-entrega -> pedido-confirmar):
+// OJO diferencias con "Order" de arriba (que es el objeto ya combinado
+// que arma el front en buildFullOrder, usado por el flujo
+// pedido-producto -> pedido-entrega -> pedido-confirmar):
 // - metodoEntrega viene en mayúsculas ("DELIVERY" / "RETIRO_EN_LOCAL",
 //   enum metodo_entrega de Prisma), no "delivery" / "retiro_presencial".
-// - No trae codigoUnico ni mensajeWhatsapp: la columna codigo_unico
-//   existe en la tabla "pedidos" pero ningún endpoint la devuelve
-//   todavía (ni create, ni findOne, ni getHistory) -- avisar al back.
 // - No trae el teléfono/WhatsApp del restaurante (solo id/nombre/
 //   portada); para contactarlo hay que pedir aparte
 //   RestaurantService.getPublicDetail(restauranteId) y usar
 //   telefonos[0], igual que en restaurante-detalle.tsx.
-// - No incluye "historial" (eso solo se arma para el lado restaurante,
-//   vía GET /orders/restaurant/:id).
+// - codigoUnico es opcional porque el back todavía no lo devuelve (ver
+//   nota arriba); queda listo para cuando lo agregue.
+// - No incluye "historial" acá tampoco (eso solo se arma para el lado
+//   restaurante, vía GET /orders/restaurant/:id).
 // ==========================================================================
-
-export type BackendDeliveryMethod = "DELIVERY" | "RETIRO_EN_LOCAL";
 
 export interface OrderDetail {
   id: string;
+  codigoUnico?: string | null;
   usuario: { id: string; nombre: string; foto: string | null };
   restaurante: { id: string; nombre: string; portada: string | null };
   pedido: {
@@ -111,22 +128,87 @@ export interface WhatsAppSummary {
   mensajeWhatsapp: string;
 }
 
-class OrderService {
-  async create(input: CreateOrderInput): Promise<Order> {
-    // Llamada real, para cuando el back soporte medioEntrega y arme
-    // mensaje_whatsapp (dejar esto y sacar el mock de abajo):
-    //
-    // return api<Order>("/orders", {
-    //   method: "POST",
-    //   body: JSON.stringify(input),
-    // });
+// ==========================================================================
+// Lado restaurante -- "Mi Local" (gestión de pedidos). Shape tal cual
+// serializeListOrder() / serializeOrder() en el backend cuando se llaman
+// desde las rutas /orders/restaurant*.
+// ==========================================================================
 
-    return mockCreateOrder(input);
+export interface RestaurantOrderListItem {
+  id: string;
+  usuario: { id: string; nombre: string; foto: string | null };
+  restaurante: { id: string; nombre: string };
+  tipo: OrderItemType;
+  nombre: string | null;
+  imagen: string | null;
+  estado: OrderStatus;
+  metodoEntrega: BackendDeliveryMethod;
+  total: number;
+  fecha: string;
+}
+
+export interface RestaurantOrderDetail {
+  id: string;
+  usuario: { id: string; nombre: string; foto: string | null };
+  restaurante: { id: string; nombre: string; portada: string | null };
+  pedido: {
+    tipo: OrderItemType;
+    estado: OrderStatus;
+    total: number;
+    observaciones: string | null;
+    metodoEntrega: BackendDeliveryMethod;
+    fecha: string;
+  };
+  producto: OrderProduct;
+  historial: {
+    estado_anterior: OrderStatus | null;
+    estado_nuevo: OrderStatus;
+    created_at: string;
+  }[];
+}
+
+export interface RestaurantOrdersFilters {
+  estado?: OrderStatus;
+  fecha?: string; // YYYY-MM-DD
+}
+
+// Transiciones válidas por estado, iguales a las que valida el back
+// (OrderService.validateStatusTransition) -- se usan para no ofrecer
+// un botón "avanzar" que el back va a rechazar.
+export const NEXT_ORDER_STATUSES: Record<OrderStatus, OrderStatus[]> = {
+  pendiente: ["aceptado", "rechazado", "cancelado"],
+  aceptado: ["preparando", "cancelado"],
+  preparando: ["listo", "cancelado"],
+  listo: ["entregado"],
+  entregado: [],
+  rechazado: [],
+  cancelado: [],
+};
+
+class OrderService {
+  // Crea el pedido real (POST /orders) y devuelve el objeto "Order"
+  // completo ya armado para la pantalla de confirmación.
+  async create(input: CreateOrderInput): Promise<Order> {
+    const body: Record<string, unknown> = {
+      metodoEntrega: DELIVERY_TO_BACKEND[input.medioEntrega],
+    };
+    if (input.observaciones) body.observaciones = input.observaciones;
+    // El DTO del back (CreateOrderDto) espera number, acá se maneja
+    // como string por los BigInt serializados -- convertir al armar
+    // el body real.
+    if (input.dishId != null) body.dishId = Number(input.dishId);
+    if (input.menuId != null) body.menuId = Number(input.menuId);
+    if (input.promotionId != null) body.promotionId = Number(input.promotionId);
+
+    const created = await api<{ id: string }>("/orders", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    return this.buildFullOrder(created.id);
   }
 
   // Historial de pedidos del comensal autenticado -- GET /orders/history.
-  // Devuelve la misma forma que OrderDetail pero sin el detalle completo
-  // (ver serializeListOrder() en el backend); alcanza para listar.
   async getHistory(): Promise<OrderDetail[]> {
     return await api<OrderDetail[]>("/orders/history");
   }
@@ -137,60 +219,74 @@ class OrderService {
   }
 
   // Texto armado por el back para mandar por WhatsApp -- GET
-  // /orders/:id/whatsapp-summary. No incluye el teléfono del
-  // restaurante, hay que conseguirlo aparte (ver nota en OrderDetail).
+  // /orders/:id/whatsapp-summary.
   async getWhatsAppSummary(id: string | number): Promise<WhatsAppSummary> {
     return await api<WhatsAppSummary>(`/orders/${id}/whatsapp-summary`);
   }
-}
 
-// -- mock --------------------------------------------------------------
+  // -- Lado restaurante ("Mi Local") ------------------------------------
 
-function buildMockWhatsappMessage(order: Omit<Order, "mensajeWhatsapp">): string {
-  const medio =
-    order.pedido.medioEntrega === "delivery" ? "Delivery" : "Retiro en el local";
-  return (
-    `Hola! Quiero confirmar mi pedido *#${order.codigoUnico}* de ${order.restaurante.nombre}.\n` +
-    `Producto: ${order.producto.nombre}\n` +
-    `Medio de entrega: ${medio}\n` +
-    `Total: $${order.pedido.total.toFixed(2)}` +
-    (order.pedido.observaciones ? `\nObservaciones: ${order.pedido.observaciones}` : "")
-  );
-}
+  // Pedidos que le llegaron al restaurante -- GET /orders/restaurant.
+  async getRestaurantOrders(filters: RestaurantOrdersFilters = {}): Promise<RestaurantOrderListItem[]> {
+    const params = new URLSearchParams();
+    if (filters.estado) params.append("estado", filters.estado);
+    if (filters.fecha) params.append("fecha", filters.fecha);
+    const qs = params.toString();
+    return await api<RestaurantOrderListItem[]>(`/orders/restaurant${qs ? `?${qs}` : ""}`);
+  }
 
-function mockCreateOrder(input: CreateOrderInput): Promise<Order> {
-  const codigoUnico = Math.random().toString(36).slice(2, 10).toUpperCase();
+  // Detalle de un pedido puntual, vista restaurante (incluye historial de
+  // estados) -- GET /orders/restaurant/:id.
+  async getRestaurantOrder(id: string | number): Promise<RestaurantOrderDetail> {
+    return await api<RestaurantOrderDetail>(`/orders/restaurant/${id}`);
+  }
 
-  const base: Omit<Order, "mensajeWhatsapp"> = {
-    id: `mock-${Date.now()}`,
-    codigoUnico,
-    usuario: { id: "mock-user", nombre: "Vos", foto: null },
-    restaurante: {
-      id: "mock-restaurant",
-      nombre: "El Banquito",
-      whatsapp: "5493434000000",
-    },
-    pedido: {
-      tipo: input.dishId ? "plato" : input.menuId ? "menu_dia" : "promocion",
-      estado: "pendiente",
-      total: 3500,
-      observaciones: input.observaciones ?? null,
-      fecha: new Date().toISOString(),
-      medioEntrega: input.medioEntrega,
-    },
-    producto: {
-      id: input.dishId ?? input.menuId ?? input.promotionId ?? "mock-product",
-      nombre: "Hamburguesa completa",
-      imagen: null,
-      precio: 3500,
-    },
-  };
+  // Cambiar el estado de un pedido -- PATCH /orders/:id/status. El back
+  // valida la transición (ver NEXT_ORDER_STATUSES arriba, mismo criterio).
+  async updateStatus(id: string | number, estado: OrderStatus): Promise<{ id: string; estado: OrderStatus; updatedAt: string }> {
+    return await api(`/orders/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ estado }),
+    });
+  }
 
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ ...base, mensajeWhatsapp: buildMockWhatsappMessage(base) });
-    }, 400);
-  });
+  // Arma el "Order" completo combinando el detalle del pedido, el
+  // teléfono del restaurante y el mensaje de WhatsApp. Si el teléfono o
+  // el resumen de WhatsApp fallan (ej. restaurante sin teléfono cargado
+  // todavía), no rompe la pantalla: quedan en null y la UI ya sabe
+  // avisar ("El restaurante todavía no cargó un número de WhatsApp.")
+  private async buildFullOrder(orderId: string): Promise<Order> {
+    const detail = await this.getById(orderId);
+
+    const [restaurantDetail, whatsappSummary] = await Promise.all([
+      RestaurantService.getPublicDetail(detail.restaurante.id).catch(() => null),
+      this.getWhatsAppSummary(orderId).catch(() => null),
+    ]);
+
+    return {
+      id: detail.id,
+      codigoUnico: detail.codigoUnico ?? null,
+      usuario: detail.usuario,
+      restaurante: {
+        id: detail.restaurante.id,
+        nombre: detail.restaurante.nombre,
+        whatsapp: restaurantDetail?.telefonos?.[0]?.telefono ?? null,
+      },
+      pedido: {
+        tipo: detail.pedido.tipo,
+        estado: detail.pedido.estado,
+        total: Number(detail.pedido.total),
+        observaciones: detail.pedido.observaciones,
+        medioEntrega: DELIVERY_FROM_BACKEND[detail.pedido.metodoEntrega],
+        fecha: detail.pedido.fecha,
+      },
+      producto: {
+        ...detail.producto,
+        precio: Number(detail.producto.precio),
+      },
+      mensajeWhatsapp: whatsappSummary?.mensajeWhatsapp ?? null,
+    };
+  }
 }
 
 export default new OrderService();

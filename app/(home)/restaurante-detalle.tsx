@@ -283,6 +283,23 @@ export default function RestauranteDetalleScreen() {
                         {menu.descripcion}
                       </Text>
                     ) : null}
+                    {/* Va al detalle de producto (pedido-producto.tsx), no
+                        arma el pedido acá directo. Esa pantalla es la que
+                        tiene el botón real "Realizar pedido". Por ahora
+                        pedido-producto.tsx todavía usa datos mock (ver TODO
+                        ahí mismo), así que menuId/restauranteId quedan
+                        listos para cuando se conecte al back real. */}
+                    <TouchableOpacity
+                      style={styles.pedirButton}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(home)/pedido-producto",
+                          params: { menuId: menu.id, restauranteId: restaurant.id },
+                        })
+                      }
+                    >
+                      <Text style={styles.pedirButtonText}>Pedir</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               ))}
@@ -497,14 +514,19 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)} km`;
 }
 
-function formatHour(iso: string | null): string {
-  if (!iso) return "--:--";
-  const date = new Date(iso);
-  let hours = date.getUTCHours();
-  const minutes = date.getUTCMinutes();
-  const period = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12 || 12;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${period}`;
+// El back ya manda hora_apertura/hora_cierre como string "HH:MM" (24hs),
+// ver formatHour() en core/common/utils/format-hour.util.ts del backend
+// -- NO son fechas ISO completas, por eso acá se parsea directo en vez
+// de hacer new Date(iso) (eso daba NaN:NaN, "12:NaN AM").
+function formatHour(hhmm: string | null): string {
+  if (!hhmm) return "--:--";
+  const [hoursStr, minutesStr] = hhmm.split(":");
+  const hours24 = Number(hoursStr);
+  const minutes = Number(minutesStr);
+  if (Number.isNaN(hours24) || Number.isNaN(minutes)) return "--:--";
+  const period = hours24 >= 12 ? "PM" : "AM";
+  const hours12 = hours24 % 12 || 12;
+  return `${String(hours12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${period}`;
 }
 
 // Agrupa días consecutivos con el mismo horario (ej: Lunes-Viernes) para
@@ -538,8 +560,8 @@ function groupSchedule(
     groups.push({
       label: j > i ? `${DAY_NAMES[i]} - ${DAY_NAMES[j]}` : DAY_NAMES[i],
       cerrado: current.cerrado,
-      horaApertura: formatHour(current.hora_apertura as unknown as string),
-      horaCierre: formatHour(current.hora_cierre as unknown as string),
+      horaApertura: formatHour(current.hora_apertura),
+      horaCierre: formatHour(current.hora_cierre),
     });
 
     i = j + 1;
@@ -653,6 +675,15 @@ const styles = StyleSheet.create({
   menuDescription: { fontSize: 12, color: "#9E9E9E", marginTop: 4 },
   priceBadge: { backgroundColor: "#FFA726", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   priceBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  pedirButton: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    backgroundColor: "#FB8C00",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  pedirButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
 
   mapWrap: { height: 130, borderRadius: 16, overflow: "hidden", marginBottom: 12 },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },

@@ -17,7 +17,7 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { label: "Inicio", icon: "home-outline", activeIcon: "home", route: "/(restaurant)/dashboard" },
   { label: "Menús", icon: "restaurant-outline", activeIcon: "restaurant", route: "/(restaurant)/menu" },
-  { label: "Mi Local", icon: "storefront-outline", activeIcon: "storefront", route: null },
+  { label: "Mi Local", icon: "storefront-outline", activeIcon: "storefront", route: "/(restaurant)/mi-local" },
   { label: "Perfil", icon: "person-outline", activeIcon: "person", route: "/(restaurant)/perfil" },
 ];
 

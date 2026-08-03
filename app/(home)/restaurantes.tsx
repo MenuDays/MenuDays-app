@@ -15,6 +15,7 @@ import { router } from "expo-router";
 
 import ExploreService, { ExploreRestaurant } from "../../services/explore.service";
 import UserService from "../../services/user.service";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 // Listado completo de restaurantes ("ver todos" desde Inicio). Solo
 // muestra ícono/logo + nombre -- sin rating, categoría ni distancia --
@@ -77,107 +78,111 @@ export default function RestaurantesScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <Text style={styles.title}>Restaurantes</Text>
+      <KeyboardAvoidingScreen>
+        <Text style={styles.title}>Restaurantes</Text>
 
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color="#9E9E9E" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar restaurante..."
-          placeholderTextColor="#B0B0B0"
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={18} color="#B0B0B0" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={DISTANCE_OPTIONS}
-        keyExtractor={(item) => item.toString()}
-        contentContainerStyle={styles.distanceList}
-        renderItem={({ item }) => {
-          const active = item === maxDistance;
-          const disabled = item !== 0 && userCoords == null;
-          return (
-            <TouchableOpacity
-              style={[styles.sortChip, active && styles.sortChipActive, disabled && styles.sortChipDisabled]}
-              onPress={() => setMaxDistance(item)}
-              activeOpacity={0.85}
-              disabled={disabled}
-            >
-              {item === 0 && (
-                <Ionicons
-                  name="navigate-outline"
-                  size={13}
-                  color={active ? "#FFFFFF" : "#3E2723"}
-                />
-              )}
-              <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
-                {item === 0 ? "Cualquier distancia" : `${item} km`}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
-
-      {loading ? (
-        <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color="#FB8C00" />
-        </View>
-      ) : error ? (
-        <View style={styles.centerWrap}>
-          <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
-          <Text style={styles.emptyText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchRestaurants}>
-            <Text style={styles.retryButtonText}>Reintentar</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={results}
-          numColumns={3}
-          keyExtractor={(item) => item.id}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.resultsList}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="restaurant-outline" size={36} color="#D9D9D9" />
-              <Text style={styles.emptyText}>No encontramos restaurantes con ese nombre.</Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.85}
-              onPress={() => router.push({ pathname: "/(home)/restaurante-detalle", params: { id: item.id } })}
-            >
-              <View style={styles.logoCircle}>
-                {item.logo_url ? (
-                  <Image source={{ uri: item.logo_url }} style={styles.logoImage} />
-                ) : (
-                  <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
-                )}
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: item.estado_operativo === "abierto" ? "#43A047" : "#E53935" },
-                  ]}
-                />
-              </View>
-              <Text style={styles.cardName} numberOfLines={2}>
-                {item.nombre_comercial}
-              </Text>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color="#9E9E9E" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar restaurante..."
+            placeholderTextColor="#B0B0B0"
+            value={search}
+            onChangeText={setSearch}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Ionicons name="close-circle" size={18} color="#B0B0B0" />
             </TouchableOpacity>
           )}
+        </View>
+
+        <FlatList
+          horizontal
+          style={styles.distanceListWrapper}
+          showsHorizontalScrollIndicator={false}
+          data={DISTANCE_OPTIONS}
+          keyExtractor={(item) => item.toString()}
+          contentContainerStyle={styles.distanceList}
+          renderItem={({ item }) => {
+            const active = item === maxDistance;
+            const disabled = item !== 0 && userCoords == null;
+            return (
+              <TouchableOpacity
+                style={[styles.sortChip, active && styles.sortChipActive, disabled && styles.sortChipDisabled]}
+                onPress={() => setMaxDistance(item)}
+                activeOpacity={0.85}
+                disabled={disabled}
+              >
+                {item === 0 && (
+                  <Ionicons
+                    name="navigate-outline"
+                    size={13}
+                    color={active ? "#FFFFFF" : "#3E2723"}
+                  />
+                )}
+                <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
+                  {item === 0 ? "Cualquier distancia" : `${item} km`}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
         />
-      )}
+
+        {loading ? (
+          <View style={styles.centerWrap}>
+            <ActivityIndicator size="large" color="#FB8C00" />
+          </View>
+        ) : error ? (
+          <View style={styles.centerWrap}>
+            <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+            <Text style={styles.emptyText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={fetchRestaurants}>
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={results}
+            numColumns={3}
+            keyExtractor={(item) => item.id}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.resultsList}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                <Ionicons name="restaurant-outline" size={36} color="#D9D9D9" />
+                <Text style={styles.emptyText}>No encontramos restaurantes con ese nombre.</Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.85}
+                onPress={() => router.push({ pathname: "/(home)/restaurante-detalle", params: { id: item.id } })}
+              >
+                <View style={styles.logoCircle}>
+                  {item.logo_url ? (
+                    <Image source={{ uri: item.logo_url }} style={styles.logoImage} />
+                  ) : (
+                    <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
+                  )}
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: item.estado_operativo === "abierto" ? "#43A047" : "#E53935" },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.cardName} numberOfLines={2}>
+                  {item.nombre_comercial}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }
@@ -200,7 +205,13 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: "#1A1A1A" },
 
-  distanceList: { gap: 8, paddingBottom: 14 },
+  // flexGrow: 0 para que el FlatList horizontal no se estire a lo ancho
+  // de la pantalla y termine "adivinando" mal dónde corta el contenido.
+  distanceListWrapper: { flexGrow: 0, marginBottom: 14 },
+  // paddingRight: antes no había margen al final, entonces el último
+  // chip ("Cualquier distancia") quedaba pegado/cortado justo en el
+  // borde de la pantalla en vez de tener aire como el resto.
+  distanceList: { gap: 8, paddingRight: 16 },
   sortChip: {
     flexDirection: "row",
     alignItems: "center",

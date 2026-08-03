@@ -150,6 +150,12 @@ export default function TabLayout() {
         }}
       />
 
+      {/* Se accede desde los botones "Ver histórico" / "Ver todas" /
+          "Ver las N reseñas" del detalle de restaurante, no son tabs. */}
+      <Tabs.Screen name="restaurant-menu-history" options={{ href: null }} />
+      <Tabs.Screen name="restaurant-gallery" options={{ href: null }} />
+      <Tabs.Screen name="restaurant-reviews" options={{ href: null }} />
+
       {/* Flujo de pedido (mockeado, ver TODOs en cada pantalla y en
           services/order.service.ts). Se accede desde el detalle de un
           producto (plato/menú/promoción), no son tabs. */}

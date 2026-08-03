@@ -19,6 +19,8 @@ import WaveTop from '../components/home/WaveTop';
 import Colors from '../../constants/Colors'; // ajustá el path si tu estructura es distinta
 import UserService, { User } from '../../services/user.service';
 import CategoryService, { Category } from '../../services/category.service';
+import ExploreService, { ExploreRestaurant } from '../../services/explore.service';
+import PublicMenuService, { PublicMenu } from '../../services/public-menu.service';
 import { useDeviceLocation } from '../../hooks/useDeviceLocation';
 
 const C = Colors.light; // por ahora fijo en light, luego se puede swapear con useColorScheme
@@ -30,59 +32,36 @@ const C = Colors.light; // por ahora fijo en light, luego se puede swapear con u
 // las categorías se ve en la pantalla "Explorar" (grilla completa).
 const HOME_CATEGORY_NAMES = ['Ejecutivo', 'Mariscos', 'Parrillas', 'Sopas', 'Pollo'];
 
-const RESTAURANTS = [
-  { id: 1, name: 'El Banquito', logo: require('../../assets/images/logo-banquito.jpg') },
-  { id: 2, name: 'Culinary', logo: require('../../assets/images/logo-culinary.jpg') },
-  { id: 3, name: 'Sabor Ecuador', logo: require('../../assets/images/logo-sabor.png') },
-  { id: 4, name: 'Resto', logo: require('../../assets/images/logo-resto.jpg') },
-];
+// Radio fijo de la tira de Inicio (el pill "5 km" de arriba, todavía no
+// interactivo -- si se quiere hacerlo seleccionable, ver el patrón de
+// DISTANCE_OPTIONS en restaurantes.tsx/menus.tsx).
+const HOME_RADIUS_KM = 5;
 
-const MENUS = [
-  {
-    id: 1,
-    restaurant: 'El Banquito',
-    logo: require('../../assets/images/logo-banquito.jpg'),
-    dish: 'Seco de pollo',
-    description: '+ arroz + jugo',
-    price: '$4.50',
-    rating: 4.8,
-    time: '20 min',
-    distance: '1.8 km',
-    image: require('../../assets/images/seco-pollo.png'),
-    open: true,
-  },
-  {
-    id: 2,
-    restaurant: 'El Banquito',
-    logo: require('../../assets/images/logo-banquito.jpg'),
-    dish: 'Picada',
-    description: '+ pollo + carne + yuca',
-    price: '$4.50',
-    rating: 4.8,
-    time: '25 min',
-    distance: '2.1 km',
-    image: require('../../assets/images/picada.png'),
-    open: true,
-  },
-  {
-    id: 3,
-    restaurant: 'Resto Taglines',
-    logo: require('../../assets/images/logo-resto.jpg'),
-    dish: 'Arroz marinero',
-    description: '+ ensalada + limonada',
-    price: '$4.75',
-    rating: 4.9,
-    time: '30 min',
-    distance: '2.4 km',
-    image: require('../../assets/images/arroz-marinero.png'),
-    open: true,
-  },
-];
+// Mismo mapeo de estado operativo que menus.tsx, para la tira "Menús
+// disponibles hoy" (acá viene de item.restaurante.estado_operativo).
+const OPEN_LABEL: Record<string, { text: string; color: string }> = {
+  abierto: { text: 'Abierto', color: '#43A047' },
+  cerrado: { text: 'Cerrado', color: '#E53935' },
+  cerrado_temporal: { text: 'Cerrado temporalmente', color: '#E53935' },
+  vacaciones: { text: 'En vacaciones', color: '#FB8C00' },
+};
 
 export default function HomeScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // "Restaurantes cercanos" -- GET /explore/restaurants, mismo endpoint
+  // que restaurantes.tsx (ExploreService). Acá se muestran las primeras
+  // filas nomás, a modo de vidriera; "Ver todas" ya lleva a esa pantalla
+  // con el listado completo.
+  const [restaurants, setRestaurants] = useState<ExploreRestaurant[]>([]);
+  const [restaurantsLoading, setRestaurantsLoading] = useState(true);
+
+  // "Menús disponibles hoy" -- GET /public/menus, mismo endpoint que
+  // menus.tsx (PublicMenuService).
+  const [menus, setMenus] = useState<PublicMenu[]>([]);
+  const [menusLoading, setMenusLoading] = useState(true);
 
   // Ubicación reverse-geocodeada a partir de la lat/lng GUARDADA
   // en el perfil (la que se fijó en el mapa), NO del GPS en vivo.
@@ -96,6 +75,16 @@ export default function HomeScreen() {
     loadUser();
     loadCategories();
   }, []);
+
+  // Las tiras de restaurantes/menús dependen de la ubicación guardada del
+  // usuario para poder filtrar por radio (igual que restaurantes.tsx y
+  // menus.tsx); se disparan de nuevo apenas loadUser() resuelve. Sin
+  // coords guardadas, se listan igual pero sin filtro de distancia.
+  useEffect(() => {
+    loadRestaurants();
+    loadMenus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.latitude, user?.longitude]);
 
   async function loadUser() {
     try {
@@ -115,6 +104,40 @@ export default function HomeScreen() {
       console.log('[HomeScreen] ERROR cargando categorías:', e);
     } finally {
       setCategoriesLoading(false);
+    }
+  }
+
+  async function loadRestaurants() {
+    setRestaurantsLoading(true);
+    try {
+      const useDistance = user?.latitude != null && user?.longitude != null;
+      const data = await ExploreService.findRestaurants({
+        radius: useDistance ? HOME_RADIUS_KM : undefined,
+        latitude: useDistance ? user!.latitude : undefined,
+        longitude: useDistance ? user!.longitude : undefined,
+      });
+      setRestaurants(data.slice(0, 10));
+    } catch (e) {
+      console.log('[HomeScreen] ERROR cargando restaurantes cercanos:', e);
+    } finally {
+      setRestaurantsLoading(false);
+    }
+  }
+
+  async function loadMenus() {
+    setMenusLoading(true);
+    try {
+      const useDistance = user?.latitude != null && user?.longitude != null;
+      const data = await PublicMenuService.findAvailable({
+        radius: useDistance ? HOME_RADIUS_KM : undefined,
+        latitude: useDistance ? user!.latitude : undefined,
+        longitude: useDistance ? user!.longitude : undefined,
+      });
+      setMenus(data.slice(0, 6));
+    } catch (e) {
+      console.log('[HomeScreen] ERROR cargando menús disponibles hoy:', e);
+    } finally {
+      setMenusLoading(false);
     }
   }
 
@@ -247,76 +270,120 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={RESTAURANTS}
-              keyExtractor={item => item.id.toString()}
-              contentContainerStyle={styles.restaurantsList}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.restaurantCard}>
-                  <Image source={item.logo} style={styles.restaurantLogo} />
-                </TouchableOpacity>
-              )}
-              ListFooterComponent={
-                <TouchableOpacity
-                  style={styles.arrowButton}
-                  onPress={() => router.push("/(home)/restaurantes")}
-                >
-                  <Ionicons name="chevron-forward" size={20} color={C.textSecondary} />
-                </TouchableOpacity>
-              }
-            />
+            {restaurantsLoading ? (
+              <View style={styles.restaurantsLoadingWrap}>
+                <ActivityIndicator size="small" color={C.primary} />
+              </View>
+            ) : restaurants.length === 0 ? (
+              <Text style={styles.emptyStripText}>
+                No encontramos restaurantes cerca tuyo por ahora.
+              </Text>
+            ) : (
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={restaurants}
+                keyExtractor={item => item.id.toString()}
+                contentContainerStyle={styles.restaurantsList}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.restaurantCard}
+                    onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: item.id } })}
+                  >
+                    {item.logo_url ? (
+                      <Image source={{ uri: item.logo_url }} style={styles.restaurantLogo} />
+                    ) : (
+                      <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
+                    )}
+                  </TouchableOpacity>
+                )}
+                ListFooterComponent={
+                  <TouchableOpacity
+                    style={styles.arrowButton}
+                    onPress={() => router.push("/(home)/restaurantes")}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color={C.textSecondary} />
+                  </TouchableOpacity>
+                }
+              />
+            )}
 
             {/* Menús disponibles hoy */}
             <View style={styles.menusSectionHeader}>
               <Text style={styles.sectionTitle}>🔥 Menús disponibles hoy</Text>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(home)/menus')}>
                 <Ionicons name="chevron-forward" size={20} color={C.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {MENUS.map(menu => (
-              <TouchableOpacity key={menu.id} style={styles.menuCard}>
-                <View style={styles.menuImageContainer}>
-                  <Image source={menu.image} style={styles.menuImage} />
-                  <View style={styles.priceBadge}>
-                    <Text style={styles.priceText}>{menu.price}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.menuInfo}>
-                  <View style={styles.menuHeader}>
-                    <Image source={menu.logo} style={styles.menuLogo} />
-                    <Text style={styles.restaurantName}>{menu.restaurant}</Text>
-                  </View>
-
-                  <Text style={styles.dishName}>{menu.dish}</Text>
-                  <Text style={styles.dishDescription}>{menu.description}</Text>
-
-                  <View style={styles.menuMeta}>
-                    <View style={styles.metaItem}>
-                      <Ionicons name="star" size={12} color={C.primary} />
-                      <Text style={styles.metaText}>{menu.rating}</Text>
-                    </View>
-                    <View style={styles.metaItem}>
-                      <Ionicons name="time-outline" size={12} color={C.textSecondary} />
-                      <Text style={styles.metaText}>{menu.time}</Text>
-                    </View>
-                    <View style={styles.metaItem}>
-                      <Ionicons name="location-outline" size={12} color={C.textSecondary} />
-                      <Text style={styles.metaText}>{menu.distance}</Text>
-                    </View>
-                    {menu.open && (
-                      <View style={styles.openBadge}>
-                        <Text style={styles.openText}>Abierto</Text>
+            {menusLoading ? (
+              <View style={styles.restaurantsLoadingWrap}>
+                <ActivityIndicator size="small" color={C.primary} />
+              </View>
+            ) : menus.length === 0 ? (
+              <Text style={styles.emptyStripText}>
+                No hay menús del día publicados cerca tuyo por ahora.
+              </Text>
+            ) : (
+              menus.map(menu => {
+                const status = OPEN_LABEL[menu.restaurante.estado_operativo] ?? OPEN_LABEL.cerrado;
+                return (
+                  <TouchableOpacity
+                    key={menu.id}
+                    style={styles.menuCard}
+                    onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: menu.restaurante_id } })}
+                  >
+                    <View style={styles.menuImageContainer}>
+                      {menu.foto_url ? (
+                        <Image source={{ uri: menu.foto_url }} style={styles.menuImage} />
+                      ) : (
+                        <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
+                          <Ionicons name="restaurant-outline" size={22} color="#BDBDBD" />
+                        </View>
+                      )}
+                      <View style={styles.priceBadge}>
+                        <Text style={styles.priceText}>${menu.precio.toFixed(2)}</Text>
                       </View>
-                    )}
-                  </View>
-                </View>
+                    </View>
 
-              </TouchableOpacity>
-            ))}
+                    <View style={styles.menuInfo}>
+                      <View style={styles.menuHeader}>
+                        {menu.restaurante.logo_url ? (
+                          <Image source={{ uri: menu.restaurante.logo_url }} style={styles.menuLogo} />
+                        ) : (
+                          <View style={[styles.menuLogo, styles.menuLogoPlaceholder]}>
+                            <Ionicons name="storefront-outline" size={12} color="#BDBDBD" />
+                          </View>
+                        )}
+                        <Text style={styles.restaurantName} numberOfLines={1}>{menu.restaurante.nombre_comercial}</Text>
+                      </View>
+
+                      <Text style={styles.dishName} numberOfLines={1}>{menu.nombre}</Text>
+                      {menu.descripcion ? (
+                        <Text style={styles.dishDescription} numberOfLines={1}>{menu.descripcion}</Text>
+                      ) : null}
+
+                      <View style={styles.menuMeta}>
+                        <View style={styles.metaItem}>
+                          <Ionicons name="star" size={12} color={C.primary} />
+                          <Text style={styles.metaText}>{menu.restaurante.calificacion_promedio.toFixed(1)}</Text>
+                        </View>
+                        {menu.distancia != null && (
+                          <View style={styles.metaItem}>
+                            <Ionicons name="location-outline" size={12} color={C.textSecondary} />
+                            <Text style={styles.metaText}>{menu.distancia.toFixed(1)} km</Text>
+                          </View>
+                        )}
+                        <View style={styles.openBadge}>
+                          <Text style={[styles.openText, { color: status.color }]}>{status.text}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                  </TouchableOpacity>
+                );
+              })
+            )}
 
           </View>
         </View>
@@ -424,6 +491,8 @@ verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700'
   },
   distanceText: { fontSize: 13, color: Colors.light.text },
   restaurantsList: { paddingBottom: 16, gap: 10 },
+  restaurantsLoadingWrap: { paddingVertical: 20, alignItems: 'center' },
+  emptyStripText: { fontSize: 12, color: Colors.light.textSecondary, paddingBottom: 16 },
   restaurantCard: {
     width: 80,
     height: 80,
@@ -461,6 +530,7 @@ verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700'
   },
   menuImageContainer: { width: 150, height: 100, position: 'relative' },
   menuImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  menuImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5' },
   priceBadge: {
     position: 'absolute',
     top: 8,
@@ -474,6 +544,7 @@ verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700'
   menuInfo: { flex: 1, padding: 10, justifyContent: 'space-between' },
   menuHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   menuLogo: { width: 24, height: 24, borderRadius: 12, resizeMode: 'contain' },
+  menuLogoPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5' },
   restaurantName: { fontSize: 13, color: Colors.light.textSecondary, flex: 1 },
   dishName: { fontSize: 15, fontWeight: 'bold', color: Colors.light.text, marginBottom: 2 },
   dishDescription: { fontSize: 12, color: Colors.light.placeholder },

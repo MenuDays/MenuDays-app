@@ -25,9 +25,24 @@ export interface Review {
   };
 }
 
+export interface GetReviewsOptions {
+  // El endpoint actual devuelve TODAS las reseñas de una (no pagina).
+  // Si en el futuro el back agrega ?page&limit acá, esta función ya
+  // los manda -- mientras tanto se pueden ignorar sin romper nada.
+  page?: number;
+  limit?: number;
+}
+
 class ReviewService {
-  async getRestaurantReviews(restaurantId: string | number): Promise<Review[]> {
-    return await api<Review[]>(`/restaurants/${restaurantId}/reviews`);
+  async getRestaurantReviews(
+    restaurantId: string | number,
+    options: GetReviewsOptions = {}
+  ): Promise<Review[]> {
+    const params = new URLSearchParams();
+    if (options.page != null) params.append("page", String(options.page));
+    if (options.limit != null) params.append("limit", String(options.limit));
+    const qs = params.toString();
+    return await api<Review[]>(`/restaurants/${restaurantId}/reviews${qs ? `?${qs}` : ""}`);
   }
 }
 

@@ -80,7 +80,12 @@ export default function PedidoConfirmarScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Info del pedido</Text>
 
-          <InfoRow label="Código" value={`#${order.codigoUnico}`} />
+          {/* TODO(back): sacar este fallback cuando Belén agregue
+              codigoUnico a los serializers de order.service.ts (back).
+              La columna pedidos.codigo_unico ya existe en la base, solo
+              falta que algún endpoint la devuelva. Mientras tanto se
+              muestra el id del pedido como referencia. */}
+          <InfoRow label="Código" value={order.codigoUnico ? `#${order.codigoUnico}` : `#${order.id}`} />
           <InfoRow label="Restaurante" value={order.restaurante.nombre} />
           <InfoRow label="Producto" value={order.producto.nombre} />
           <InfoRow label="Medio de entrega" value={MEDIO_LABEL[order.pedido.medioEntrega]} />
@@ -108,13 +113,14 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-// TODO(back): esto es un respaldo por si "mensajeWhatsapp" viene null.
-// Lo ideal es que este texto lo arme y guarde el back en el create()
-// (ver comentario en order.service.ts) para que quede un registro de qué
-// se mandó; esto de acá quedaría solo como fallback.
+// Respaldo por si "mensajeWhatsapp" viene null (ej. falló el fetch a
+// GET /orders/:id/whatsapp-summary). El back ya arma este texto de
+// verdad en ese endpoint (buildWhatsAppSummary), así que en el flujo
+// normal esto casi no debería usarse.
 function buildFallbackMessage(order: Order): string {
+  const codigo = order.codigoUnico ?? order.id;
   return (
-    `Hola! Quiero confirmar mi pedido #${order.codigoUnico} de ${order.restaurante.nombre}.\n` +
+    `Hola! Quiero confirmar mi pedido #${codigo} de ${order.restaurante.nombre}.\n` +
     `Producto: ${order.producto.nombre}\n` +
     `Medio de entrega: ${MEDIO_LABEL[order.pedido.medioEntrega]}\n` +
     `Total: $${order.pedido.total.toFixed(2)}`
