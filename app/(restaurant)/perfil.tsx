@@ -25,6 +25,7 @@ import ProvinceService, { Province } from "../../services/province.service";
 import LocationService, { City } from "../../services/location.service";
 import RestaurantLocationPickerBridge from "../../services/restaurantLocationPicker.bridge";
 import AuthService from "../../services/auth.service";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 // OJO: estos dos siguen siendo del comensal, sin tocar.
 import ProfileHero from "../components/profile/ProfileHero";
@@ -266,132 +267,134 @@ export default function RestaurantProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
-      <ScreenHeader
-        title="Mi perfil"
-        showBack
-        rightIcon={!isEditing ? "create-outline" : undefined}
-        onRightPress={startEditing}
-      />
+      <KeyboardAvoidingScreen>
+        <ScreenHeader
+          title="Mi perfil"
+          showBack
+          rightIcon={!isEditing ? "create-outline" : undefined}
+          onRightPress={startEditing}
+        />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.heroWrapper}>
-          <ProfileHero
-            mode="cover"
-            logoUrl={restaurant.logo_url}
-            coverUrl={restaurant.portada_url}
-            onPressEditLogo={() => {
-              // TODO: abrir selector de imagen y subir, luego
-              // RestaurantService.updateProfile({ logoUrl })
-            }}
-            onPressEditCover={() => {
-              // TODO: abrir selector de imagen y subir, luego
-              // RestaurantService.updateProfile({ portadaUrl })
-            }}
-          />
-        </View>
-
-        <View style={styles.content}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Información del negocio</Text>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.heroWrapper}>
+            <ProfileHero
+              mode="cover"
+              logoUrl={restaurant.logo_url}
+              coverUrl={restaurant.portada_url}
+              onPressEditLogo={() => {
+                // TODO: abrir selector de imagen y subir, luego
+                // RestaurantService.updateProfile({ logoUrl })
+              }}
+              onPressEditCover={() => {
+                // TODO: abrir selector de imagen y subir, luego
+                // RestaurantService.updateProfile({ portadaUrl })
+              }}
+            />
           </View>
 
-          <FormTextField
-            label="Nombre del restaurante"
-            value={isEditing ? editName : restaurant.nombre_comercial}
-            onChangeText={setEditName}
-            icon="storefront-outline"
-            editable={isEditing}
-          />
-
-          <FormTextField
-            label="Descripción"
-            value={isEditing ? editDescription : restaurant.descripcion ?? "Sin descripción todavía"}
-            onChangeText={setEditDescription}
-            multiline
-            maxLength={200}
-            placeholder="Contale a tus clientes de qué se trata tu restaurante"
-            editable={isEditing}
-          />
-
-          <Text style={styles.pickerLabel}>Provincia/ Ciudad</Text>
-          <TouchableOpacity
-            style={[styles.pickerButton, !isEditing && styles.pickerButtonReadOnly]}
-            onPress={isEditing ? openProvinceCityPicker : undefined}
-            activeOpacity={isEditing ? 0.7 : 1}
-          >
-            <Ionicons name="compass-outline" size={18} color="#F5A800" style={styles.pickerIcon} />
-            <Text
-              style={[
-                styles.pickerButtonText,
-                !(isEditing ? editCityProvinceLabel : cityProvinceLabel) && styles.placeholderText,
-              ]}
-            >
-              {isEditing
-                ? editCityProvinceLabel ?? "Elegí provincia y ciudad"
-                : cityProvinceLabel ?? "Sin ciudad"}
-            </Text>
-            {isEditing && <Ionicons name="chevron-down" size={16} color="#3E2723" />}
-          </TouchableOpacity>
-
-          <Text style={styles.pickerLabel}>Ubicación del restaurante</Text>
-          <TouchableOpacity
-            style={styles.mapButton}
-            onPress={isEditing ? pickLocationOnMap : undefined}
-            activeOpacity={isEditing ? 0.7 : 1}
-          >
-            <Ionicons name="pin" size={18} color="#FB8C00" style={styles.pickerIcon} />
-            <Text style={styles.mapButtonText} numberOfLines={1}>
-              {(isEditing ? editLocation?.address : restaurant.direccion) ||
-                "Seleccionar ubicación en el mapa"}
-            </Text>
-            {isEditing && <Ionicons name="chevron-down" size={16} color="#FB8C00" />}
-          </TouchableOpacity>
-
-          {isEditing && (
-            <View style={styles.editActionsRow}>
-              <TouchableOpacity style={styles.cancelButton} onPress={cancelEditing} disabled={saving}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.saveButton, saving && { opacity: 0.7 }]}
-                onPress={saveEditing}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                    <Text style={styles.saveButtonText}>Guardar</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+          <View style={styles.content}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Información del negocio</Text>
             </View>
-          )}
 
-          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Teléfonos</Text>
-          <PhoneListEditor phones={phones} onAdd={handleAddPhone} onRemove={handleRemovePhone} />
+            <FormTextField
+              label="Nombre del restaurante"
+              value={isEditing ? editName : restaurant.nombre_comercial}
+              onChangeText={setEditName}
+              icon="storefront-outline"
+              editable={isEditing}
+            />
 
-          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Redes Sociales</Text>
-          <SocialLinksEditor
-            links={socialLinks}
-            onAdd={handleAddSocialLink}
-            onRemove={handleRemoveSocialLink}
-          />
+            <FormTextField
+              label="Descripción"
+              value={isEditing ? editDescription : restaurant.descripcion ?? "Sin descripción todavía"}
+              onChangeText={setEditDescription}
+              multiline
+              maxLength={200}
+              placeholder="Contale a tus clientes de qué se trata tu restaurante"
+              editable={isEditing}
+            />
 
-          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Horarios de atención</Text>
-          <ScheduleEditor schedule={schedule} onChange={handleScheduleChange} />
+            <Text style={styles.pickerLabel}>Provincia/ Ciudad</Text>
+            <TouchableOpacity
+              style={[styles.pickerButton, !isEditing && styles.pickerButtonReadOnly]}
+              onPress={isEditing ? openProvinceCityPicker : undefined}
+              activeOpacity={isEditing ? 0.7 : 1}
+            >
+              <Ionicons name="compass-outline" size={18} color="#F5A800" style={styles.pickerIcon} />
+              <Text
+                style={[
+                  styles.pickerButtonText,
+                  !(isEditing ? editCityProvinceLabel : cityProvinceLabel) && styles.placeholderText,
+                ]}
+              >
+                {isEditing
+                  ? editCityProvinceLabel ?? "Elegí provincia y ciudad"
+                  : cityProvinceLabel ?? "Sin ciudad"}
+              </Text>
+              {isEditing && <Ionicons name="chevron-down" size={16} color="#3E2723" />}
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={18} color="#E53935" />
-            <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <Text style={styles.pickerLabel}>Ubicación del restaurante</Text>
+            <TouchableOpacity
+              style={styles.mapButton}
+              onPress={isEditing ? pickLocationOnMap : undefined}
+              activeOpacity={isEditing ? 0.7 : 1}
+            >
+              <Ionicons name="pin" size={18} color="#FB8C00" style={styles.pickerIcon} />
+              <Text style={styles.mapButtonText} numberOfLines={1}>
+                {(isEditing ? editLocation?.address : restaurant.direccion) ||
+                  "Seleccionar ubicación en el mapa"}
+              </Text>
+              {isEditing && <Ionicons name="chevron-down" size={16} color="#FB8C00" />}
+            </TouchableOpacity>
+
+            {isEditing && (
+              <View style={styles.editActionsRow}>
+                <TouchableOpacity style={styles.cancelButton} onPress={cancelEditing} disabled={saving}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.saveButton, saving && { opacity: 0.7 }]}
+                  onPress={saveEditing}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                      <Text style={styles.saveButtonText}>Guardar</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Teléfonos</Text>
+            <PhoneListEditor phones={phones} onAdd={handleAddPhone} onRemove={handleRemovePhone} />
+
+            <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Redes Sociales</Text>
+            <SocialLinksEditor
+              links={socialLinks}
+              onAdd={handleAddSocialLink}
+              onRemove={handleRemoveSocialLink}
+            />
+
+            <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Horarios de atención</Text>
+            <ScheduleEditor schedule={schedule} onChange={handleScheduleChange} />
+
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={18} color="#E53935" />
+              <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingScreen>
 
       <RestaurantBottomNav />
 

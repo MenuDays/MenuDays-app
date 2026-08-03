@@ -55,6 +55,39 @@ const COUNTRY_CODES: CountryCode[] = [
   { code: 'US', name: 'Estados Unidos', dialCode: '+1', flag: '🇺🇸' },
 ];
 
+// day: 1 = Lunes ... 7 = Domingo (coincide con ScheduleDto del backend)
+const DAYS_OF_WEEK = [
+  { day: 1, label: 'Lunes' },
+  { day: 2, label: 'Martes' },
+  { day: 3, label: 'Miércoles' },
+  { day: 4, label: 'Jueves' },
+  { day: 5, label: 'Viernes' },
+  { day: 6, label: 'Sábado' },
+  { day: 7, label: 'Domingo' },
+];
+
+interface ScheduleDayState {
+  day: number;
+  closed: boolean;
+  openingHour: string;
+  closingHour: string;
+}
+
+const HOUR_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+// Convierte lo que el usuario tipeó (handle suelto o link completo) en una
+// URL utilizable. Si ya viene con http(s) la dejamos tal cual.
+function normalizeSocialUrl(platform: 'instagram' | 'facebook' | 'tiktok', value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  const handle = trimmed.replace(/^@/, '');
+  if (platform === 'instagram') return `https://instagram.com/${handle}`;
+  if (platform === 'tiktok') return `https://tiktok.com/@${handle}`;
+  return `https://facebook.com/${handle}`;
+}
+
 export default function RegisterRestaurantScreen() {
   const [logo, setLogo] = useState<string | null>(null);
   const [restaurantName, setRestaurantName] = useState('');
@@ -84,6 +117,9 @@ export default function RegisterRestaurantScreen() {
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack, setIdBack] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [schedules, setSchedules] = useState<ScheduleDayState[]>(
+    DAYS_OF_WEEK.map((d) => ({ day: d.day, closed: true, openingHour: '', closingHour: '' }))
+  );
 
   const DESCRIPTION_MAX = 200;
 
@@ -153,6 +189,18 @@ export default function RegisterRestaurantScreen() {
     }
   }
 
+  function toggleDayClosed(day: number) {
+    setSchedules((prev) =>
+      prev.map((s) => (s.day === day ? { ...s, closed: !s.closed } : s))
+    );
+  }
+
+  function setDayHour(day: number, field: 'openingHour' | 'closingHour', value: string) {
+    setSchedules((prev) =>
+      prev.map((s) => (s.day === day ? { ...s, [field]: value } : s))
+    );
+  }
+
   function pickLocationOnMap() {
     router.push({
       pathname: '/(auth)/select-restaurant-location',
@@ -195,6 +243,23 @@ export default function RegisterRestaurantScreen() {
       return;
     }
 
+    const openDays = schedules.filter((s) => !s.closed);
+    if (openDays.length === 0) {
+      AppAlert.alert('Horarios requeridos', 'Marcá al menos un día en el que tu restaurante esté abierto.');
+      return;
+    }
+    const invalidDay = openDays.find(
+      (s) => !HOUR_REGEX.test(s.openingHour) || !HOUR_REGEX.test(s.closingHour)
+    );
+    if (invalidDay) {
+      const label = DAYS_OF_WEEK.find((d) => d.day === invalidDay.day)?.label;
+      AppAlert.alert(
+        'Horario inválido',
+        `Completá la hora de apertura y cierre de ${label} en formato HH:mm (ej: 08:00).`
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -211,12 +276,20 @@ export default function RegisterRestaurantScreen() {
       }
 
       const socialNetworks: Record<string, string> = {};
-      if (instagram.trim()) socialNetworks.instagram = instagram.trim();
-      if (facebook.trim()) socialNetworks.facebook = facebook.trim();
-      if (tiktok.trim()) socialNetworks.tiktok = tiktok.trim();
+      if (instagram.trim()) socialNetworks.instagram = normalizeSocialUrl('instagram', instagram);
+      if (facebook.trim()) socialNetworks.facebook = normalizeSocialUrl('facebook', facebook);
+      if (tiktok.trim()) socialNetworks.tiktok = normalizeSocialUrl('tiktok', tiktok);
       if (Object.keys(socialNetworks).length > 0) {
         formData.append('socialNetworks', JSON.stringify(socialNetworks));
       }
+
+      const schedulesPayload = schedules.map((s) => ({
+        day: s.day,
+        closed: s.closed,
+        openingHour: s.closed ? undefined : s.openingHour,
+        closingHour: s.closed ? undefined : s.closingHour,
+      }));
+      formData.append('schedules', JSON.stringify(schedulesPayload));
 
       // React Native: los archivos van como { uri, name, type }, no como Blob
       formData.append('logo', {
@@ -422,6 +495,58 @@ export default function RegisterRestaurantScreen() {
             autoCapitalize="none"
           />
         </View>
+
+        {/* Horarios */}
+        <Text style={styles.label}>Horarios de atención</Text>
+        <Text style={styles.optionalLabel}>Marcá los días que abrís y las horas de atención</Text>
+
+        {schedules.map((s) => {
+          const dayLabel = DAYS_OF_WEEK.find((d) => d.day === s.day)?.label;
+          return (
+            <View key={s.day} style={styles.scheduleRow}>
+              <View style={styles.scheduleDayHeader}>
+                <Text style={styles.scheduleDayLabel}>{dayLabel}</Text>
+                <TouchableOpacity
+                  style={[styles.scheduleToggle, !s.closed && styles.scheduleToggleActive]}
+                  onPress={() => toggleDayClosed(s.day)}
+                >
+                  <Text
+                    style={[
+                      styles.scheduleToggleText,
+                      !s.closed && styles.scheduleToggleTextActive,
+                    ]}
+                  >
+                    {s.closed ? 'Cerrado' : 'Abierto'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {!s.closed && (
+                <View style={styles.scheduleHoursRow}>
+                  <TextInput
+                    style={styles.scheduleHourInput}
+                    placeholder="08:00"
+                    placeholderTextColor="#9E9E9E"
+                    value={s.openingHour}
+                    onChangeText={(v) => setDayHour(s.day, 'openingHour', v)}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={5}
+                  />
+                  <Text style={styles.scheduleHourSeparator}>a</Text>
+                  <TextInput
+                    style={styles.scheduleHourInput}
+                    placeholder="18:00"
+                    placeholderTextColor="#9E9E9E"
+                    value={s.closingHour}
+                    onChangeText={(v) => setDayHour(s.day, 'closingHour', v)}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={5}
+                  />
+                </View>
+              )}
+            </View>
+          );
+        })}
 
         {/* Documentos */}
         <Text style={styles.label}>Documentos</Text>
@@ -788,6 +913,62 @@ const styles = StyleSheet.create({
     color: '#9E9E9E',
     textAlign: 'right',
     marginTop: 4,
+  },
+  scheduleRow: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  scheduleDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  scheduleDayLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3E2723',
+  },
+  scheduleToggle: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: '#F5F5F5',
+  },
+  scheduleToggleActive: {
+    backgroundColor: '#FFF3E0',
+  },
+  scheduleToggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9E9E9E',
+  },
+  scheduleToggleTextActive: {
+    color: '#FB8C00',
+  },
+  scheduleHoursRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+  },
+  scheduleHourInput: {
+    flex: 1,
+    height: 42,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#3E2723',
+    backgroundColor: '#FAFAFA',
+  },
+  scheduleHourSeparator: {
+    fontSize: 13,
+    color: '#9E9E9E',
   },
   documentsRow: {
     flexDirection: 'row',

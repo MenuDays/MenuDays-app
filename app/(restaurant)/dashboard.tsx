@@ -436,16 +436,6 @@ export default function RestaurantDashboard() {
                   <Ionicons name="star" size={13} color="#FFD54D" />
                   <Text style={styles.headerStatText}>{RESTAURANT.rating}</Text>
                 </View>
-                <View style={styles.headerStatPill}>
-                  <Ionicons name="eye-outline" size={13} color="#FFFFFF" />
-                  <Text style={styles.headerStatText}>{TODAY_VISITS}</Text>
-                </View>
-                <View style={styles.headerStatPill}>
-                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <Ionicons name="trending-up" size={13} color="#7CFFA3" />
-                  </Animated.View>
-                  <Text style={[styles.headerStatText, { color: "#7CFFA3" }]}>{TODAY_TREND}</Text>
-                </View>
               </Animated.View>
             </View>
           </ImageBackground>
@@ -459,23 +449,6 @@ export default function RestaurantDashboard() {
         <Animated.View
           style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
         >
-
-          {/* Hero: insight del día */}
-          <Animated.View style={[styles.heroCard, { transform: [{ scale: heroScale }] }]}>
-            <LinearGradient
-              colors={["#FFB800", "#F5751A"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <Text style={styles.heroValue}>{TODAY_VISITS} visitas hoy</Text>
-            <View style={styles.heroTrendRow}>
-              <Ionicons name="trending-up" size={14} color="#FFFFFF" />
-              <Text style={styles.heroTrendText}>{TODAY_TREND} respecto a ayer</Text>
-            </View>
-            <View style={styles.heroDivider} />
-            <Text style={styles.heroMessage}>{insightMessage}</Text>
-          </Animated.View>
 
           {/* Menú del día: publicado o no -- esto lo necesitás ver
               y poder resolver de un toque, no es solo un dato más.

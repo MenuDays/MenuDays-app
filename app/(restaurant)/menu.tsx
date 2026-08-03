@@ -74,6 +74,17 @@ export default function MenuListScreen() {
     ]);
   }
 
+  async function handleToggleVisibility(menu: Menu) {
+    try {
+      const result = await MenuService.toggle(menu.id);
+      setMenus((prev) =>
+        prev.map((m) => (m.id === menu.id ? { ...m, estado: result.estado } : m))
+      );
+    } catch (e: any) {
+      AppAlert.alert("Error", e.message || "No se pudo actualizar el menú.");
+    }
+  }
+
   const filteredMenus =
     filter === "todos" ? menus : menus.filter((m) => m.estado === filter);
 
@@ -113,8 +124,7 @@ export default function MenuListScreen() {
               onPress={() => router.push({ pathname: "/(restaurant)/menu/[id]", params: { id: item.id.toString() } })}
               onEdit={() => router.push(`/(restaurant)/menu/form?id=${item.id}`)}
               onDelete={() => handleDelete(item.id)}
-              // Sin onToggleVisibility: todavía no hay endpoint en el
-              // back para cambiar el estado de un menú manualmente.
+              onToggleVisibility={() => handleToggleVisibility(item)}
             />
           )}
         />

@@ -10,6 +10,7 @@ import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
 import DishService from "../../../services/dish.service";
 import CategoryService, { Category } from "../../../services/category.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 
 const DESCRIPTION_MAX = 500; // @MaxLength(500) en CreateDishDto
 
@@ -115,74 +116,76 @@ export default function DishFormScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title={isEditing ? "Editar plato" : "Crear plato"} showBack />
+      <KeyboardAvoidingScreen>
+        <ScreenHeader title={isEditing ? "Editar plato" : "Crear plato"} showBack />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <FormImagePicker
-          imageUri={imageUri}
-          onChange={setImageUri}
-          label="Subir foto del plato"
-        />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <FormImagePicker
+            imageUri={imageUri}
+            onChange={setImageUri}
+            label="Subir foto del plato"
+          />
 
-        <FormTextField
-          label="Nombre del plato"
-          placeholder="Ingresá el nombre del plato"
-          value={name}
-          onChangeText={setName}
-          icon="restaurant-outline"
-        />
+          <FormTextField
+            label="Nombre del plato"
+            placeholder="Ingresá el nombre del plato"
+            value={name}
+            onChangeText={setName}
+            icon="restaurant-outline"
+          />
 
-        <FormTextField
-          label="Descripción"
-          placeholder="Ej: Milanesa de carne acompañada de papas fritas"
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          maxLength={DESCRIPTION_MAX}
-        />
+          <FormTextField
+            label="Descripción"
+            placeholder="Ej: Milanesa de carne acompañada de papas fritas"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            maxLength={DESCRIPTION_MAX}
+          />
 
-        <FormTextField
-          label="Precio"
-          placeholder="Ingresá el precio del plato"
-          value={price}
-          onChangeText={setPrice}
-          icon="pricetag-outline"
-          keyboardType="decimal-pad"
-        />
+          <FormTextField
+            label="Precio"
+            placeholder="Ingresá el precio del plato"
+            value={price}
+            onChangeText={setPrice}
+            icon="pricetag-outline"
+            keyboardType="decimal-pad"
+          />
 
-        <FormCategoryPicker
-          label="Categoría"
-          categories={categories}
-          value={categoryId}
-          onChange={setCategoryId}
-          loading={categoriesLoading}
-        />
+          <FormCategoryPicker
+            label="Categoría"
+            categories={categories}
+            value={categoryId}
+            onChange={setCategoryId}
+            loading={categoriesLoading}
+          />
 
-        <FormToggleRow
-          label="Disponible ahora"
-          value={available}
-          onValueChange={setAvailable}
-        />
+          <FormToggleRow
+            label="Disponible ahora"
+            value={available}
+            onValueChange={setAvailable}
+          />
 
-        <FormToggleRow
-          label="Activo en el catálogo"
-          value={active}
-          onValueChange={setActive}
-        />
+          <FormToggleRow
+            label="Activo en el catálogo"
+            value={active}
+            onValueChange={setActive}
+          />
 
-        <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
-          <LinearGradient
-            colors={["#FFB74D", "#FB8C00"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.buttonGradient}
-          >
-            <Text style={styles.buttonText}>
-              {saving ? "Guardando..." : "Guardar plato"}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
+            <LinearGradient
+              colors={["#FFB74D", "#FB8C00"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>
+                {saving ? "Guardando..." : "Guardar plato"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingScreen>
     </View>
   );
 }

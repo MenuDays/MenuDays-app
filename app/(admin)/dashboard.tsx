@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Dimensions,
   Animated,
   Easing,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -18,72 +20,11 @@ import AdminBottomNav from "../components/admin/AdminBottomNav";
 import OverviewCard from "../components/admin/OverviewCard";
 import StatCard from "../components/admin/StatCard";
 import RankingCard from "../components/admin/RankingCard";
-import { StatCardData, RankingRow } from "../components/admin/types";
+import AdminDashboardService, {
+  AdminDashboardViewModel,
+} from "../../services/adminDashboard.service";
 
 const { width } = Dimensions.get("screen");
-
-const STATS: StatCardData[] = [
-  {
-    icon: "restaurant",
-    title: "Restaurantes",
-    value: "35",
-    breakdown: [
-      { label: "Activos", value: 30, color: "#4CAF50" },
-      { label: "Suspendidos", value: 2, color: "#F5A800" },
-      { label: "Eliminados", value: 3, color: "#E53935" },
-    ],
-    trend: "+8%",
-    trendPositive: true,
-  },
-  {
-    icon: "people",
-    title: "Comensales",
-    value: "1500",
-    subtitle: "Registrados en total",
-    trend: "+12%",
-    trendPositive: true,
-  },
-  {
-    icon: "clipboard",
-    title: "Solicitudes",
-    value: "43",
-    breakdown: [
-      { label: "Aceptadas", value: 35, color: "#4CAF50" },
-      { label: "Pendientes", value: 1, color: "#F5A800" },
-      { label: "Rechazadas", value: 7, color: "#E53935" },
-    ],
-    trend: "+18%",
-    trendPositive: true,
-  },
-  {
-    icon: "alert-circle",
-    title: "Reportes",
-    value: "7",
-    subtitle: "Registrados en total",
-    trend: "3 nuevos",
-    trendPositive: false,
-  },
-];
-
-// Mock: reemplazar con data real del backend
-const WEEKLY_REQUESTS = [4, 7, 5, 9, 6, 11, 8];
-const WEEKLY_LABELS = ["L", "M", "M", "J", "V", "S", "D"];
-
-const TOP_REPORTS: RankingRow[] = [
-  { position: 1, name: "Restaurante", value: 7 },
-  { position: 2, name: "Restaurante", value: 5 },
-  { position: 3, name: "Restaurante", value: 4 },
-  { position: 4, name: "Restaurante", value: 3 },
-  { position: 5, name: "Restaurante", value: 3 },
-];
-
-const TOP_REVIEWS: RankingRow[] = [
-  { position: 1, name: "Restaurante", value: 100 },
-  { position: 2, name: "Restaurante", value: 250 },
-  { position: 3, name: "Restaurante", value: 150 },
-  { position: 4, name: "Restaurante", value: 70 },
-  { position: 5, name: "Restaurante", value: 113 },
-];
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -96,6 +37,11 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const greeting = getGreeting();
 
+  const [dashboard, setDashboard] = useState<AdminDashboardViewModel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
   const heroScale = useRef(new Animated.Value(0.96)).current;
@@ -105,8 +51,10 @@ export default function AdminDashboard() {
   // transmite que los datos se están actualizando de verdad.
   const livePulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Cantidad fija de tarjetas de estadísticas (Restaurantes, Comensales,
+  // Solicitudes, Reportes) devueltas por el endpoint /admin/dashboard.
   const cardAnims = useRef(
-    STATS.map(() => ({
+    Array.from({ length: 4 }, () => ({
       opacity: new Animated.Value(0),
       translateY: new Animated.Value(20),
     }))
@@ -116,6 +64,30 @@ export default function AdminDashboard() {
     { opacity: new Animated.Value(0), translateY: new Animated.Value(18) },
     { opacity: new Animated.Value(0), translateY: new Animated.Value(18) },
   ]).current;
+
+  const loadDashboard = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    try {
+      const data = await AdminDashboardService.getDashboard();
+      setDashboard(data);
+    } catch (e) {
+      console.log("Error cargando el dashboard:", e);
+      setError("No se pudieron cargar las estadísticas. Intentá de nuevo.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
   useEffect(() => {
     Animated.parallel([
@@ -129,6 +101,29 @@ export default function AdminDashboard() {
       Animated.spring(heroScale, { toValue: 1, friction: 8, tension: 55, useNativeDriver: true }),
       Animated.timing(headerFadeAnim, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
     ]).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulseAnim, {
+          toValue: 1.3,
+          duration: 850,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(livePulseAnim, {
+          toValue: 1,
+          duration: 850,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  // Anima las tarjetas de estadísticas y los rankings recién cuando
+  // llegan los datos reales del backend.
+  useEffect(() => {
+    if (!dashboard) return;
 
     Animated.stagger(
       75,
@@ -159,30 +154,23 @@ export default function AdminDashboard() {
         ])
       )
     ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(livePulseAnim, {
-          toValue: 1.3,
-          duration: 850,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(livePulseAnim, {
-          toValue: 1,
-          duration: 850,
-          easing: Easing.in(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
+  }, [dashboard]);
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadDashboard(true)}
+            tintColor="#F5A800"
+          />
+        }
+      >
         {/* HEADER */}
         <View style={styles.headerWrapper}>
           <ImageBackground
@@ -210,72 +198,85 @@ export default function AdminDashboard() {
         <Animated.View
           style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
         >
-          <OverviewCard
-            totalLabel="Solicitudes esta semana"
-            totalValue={43}
-            growthLabel="+18%"
-            weeklyData={WEEKLY_REQUESTS}
-            weeklyLabels={WEEKLY_LABELS}
-            scaleAnim={heroScale}
-          />
-
-          <View style={styles.sectionHeadingRow}>
-            <View>
-              <Text style={styles.sectionEyebrow}>RESUMEN</Text>
-              <Text style={styles.sectionTitle}>Vista general</Text>
+          {loading ? (
+            <View style={styles.stateContainer}>
+              <ActivityIndicator size="large" color="#F5A800" />
             </View>
-
-            <View style={styles.overviewPill}>
-              <Animated.View style={{ transform: [{ scale: livePulseAnim }] }}>
-                <Ionicons name="ellipse" size={8} color="#F5A800" />
-              </Animated.View>
-              <Text style={styles.overviewPillText}>En vivo</Text>
+          ) : error ? (
+            <View style={styles.stateContainer}>
+              <Ionicons name="cloud-offline-outline" size={32} color="#BDBDBD" />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-          </View>
-
-          <View style={styles.statsGrid}>
-            {STATS.map((stat, i) => (
-              <StatCard
-                key={i}
-                stat={stat}
-                opacity={cardAnims[i].opacity}
-                translateY={cardAnims[i].translateY}
+          ) : dashboard ? (
+            <>
+              <OverviewCard
+                totalLabel="Solicitudes esta semana"
+                totalValue={dashboard.overview.totalValue}
+                growthLabel={dashboard.overview.growthLabel}
+                weeklyData={dashboard.overview.weeklyData}
+                weeklyLabels={dashboard.overview.weeklyLabels}
+                scaleAnim={heroScale}
               />
-            ))}
-          </View>
 
-          <View style={styles.sectionHeadingRowRanking}>
-            <Text style={styles.sectionEyebrow}>PERFORMANCE</Text>
-            <Text style={styles.sectionTitle}>Restaurantes destacados</Text>
-          </View>
+              <View style={styles.sectionHeadingRow}>
+                <View>
+                  <Text style={styles.sectionEyebrow}>RESUMEN</Text>
+                  <Text style={styles.sectionTitle}>Vista general</Text>
+                </View>
 
-          <Animated.View
-            style={{ opacity: rankingAnims[0].opacity, transform: [{ translateY: rankingAnims[0].translateY }] }}
-          >
-            <RankingCard
-              title="Top restaurantes por reportes"
-              subtitle="Los que requieren mayor atención"
-              icon="flag"
-              color="#E53935"
-              columnLabel="Reportes"
-              linkText="Ver todos los reportes"
-              data={TOP_REPORTS}
-            />
-          </Animated.View>
+                <View style={styles.overviewPill}>
+                  <Animated.View style={{ transform: [{ scale: livePulseAnim }] }}>
+                    <Ionicons name="ellipse" size={8} color="#F5A800" />
+                  </Animated.View>
+                  <Text style={styles.overviewPillText}>En vivo</Text>
+                </View>
+              </View>
 
-          <Animated.View
-            style={{ opacity: rankingAnims[1].opacity, transform: [{ translateY: rankingAnims[1].translateY }] }}
-          >
-            <RankingCard
-              title="Top restaurantes por reseñas"
-              subtitle="Los que generan mayor actividad"
-              icon="star"
-              color="#F5A800"
-              columnLabel="Reseñas"
-              linkText="Ver todas las reseñas"
-              data={TOP_REVIEWS}
-            />
-          </Animated.View>
+              <View style={styles.statsGrid}>
+                {dashboard.stats.map((stat, i) => (
+                  <StatCard
+                    key={i}
+                    stat={stat}
+                    opacity={cardAnims[i].opacity}
+                    translateY={cardAnims[i].translateY}
+                  />
+                ))}
+              </View>
+
+              <View style={styles.sectionHeadingRowRanking}>
+                <Text style={styles.sectionEyebrow}>PERFORMANCE</Text>
+                <Text style={styles.sectionTitle}>Restaurantes destacados</Text>
+              </View>
+
+              <Animated.View
+                style={{ opacity: rankingAnims[0].opacity, transform: [{ translateY: rankingAnims[0].translateY }] }}
+              >
+                <RankingCard
+                  title="Top restaurantes por reportes"
+                  subtitle="Los que requieren mayor atención"
+                  icon="flag"
+                  color="#E53935"
+                  columnLabel="Reportes"
+                  linkText="Ver todos los reportes"
+                  data={dashboard.topReportes}
+                />
+              </Animated.View>
+
+              <Animated.View
+                style={{ opacity: rankingAnims[1].opacity, transform: [{ translateY: rankingAnims[1].translateY }] }}
+              >
+                <RankingCard
+                  title="Top restaurantes por reseñas"
+                  subtitle="Los que generan mayor actividad"
+                  icon="star"
+                  color="#F5A800"
+                  columnLabel="Reseñas"
+                  linkText="Ver todas las reseñas"
+                  data={dashboard.topResenas}
+                />
+              </Animated.View>
+            </>
+          ) : null}
         </Animated.View>
       </ScrollView>
 
@@ -314,4 +315,11 @@ const styles = StyleSheet.create({
   },
   overviewPillText: { fontSize: 10, fontWeight: "800", color: "#F5A800" },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 25 },
+  stateContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 10,
+  },
+  errorText: { fontSize: 13, color: "#9E9E9E", textAlign: "center", paddingHorizontal: 20 },
 });

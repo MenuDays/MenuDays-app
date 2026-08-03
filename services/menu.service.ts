@@ -1,11 +1,6 @@
 import { api } from "./api";
 
 // Igual al enum estado_publicacion de Prisma en el backend.
-// OJO: "programado" es el estado por default al crear un menú -- por
-// ahora no hay forma de cambiarlo por API (ni CreateMenuDto ni
-// UpdateMenuDto tienen campo "estado", y no existe un endpoint de
-// toggle como el de promociones). Hasta que se agregue, el front no
-// puede publicar/ocultar un menú manualmente.
 export type MenuStatus = "programado" | "publicado" | "oculto" | "agotado";
 
 export interface Menu {
@@ -76,6 +71,14 @@ class MenuService {
 
   async remove(id: string): Promise<{ message: string }> {
     return api(`/menus/${id}`, { method: "DELETE" });
+  }
+
+  // Publica/oculta el menú alternando su estado (programado|oculto <->
+  // publicado). Requiere PATCH /menus/:id/toggle en el back -- ver
+  // PromotionController/PromotionService.toggle como referencia del
+  // mismo patrón ya implementado para promociones.
+  async toggle(id: string): Promise<Menu> {
+    return api<Menu>(`/menus/${id}/toggle`, { method: "PATCH" });
   }
 }
 

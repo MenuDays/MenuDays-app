@@ -6,8 +6,9 @@ import ScreenHeader from "../../components/restaurant/ScreenHeader";
 import FormImagePicker from "../../components/restaurant/FormImagePicker";
 import FormTextField from "../../components/restaurant/FormTextField";
 import FormToggleRow from "../../components/restaurant/FormToggleRow";
-import MenuService from "../../../services/menu.service";
+import MenuService, { Menu } from "../../../services/menu.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 
 const DESCRIPTION_MAX = 500; // @MaxLength(500) en CreateMenuDto
 
@@ -22,6 +23,7 @@ export default function MenuFormScreen() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [publishOnSave, setPublishOnSave] = useState(true);
+  const [currentEstado, setCurrentEstado] = useState<Menu["estado"] | null>(null);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
 
@@ -35,6 +37,8 @@ export default function MenuFormScreen() {
         setStartDate(menu.fecha_inicio.slice(0, 10));
         setEndDate(menu.fecha_fin.slice(0, 10));
         setImageUri(menu.foto_url);
+        setCurrentEstado(menu.estado);
+        setPublishOnSave(menu.estado === "publicado");
       })
       .catch((e) => AppAlert.alert("Error", e.message || "No se pudo cargar el menú."))
       .finally(() => setLoading(false));
@@ -73,11 +77,23 @@ export default function MenuFormScreen() {
         imageUri,
       };
 
+      let savedMenu: Menu;
       if (isEditing) {
-        await MenuService.update(id!, payload);
+        savedMenu = await MenuService.update(id!, payload);
       } else {
-        await MenuService.create(payload as any);
+        savedMenu = await MenuService.create(payload as any);
       }
+
+      // El create/update no acepta "estado" (el back siempre lo deja en
+      // "programado" al crear, o lo respeta tal cual al editar). Si el
+      // usuario quiere que quede publicado/oculto según el switch, se
+      // resuelve con un toggle aparte -- ver PATCH /menus/:id/toggle.
+      const shouldBePublished = publishOnSave;
+      const isCurrentlyPublished = savedMenu.estado === "publicado";
+      if (shouldBePublished !== isCurrentlyPublished) {
+        await MenuService.toggle(savedMenu.id);
+      }
+
       router.back();
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo guardar el menú.");
@@ -96,91 +112,93 @@ export default function MenuFormScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title={isEditing ? "Editar menú" : "Crear menú"} showBack />
+      <KeyboardAvoidingScreen>
+        <ScreenHeader title={isEditing ? "Editar menú" : "Crear menú"} showBack />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <FormImagePicker
-          imageUri={imageUri}
-          onChange={setImageUri}
-          label="Subir foto del plato"
-        />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <FormImagePicker
+            imageUri={imageUri}
+            onChange={setImageUri}
+            label="Subir foto del plato"
+          />
 
-        <FormTextField
-          label="Nombre del menú"
-          placeholder="Ingresá el nombre del menú"
-          value={name}
-          onChangeText={setName}
-          icon="restaurant-outline"
-        />
+          <FormTextField
+            label="Nombre del menú"
+            placeholder="Ingresá el nombre del menú"
+            value={name}
+            onChangeText={setName}
+            icon="restaurant-outline"
+          />
 
-        <FormTextField
-          label="Descripción"
-          placeholder="Ej: Seco de pollo con arroz, menestra y ensalada fresca"
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          maxLength={DESCRIPTION_MAX}
-        />
+          <FormTextField
+            label="Descripción"
+            placeholder="Ej: Seco de pollo con arroz, menestra y ensalada fresca"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            maxLength={DESCRIPTION_MAX}
+          />
 
-        <FormTextField
-          label="Precio"
-          placeholder="Ingresá el precio del menú"
-          value={price}
-          onChangeText={setPrice}
-          icon="pricetag-outline"
-          keyboardType="decimal-pad"
-        />
+          <FormTextField
+            label="Precio"
+            placeholder="Ingresá el precio del menú"
+            value={price}
+            onChangeText={setPrice}
+            icon="pricetag-outline"
+            keyboardType="decimal-pad"
+          />
 
-        <Text style={styles.label}>Programar fechas</Text>
-        {/* TODO: reemplazar por un date picker real (ej.
-            @react-native-community/datetimepicker) que arme el string
-            en formato YYYY-MM-DD -- el backend usa @IsDateString y
-            rechaza cualquier otro formato. */}
-        <View style={styles.dateRow}>
-          <View style={styles.dateField}>
-            <FormTextField
-              label=""
-              placeholder="AAAA-MM-DD"
-              value={startDate}
-              onChangeText={setStartDate}
-              icon="calendar-outline"
-            />
+          <Text style={styles.label}>Programar fechas</Text>
+          {/* TODO: reemplazar por un date picker real (ej.
+              @react-native-community/datetimepicker) que arme el string
+              en formato YYYY-MM-DD -- el backend usa @IsDateString y
+              rechaza cualquier otro formato. */}
+          <View style={styles.dateRow}>
+            <View style={styles.dateField}>
+              <FormTextField
+                label=""
+                placeholder="AAAA-MM-DD"
+                value={startDate}
+                onChangeText={setStartDate}
+                icon="calendar-outline"
+              />
+            </View>
+            <View style={styles.dateField}>
+              <FormTextField
+                label=""
+                placeholder="AAAA-MM-DD"
+                value={endDate}
+                onChangeText={setEndDate}
+                icon="calendar-outline"
+              />
+            </View>
           </View>
-          <View style={styles.dateField}>
-            <FormTextField
-              label=""
-              placeholder="AAAA-MM-DD"
-              value={endDate}
-              onChangeText={setEndDate}
-              icon="calendar-outline"
-            />
-          </View>
-        </View>
-        <Text style={styles.dateHint}>Dejá vacío si es solo para hoy</Text>
+          <Text style={styles.dateHint}>Dejá vacío si es solo para hoy</Text>
 
-        {/* OJO: el switch queda visual por ahora -- el backend todavía
-            no tiene un campo/endpoint para publicar el menú al crearlo
-            (nace siempre en "programado"). Cuando se agregue, wireear
-            este valor al payload de MenuService.create(). */}
-        <FormToggleRow
-          label="Publicar al guardar"
-          value={publishOnSave}
-          onValueChange={setPublishOnSave}
-        />
+          {/* El create/update no acepta "estado" directamente -- después
+              de guardar, handleSave compara este valor contra el estado
+              real del menú y llama a MenuService.toggle() si hace falta
+              (ver PATCH /menus/:id/toggle). */}
+          <FormToggleRow
+            label="Publicar al guardar"
+            value={publishOnSave}
+            onValueChange={setPublishOnSave}
+          />
 
-        <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
-          <LinearGradient
-            colors={["#FFB74D", "#FB8C00"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.buttonGradient}
-          >
-            <Text style={styles.buttonText}>
-              {saving ? "Guardando..." : "Guardar menú"}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
+            <LinearGradient
+              colors={["#FFB74D", "#FB8C00"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>
+                {saving ? "Guardando..." : "Guardar menú"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingScreen>
     </View>
   );
 }

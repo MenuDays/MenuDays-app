@@ -197,19 +197,6 @@ export default function LoginScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Separador */}
-        <View style={styles.separator}>
-          <View style={styles.separatorLine} />
-          <Text style={styles.separatorText}>o contínua con</Text>
-          <View style={styles.separatorLine} />
-        </View>
-
-        {/* Botón Google */}
-        <TouchableOpacity style={styles.googleButton}>
-          <Ionicons name="logo-google" size={20} color="#DB4437" />
-          <Text style={styles.googleText}>Continuar con Google</Text>
-        </TouchableOpacity>
-
         {/* Link registro */}
         <View style={styles.registerContainer}>
           <Text style={styles.registerText}>¿No tenés cuenta? </Text>

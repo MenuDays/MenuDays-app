@@ -182,19 +182,6 @@ export default function RegisterScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Separador */}
-        <View style={styles.separator}>
-          <View style={styles.separatorLine} />
-          <Text style={styles.separatorText}>o continuá con</Text>
-          <View style={styles.separatorLine} />
-        </View>
-
-        {/* Botón Google */}
-        <TouchableOpacity style={styles.googleButton}>
-          <Ionicons name="logo-google" size={20} color="#DB4437" />
-          <Text style={styles.googleText}>Continuar con Google</Text>
-        </TouchableOpacity>
-
         {/* Link login */}
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>¿Ya tenés cuenta? </Text>

@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import CategoryService, { Category } from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 export default function ChooseCategoriesScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -79,87 +80,89 @@ export default function ChooseCategoriesScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
-        </TouchableOpacity>
-        <View style={styles.headerTextWrap}>
-          <Text style={styles.headerTitle}>Elegir categorías</Text>
-          <Text style={styles.headerSubtitle}>Seleccioná las categorías que ofrece tu restaurante</Text>
+      <KeyboardAvoidingScreen>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
+            <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerTitle}>Elegir categorías</Text>
+            <Text style={styles.headerSubtitle}>Seleccioná las categorías que ofrece tu restaurante</Text>
+          </View>
+          <View style={{ width: 26 }} />
         </View>
-        <View style={{ width: 26 }} />
-      </View>
 
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color="#8A8A8A" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar categoría..."
-          placeholderTextColor="#8A8A8A"
-          value={search}
-          onChangeText={setSearch}
-        />
-      </View>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color="#8A8A8A" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar categoría..."
+            placeholderTextColor="#8A8A8A"
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
 
-      <View style={styles.countRow}>
-        <Text style={styles.countText}>
-          Seleccionadas: <Text style={styles.countHighlight}>{selectedIds.size} categorías</Text>
-        </Text>
-        <View style={styles.countBadge}>
-          <Text style={styles.countBadgeText}>
-            {selectedIds.size} / {categories.length}
+        <View style={styles.countRow}>
+          <Text style={styles.countText}>
+            Seleccionadas: <Text style={styles.countHighlight}>{selectedIds.size} categorías</Text>
           </Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>
+              {selectedIds.size} / {categories.length}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#FB8C00" style={styles.loader} />
-      ) : (
-        <FlatList
-          data={filteredCategories}
-          keyExtractor={(item) => item.id}
-          numColumns={3}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No encontramos categorías con ese nombre.</Text>
-          }
-          renderItem={({ item }) => {
-            const isSelected = selectedIds.has(item.id);
-            return (
-              <TouchableOpacity
-                style={[styles.card, isSelected && styles.cardSelected]}
-                activeOpacity={0.85}
-                onPress={() => toggleCategory(item.id)}
-              >
-                <View style={styles.imageWrap}>
-                  {item.iconos?.url ? (
-                    <Image source={{ uri: item.iconos.url }} style={styles.image} />
-                  ) : (
-                    <View style={[styles.image, styles.imagePlaceholder]}>
-                      <Ionicons name="restaurant-outline" size={22} color="#6B6B6B" />
+        {loading ? (
+          <ActivityIndicator size="large" color="#FB8C00" style={styles.loader} />
+        ) : (
+          <FlatList
+            data={filteredCategories}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.grid}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No encontramos categorías con ese nombre.</Text>
+            }
+            renderItem={({ item }) => {
+              const isSelected = selectedIds.has(item.id);
+              return (
+                <TouchableOpacity
+                  style={[styles.card, isSelected && styles.cardSelected]}
+                  activeOpacity={0.85}
+                  onPress={() => toggleCategory(item.id)}
+                >
+                  <View style={styles.imageWrap}>
+                    {item.iconos?.url ? (
+                      <Image source={{ uri: item.iconos.url }} style={styles.image} />
+                    ) : (
+                      <View style={[styles.image, styles.imagePlaceholder]}>
+                        <Ionicons name="restaurant-outline" size={22} color="#6B6B6B" />
+                      </View>
+                    )}
+                    <View style={[styles.checkCircle, isSelected && styles.checkCircleSelected]}>
+                      {isSelected ? <Ionicons name="checkmark" size={12} color="#FFFFFF" /> : null}
                     </View>
-                  )}
-                  <View style={[styles.checkCircle, isSelected && styles.checkCircleSelected]}>
-                    {isSelected ? <Ionicons name="checkmark" size={12} color="#FFFFFF" /> : null}
                   </View>
-                </View>
-                <Text style={styles.cardLabel} numberOfLines={2}>
-                  {item.nombre}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+                  <Text style={styles.cardLabel} numberOfLines={2}>
+                    {item.nombre}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        )}
 
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-          <Text style={styles.saveButtonText}>
-            {saving ? "Guardando..." : "Guardar categorías seleccionadas"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+            <Text style={styles.saveButtonText}>
+              {saving ? "Guardando..." : "Guardar categorías seleccionadas"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }

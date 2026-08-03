@@ -111,13 +111,15 @@ export default function RestauranteDetalleScreen() {
     Linking.openURL(`tel:${phone.replace(/\D/g, "")}`);
   }
 
-  function handleInstagram() {
-    const ig = restaurant?.redesSociales.find((r) => r.plataforma === "instagram");
-    if (!ig) {
-      AppAlert.alert("Sin Instagram", "Este restaurante todavía no cargó su Instagram.");
+  function handleSocialLink(platform: "instagram" | "facebook" | "tiktok", label: string) {
+    const link = restaurant?.redesSociales.find((r) => r.plataforma === platform);
+    if (!link) {
+      AppAlert.alert(`Sin ${label}`, `Este restaurante todavía no cargó su ${label}.`);
       return;
     }
-    Linking.openURL(ig.url);
+    Linking.openURL(link.url).catch(() => {
+      AppAlert.alert("Link inválido", `El ${label} de este restaurante no es un link válido.`);
+    });
   }
 
   function handleCompartir() {
@@ -212,12 +214,30 @@ export default function RestauranteDetalleScreen() {
             </View>
           </View>
 
-          <View style={styles.actionsRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.actionsRow}
+          >
             <ActionButton icon="navigate-outline" label="Google Maps" onPress={handleGoogleMaps} />
             <ActionButton icon="call-outline" label="Llamar" onPress={handleLlamar} />
-            <ActionButton icon="logo-instagram" label="Instagram" onPress={handleInstagram} />
+            <ActionButton
+              icon="logo-instagram"
+              label="Instagram"
+              onPress={() => handleSocialLink("instagram", "Instagram")}
+            />
+            <ActionButton
+              icon="logo-tiktok"
+              label="TikTok"
+              onPress={() => handleSocialLink("tiktok", "TikTok")}
+            />
+            <ActionButton
+              icon="logo-facebook"
+              label="Facebook"
+              onPress={() => handleSocialLink("facebook", "Facebook")}
+            />
             <ActionButton icon="share-social-outline" label="Compartir" onPress={handleCompartir} />
-          </View>
+          </ScrollView>
 
           {restaurant.descripcion ? (
             <View style={styles.section}>
@@ -598,7 +618,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
   metaText: { fontSize: 12, color: "#757575", fontWeight: "600" },
 
-  actionsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 22 },
+  actionsRow: { flexDirection: "row", gap: 22, marginTop: 22, paddingRight: 8 },
   actionButton: { alignItems: "center", gap: 6 },
   actionIconWrap: {
     width: 46,

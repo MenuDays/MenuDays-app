@@ -8,6 +8,7 @@ import FormTextField from "../../components/restaurant/FormTextField";
 import FormDateField from "../../components/restaurant/FormDateField";
 import PromotionService from "../../../services/promotion.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -93,48 +94,50 @@ export default function PromotionFormScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title={isEditing ? "Editar promoción" : "Crear promoción"} showBack />
+      <KeyboardAvoidingScreen>
+        <ScreenHeader title={isEditing ? "Editar promoción" : "Crear promoción"} showBack />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <FormImagePicker
-          imageUri={imageUri}
-          onChange={setImageUri}
-          label="Subir foto de la promoción"
-        />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <FormImagePicker
+            imageUri={imageUri}
+            onChange={setImageUri}
+            label="Subir foto de la promoción"
+          />
 
-        <FormTextField
-          label="Título"
-          placeholder="Ej: 2x1 en hamburguesas"
-          value={title}
-          onChangeText={setTitle}
-          icon="pricetag-outline"
-        />
+          <FormTextField
+            label="Título"
+            placeholder="Ej: 2x1 en hamburguesas"
+            value={title}
+            onChangeText={setTitle}
+            icon="pricetag-outline"
+          />
 
-        <FormTextField
-          label="Descripción"
-          placeholder="Ej: Válido de lunes a jueves"
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          maxLength={500}
-        />
+          <FormTextField
+            label="Descripción"
+            placeholder="Ej: Válido de lunes a jueves"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            maxLength={500}
+          />
 
-        <FormDateField label="Fecha de inicio" value={startDate} onChangeText={setStartDate} />
-        <FormDateField label="Fecha de fin" value={endDate} onChangeText={setEndDate} />
+          <FormDateField label="Fecha de inicio" value={startDate} onChangeText={setStartDate} />
+          <FormDateField label="Fecha de fin" value={endDate} onChangeText={setEndDate} />
 
-        <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
-          <LinearGradient
-            colors={["#FFB74D", "#FB8C00"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.buttonGradient}
-          >
-            <Text style={styles.buttonText}>
-              {saving ? "Guardando..." : "Guardar promoción"}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
+            <LinearGradient
+              colors={["#FFB74D", "#FB8C00"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>
+                {saving ? "Guardando..." : "Guardar promoción"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingScreen>
     </View>
   );
 }
