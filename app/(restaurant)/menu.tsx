@@ -1,14 +1,14 @@
-import React, { useCallback, useState } from "react";
-import { View, StyleSheet, FlatList, Text, ActivityIndicator, RefreshControl } from "react-native";
-import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import ScreenHeader from "../components/restaurant/ScreenHeader";
-import FilterChips, { FilterChipOption } from "../components/restaurant/FilterChips";
-import EntityListCard from "../components/restaurant/EntityListCard";
-import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
-import { StatusTone } from "../components/restaurant/StatusBadge";
+import { router } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import MenuService, { Menu, MenuStatus } from "../../services/menu.service";
 import { AppAlert } from "../components/common/AppAlert";
+import EntityListCard from "../components/restaurant/EntityListCard";
+import FilterChips, { FilterChipOption } from "../components/restaurant/FilterChips";
+import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import ScreenHeader from "../components/restaurant/ScreenHeader";
+import { StatusTone } from "../components/restaurant/StatusBadge";
 
 type FilterValue = "todos" | MenuStatus;
 
@@ -93,6 +93,7 @@ export default function MenuListScreen() {
     
         <ScreenHeader
           title="Menú del día"
+          showBack
           rightIcon="add"
           onRightPress={() => router.push("/(restaurant)/menu/form")}
         />

@@ -140,11 +140,43 @@ export interface RestaurantPublicDetail {
   platos: PublicDish[];
   promociones: PublicPromotion[];
 }
+export interface RestaurantDashboard {
+  nombre_comercial: string;
+  logo_url: string | null;
+  portada_url: string | null;
 
+  calificacion_promedio: number;
+  cantidad_resenas: number;
+
+  platos_registrados: number;
+  promociones_activas: number;
+  pedidos_pendientes: number;
+}
+export interface RestaurantReview {
+  id: number;
+
+  comentario: string;
+
+  calificacion: number;
+
+  fecha: string;
+
+  usuario: {
+    id: number;
+    nombre: string;
+    foto_perfil: string | null;
+  };
+}
 class RestaurantService {
   async getProfile(): Promise<Restaurant> {
     return await api<Restaurant>("/restaurants/profile");
   }
+  async getDashboard(): Promise<RestaurantDashboard> {
+  return await api("/restaurants/dashboard");
+}
+async getReviews(): Promise<RestaurantReview[]> {
+  return await api("/restaurants/reviews");
+}
 
   async updateProfile(data: UpdateRestaurantPayload): Promise<Restaurant> {
     return await api<Restaurant>("/restaurants/profile", {
@@ -162,6 +194,36 @@ class RestaurantService {
   async getPublicDetail(id: string | number): Promise<RestaurantPublicDetail> {
     return await api<RestaurantPublicDetail>(`/restaurants/${id}`);
   }
+  async uploadLogo(image: any): Promise<Restaurant> {
+  const formData = new FormData();
+
+  formData.append("image", {
+    uri: image.uri,
+    name: image.fileName ?? "logo.jpg",
+    type: image.mimeType ?? image.type ?? "image/jpeg",
+  } as any);
+
+  return await api("/restaurants/profile/logo", {
+    method: "POST",
+    body: formData,
+    headers: {},
+  });
+}
+async uploadCover(image: any): Promise<Restaurant> {
+  const formData = new FormData();
+
+  formData.append("image", {
+    uri: image.uri,
+    name: image.fileName ?? "cover.jpg",
+    type: image.mimeType ?? image.type ?? "image/jpeg",
+  } as any);
+
+  return await api("/restaurants/profile/cover", {
+    method: "POST",
+    body: formData,
+    headers: {},
+  });
+}
 
   // TODO: cuando existan los endpoints, agregar acá:
   // addPhone / removePhone

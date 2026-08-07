@@ -1,31 +1,30 @@
-import React, { useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ImageBackground,
-  Dimensions,
-  Animated,
-  Easing,
-} from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
 import { router } from "expo-router";
-import WaveTop from "../components/home/WaveTop";
-import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  Dimensions,
+  Easing,
+  ImageBackground,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import {
+  useSafeAreaInsets
+} from "react-native-safe-area-context";
+import Svg, { Defs, Stop, LinearGradient as SvgGradient } from "react-native-svg";
 import DishService from "../../services/dish.service";
+import MenuService from "../../services/menu.service";
 import PromotionService from "../../services/promotion.service";
 import RestaurantService from "../../services/restaurant.service";
-import MenuService from "../../services/menu.service";
 import { AppAlert } from "../components/common/AppAlert";
+import WaveTop from "../components/home/WaveTop";
+import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 
 const { width } = Dimensions.get("screen");
 
@@ -64,69 +63,60 @@ interface QuickAccessItem {
   route: string;
   gradient: [string, string];
 }
-
-const RESTAURANT = {
-  name: "Sabor Ecuatoriano",
-  rating: 4.8,
-};
-
-// Visitas de los últimos 7 días — el último valor (hoy) coincide con el
-// "247" que ya se muestra en el header y en la card hero
-const WEEKLY_VISITS: DailyVisit[] = [
-  { day: "L", value: 142 },
-  { day: "M", value: 168 },
-  { day: "X", value: 155 },
-  { day: "J", value: 190 },
-  { day: "V", value: 210 },
-  { day: "S", value: 231 },
-  { day: "D", value: 247 },
-];
-
-const TODAY_VISITS = WEEKLY_VISITS[WEEKLY_VISITS.length - 1].value;
-const TODAY_TREND = "+18%";
-
-// Desglose que reutiliza los mismos datos de la card de stats
-// (reseñas, menús activos, platos) como barras comparativas
-const BREAKDOWN: BreakdownItem[] = [
-  { label: "Reseñas", value: 4.8, max: 5, display: "4.8", gradient: ["#FF9D42", "#F5751A"] },
-  { label: "Promociones activas", value: 2, max: 5, display: "2", gradient: ["#FFC94D", "#F5A800"] },
-  { label: "Platos registrados", value: 12, max: 20, display: "12", gradient: ["#FFA94D", "#F5871A"] },
-];
-
-// Grid 2x2 — cubre lo que necesitás ver como restaurante:
-// platos registrados, promociones activas, pedidos pendientes
-// (solo visual por ahora, sin backend detrás todavía) y reseñas.
 const STATS: StatItem[] = [
   {
     icon: "list-outline",
-    value: "12",
+    value: "0",
     label: "Platos registrados",
     gradient: ["#FFA94D", "#F5871A"],
     trend: null,
   },
   {
     icon: "pricetag-outline",
-    value: "2",
+    value: "0",
     label: "Promociones activas",
     gradient: ["#FFC94D", "#F5A800"],
     trend: null,
   },
   {
     icon: "time-outline",
-    value: "5",
+    value: "0",
     label: "Pedidos pendientes",
     gradient: ["#FFB800", "#F5A800"],
     trend: null,
   },
   {
     icon: "star",
-    value: "4.8",
+    value: "0.0",
     label: "Reseñas",
     gradient: ["#FF9D42", "#F5751A"],
-    trend: "+0.2",
+    trend: null,
   },
 ];
 
+const BREAKDOWN: BreakdownItem[] = [
+  {
+    label: "Reseñas",
+    value: 0,
+    max: 5,
+    display: "0.0",
+    gradient: ["#FF9D42", "#F5751A"],
+  },
+  {
+    label: "Promociones activas",
+    value: 0,
+    max: 5,
+    display: "0",
+    gradient: ["#FFC94D", "#F5A800"],
+  },
+  {
+    label: "Platos registrados",
+    value: 0,
+    max: 20,
+    display: "0",
+    gradient: ["#FFA94D", "#F5871A"],
+  },
+];
 const QUICK_ACCESS: QuickAccessItem[] = [
   {
     icon: "fast-food-outline",
@@ -165,24 +155,18 @@ function getGreeting(): string {
   return "Buenas noches";
 }
 
-function getInsightMessage(): string {
-  const values = WEEKLY_VISITS.map((d) => d.value);
-  const todayIsBest = TODAY_VISITS === Math.max(...values);
-  if (todayIsBest) return "Este es tu mejor día de la semana 🎉";
-
-  const yesterday = WEEKLY_VISITS[WEEKLY_VISITS.length - 2].value;
-  if (TODAY_VISITS > yesterday) return "Vas mejor que ayer, seguí así";
-  return "Un poco más tranquilo que ayer";
-}
-
 export default function RestaurantDashboard() {
   const insets = useSafeAreaInsets();
   const greeting = getGreeting();
-  const insightMessage = getInsightMessage();
   const [isOpen, setIsOpen] = React.useState(true);
   // Arranca en null ("todavía no sabemos") para no mostrar ni el estado
   // publicado ni el de "falta publicar" hasta tener la respuesta real.
   const [menuPublished, setMenuPublished] = React.useState<boolean | null>(null);
+  const [restaurant, setRestaurant] = React.useState({
+  name: "",
+  rating: 0,
+});
+
 
   useEffect(() => {
     async function loadTodayMenuStatus() {
@@ -212,12 +196,14 @@ export default function RestaurantDashboard() {
 
   useEffect(() => {
     async function loadRealStats() {
+      
       try {
         const [dishes, promotions, profile] = await Promise.all([
           DishService.getAll(),
           PromotionService.getAll(),
           RestaurantService.getProfile(),
         ]);
+        
 
         const dishesCount = dishes.length;
         const activePromotions = promotions.filter((p) => p.activa).length;
@@ -309,7 +295,10 @@ export default function RestaurantDashboard() {
 
     Animated.stagger(
       75,
-      cardAnims.map((anim) =>
+      cardAnims.map((anim: {
+  opacity: Animated.Value;
+  translateY: Animated.Value;
+}) =>
         Animated.parallel([
           Animated.timing(anim.opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
           Animated.timing(anim.translateY, {
@@ -414,7 +403,7 @@ export default function RestaurantDashboard() {
 
             <View style={styles.headerContent}>
               <Text style={styles.headerGreeting}>{greeting} 👋</Text>
-              <Text style={styles.headerRestaurantName}>{RESTAURANT.name}</Text>
+              <Text style={styles.headerRestaurantName}>{restaurant.name}</Text>
 
               <Animated.View
                 style={[
@@ -434,7 +423,7 @@ export default function RestaurantDashboard() {
               >
                 <View style={styles.headerStatPill}>
                   <Ionicons name="star" size={13} color="#FFD54D" />
-                  <Text style={styles.headerStatText}>{RESTAURANT.rating}</Text>
+                  <Text style={styles.headerStatText}>{restaurant.rating.toFixed(1)}</Text>
                 </View>
               </Animated.View>
             </View>
@@ -544,7 +533,6 @@ export default function RestaurantDashboard() {
               { opacity: chartAnim.opacity, transform: [{ translateY: chartAnim.translateY }] },
             ]}
           >
-            <BarChart data={WEEKLY_VISITS} />
 
             <View style={styles.divider} />
 
@@ -556,7 +544,6 @@ export default function RestaurantDashboard() {
           {/* Accesos rápidos */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Accesos rápidos</Text>
-            <Text style={styles.sectionLink}>Ver todo</Text>
           </View>
 
           <View style={styles.quickGrid}>

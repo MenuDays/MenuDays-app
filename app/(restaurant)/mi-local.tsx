@@ -71,7 +71,9 @@ export default function MiLocalScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Mi Local" />
+      <ScreenHeader title="Mi Local"
+      showBack
+      />
 
       <View style={styles.tabBar}>
         <TouchableOpacity

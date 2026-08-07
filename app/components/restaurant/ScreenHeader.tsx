@@ -1,9 +1,9 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface ScreenHeaderProps {
   title: string;
@@ -32,7 +32,7 @@ export default function ScreenHeader({
           {showBack ? (
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={onBack ?? (() => router.back())}
+              onPress={onBack ?? (() => router.replace("/(restaurant)/dashboard"))}
               hitSlop={10}
             >
               <Ionicons name="arrow-back" size={22} color="#FFFFFF" />

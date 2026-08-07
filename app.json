@@ -48,7 +48,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Permití el acceso a tu ubicación para mostrarte restaurantes cercanos."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
