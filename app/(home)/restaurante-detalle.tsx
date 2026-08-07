@@ -1,33 +1,43 @@
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
+  Image,
   Linking,
+  ScrollView,
   Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import MapView, { Marker } from "react-native-maps";
+import { SafeAreaView } from "react-native-safe-area-context";
 // TODO: si el proyecto todavía no tiene "expo-clipboard" instalado,
 // correr `npx expo install expo-clipboard` (se usa para "Copiar dirección").
 import * as Clipboard from "expo-clipboard";
 
-import RestaurantService, { RestaurantPublicDetail } from "../../services/restaurant.service";
-import ReviewService, { Review } from "../../services/review.service";
 import FavoriteService from "../../services/favorite.service";
 import LocationService from "../../services/location.service";
+import RestaurantService, { RestaurantPublicDetail } from "../../services/restaurant.service";
+import ReviewService, { Review } from "../../services/review.service";
 import { AppAlert } from "../components/common/AppAlert";
 
 const DAY_NAMES = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
-export default function RestauranteDetalleScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+interface Props {
+  previewRestaurantId?: string;
+  ownerPreview?: boolean;
+}
+
+export default function RestauranteDetalleScreen({
+  previewRestaurantId,
+  ownerPreview = false,
+}: Props) {
+const { id: routeId } = useLocalSearchParams<{ id: string }>();
+
+const restaurantId = previewRestaurantId ?? routeId;
 
   const [restaurant, setRestaurant] = useState<RestaurantPublicDetail | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -40,11 +50,14 @@ export default function RestauranteDetalleScreen() {
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!restaurantId) {
+  setLoading(false);
+  return;
+}
     setLoading(true);
     Promise.all([
-      RestaurantService.getPublicDetail(id),
-      ReviewService.getRestaurantReviews(id),
+      RestaurantService.getPublicDetail(restaurantId),
+      ReviewService.getRestaurantReviews(restaurantId),
       // GET /favorites ya existe y trae el listado completo del usuario;
       // no hay un endpoint "¿es favorito?" puntual, así que se deriva acá.
       FavoriteService.getAll().catch(() => []),
@@ -64,7 +77,7 @@ export default function RestauranteDetalleScreen() {
       })
       .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar el restaurante."))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [restaurantId]);
 
   const scheduleGroups = useMemo(
     () => (restaurant ? groupSchedule(restaurant.horarios) : []),
@@ -215,10 +228,11 @@ export default function RestauranteDetalleScreen() {
           </View>
 
           <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.actionsRow}
-          >
+  horizontal
+  showsHorizontalScrollIndicator={false}
+  contentContainerStyle={styles.actionsRow}
+  style={{ marginHorizontal: -20 }}
+>
             <ActionButton icon="navigate-outline" label="Google Maps" onPress={handleGoogleMaps} />
             <ActionButton icon="call-outline" label="Llamar" onPress={handleLlamar} />
             <ActionButton
@@ -640,7 +654,13 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
   metaText: { fontSize: 12, color: "#757575", fontWeight: "600" },
 
-  actionsRow: { flexDirection: "row", gap: 22, marginTop: 22, paddingRight: 8 },
+  actionsRow: {
+  flexDirection: "row",
+  gap: 22,
+  marginTop: 22,
+  paddingHorizontal: 20,
+  paddingRight: 28,
+},
   actionButton: { alignItems: "center", gap: 6 },
   actionIconWrap: {
     width: 46,

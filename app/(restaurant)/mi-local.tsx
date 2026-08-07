@@ -1,27 +1,27 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
+  FlatList,
+  Image,
   RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import RestauranteDetalleScreen from "../(home)/restaurante-detalle";
 
-import ScreenHeader from "../components/restaurant/ScreenHeader";
-import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
-import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
 import OrderService, {
   NEXT_ORDER_STATUSES,
   OrderStatus,
   RestaurantOrderListItem,
 } from "../../services/order.service";
-import RestaurantService, { RestaurantPublicDetail } from "../../services/restaurant.service";
+import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
+import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import ScreenHeader from "../components/restaurant/ScreenHeader";
+import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
 
 // Pantalla "Mi Local": antes el ítem de la nav bar no llevaba a ningún
 // lado (route: null en RestaurantBottomNav). Junta dos cosas:
@@ -293,19 +293,24 @@ function PedidosTab() {
 // ============================================================
 
 function VistaPreviaTab() {
-  const [restaurant, setRestaurant] = useState<RestaurantPublicDetail | null>(null);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     RestaurantService.getProfile()
-      .then((me) => RestaurantService.getPublicDetail(me.id))
-      .then(setRestaurant)
-      .catch((e: any) => setError(e.message || "No se pudo cargar la vista previa."))
+      .then((me) => {
+        setRestaurantId(String(me.id));
+      })
+      .catch((e: any) => {
+        AppAlert.alert(
+          "Error",
+          e.message || "No se pudo cargar el restaurante."
+        );
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
+  if (loading || !restaurantId) {
     return (
       <View style={styles.centerWrap}>
         <ActivityIndicator size="large" color="#FB8C00" />
@@ -313,114 +318,10 @@ function VistaPreviaTab() {
     );
   }
 
-  if (error || !restaurant) {
-    return (
-      <View style={styles.centerWrap}>
-        <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
-        <Text style={styles.emptyText}>{error || "No se pudo cargar la vista previa."}</Text>
-      </View>
-    );
-  }
-
   return (
-    <FlatList
-      style={styles.tabContent}
-      contentContainerStyle={styles.previewContent}
-      showsVerticalScrollIndicator={false}
-      data={[restaurant]}
-      keyExtractor={() => "preview"}
-      renderItem={() => (
-        <View>
-          <View style={styles.previewBanner}>
-            <Text style={styles.previewBannerText}>
-              Así te ven los comensales. Es solo una vista previa, no podés hacer nada desde acá.
-            </Text>
-          </View>
-
-          {restaurant.portadaUrl ? (
-            <Image source={{ uri: restaurant.portadaUrl }} style={styles.previewCover} />
-          ) : (
-            <View style={[styles.previewCover, styles.previewCoverPlaceholder]}>
-              <Ionicons name="image-outline" size={28} color="#BDBDBD" />
-            </View>
-          )}
-
-          <View style={styles.previewHeaderRow}>
-            {restaurant.logoUrl ? (
-              <Image source={{ uri: restaurant.logoUrl }} style={styles.previewLogo} />
-            ) : (
-              <View style={[styles.previewLogo, styles.previewLogoPlaceholder]}>
-                <Ionicons name="storefront-outline" size={20} color="#BDBDBD" />
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.previewName}>{restaurant.nombreComercial}</Text>
-              <View style={styles.previewRatingRow}>
-                <Ionicons name="star" size={13} color="#F5A800" />
-                <Text style={styles.previewRatingText}>
-                  {restaurant.calificacionPromedio.toFixed(1)} ({restaurant.cantidadResenas} reseñas)
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {restaurant.descripcion ? (
-            <View style={styles.previewSection}>
-              <Text style={styles.previewSectionTitle}>Sobre nosotros</Text>
-              <Text style={styles.previewParagraph}>{restaurant.descripcion}</Text>
-            </View>
-          ) : null}
-
-          {restaurant.menus.length > 0 && (
-            <View style={styles.previewSection}>
-              <Text style={styles.previewSectionTitle}>Menú del día</Text>
-              {restaurant.menus.map((menu) => (
-                <View key={menu.id} style={styles.previewMenuCard}>
-                  {menu.foto_url ? (
-                    <Image source={{ uri: menu.foto_url }} style={styles.previewMenuImage} />
-                  ) : (
-                    <View style={[styles.previewMenuImage, styles.previewMenuImagePlaceholder]}>
-                      <Ionicons name="restaurant-outline" size={16} color="#BDBDBD" />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.previewMenuName} numberOfLines={1}>
-                      {menu.nombre}
-                    </Text>
-                    {menu.descripcion ? (
-                      <Text style={styles.previewMenuDescription} numberOfLines={1}>
-                        {menu.descripcion}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.previewMenuPrice}>${menu.precio.toFixed(2)}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <View style={styles.previewSection}>
-            <Text style={styles.previewSectionTitle}>Ubicación y horarios</Text>
-            {restaurant.direccion ? (
-              <View style={styles.previewAddressRow}>
-                <Ionicons name="location-outline" size={15} color="#9E9E9E" />
-                <Text style={styles.previewAddressText}>
-                  {restaurant.direccion}
-                  {restaurant.ciudad ? `, ${restaurant.ciudad.nombre}, ${restaurant.ciudad.provincia.nombre}` : ""}
-                </Text>
-              </View>
-            ) : null}
-            {restaurant.horarios.map((h) => (
-              <View key={h.id} style={styles.previewScheduleRow}>
-                <Text style={styles.previewScheduleDay}>{DAY_NAMES[h.dia_semana]}</Text>
-                <Text style={h.cerrado ? styles.previewScheduleClosed : styles.previewScheduleHours}>
-                  {h.cerrado ? "Cerrado" : `${h.hora_apertura ?? "--:--"} - ${h.hora_cierre ?? "--:--"}`}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
+    <RestauranteDetalleScreen
+      previewRestaurantId={restaurantId}
+      ownerPreview
     />
   );
 }
