@@ -80,7 +80,7 @@ export default function PromotionListScreen() {
   }
 
   function handleDelete(id: string) {
-    AppAlert.alert("Eliminar promoción", "¿Seguro que querés eliminar esta promoción?", [
+    AppAlert.alert("Eliminar promoción", "¿Seguro que quieres eliminar esta promoción?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Eliminar",

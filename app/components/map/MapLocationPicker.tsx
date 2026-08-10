@@ -103,8 +103,8 @@ export default function MapLocationPicker({
 
   function promptLocationChoice() {
     AppAlert.alert(
-      "¿Cómo querés fijar tu ubicación?",
-      "Podés usar tu ubicación actual o elegirla manualmente en el mapa.",
+      "¿Cómo quieres fijar tu ubicación?",
+      "Puedes usar tu ubicación actual o elegirla manualmente en el mapa.",
       [
         {
           text: "Elegir en el mapa",
@@ -139,20 +139,20 @@ export default function MapLocationPicker({
         } else {
           AppAlert.alert(
             "No se pudo detectar la dirección",
-            "Escribí la dirección manualmente para este punto."
+            "Escribe la dirección manualmente para este punto."
           );
         }
       } else {
         AppAlert.alert(
           "No se pudo detectar la dirección",
-          "Escribí la dirección manualmente para este punto."
+          "Escribe la dirección manualmente para este punto."
         );
       }
     } catch (e) {
       console.log("Error en geocoding:", e);
       AppAlert.alert(
         "No se pudo obtener la dirección",
-        "Revisá tu conexión o escribí la dirección manualmente."
+        "Revisa tu conexión o escribe la dirección manualmente."
       );
     }
   }
@@ -170,7 +170,7 @@ export default function MapLocationPicker({
       if (status !== "granted") {
         AppAlert.alert(
           "Permiso denegado",
-          "No se pudo acceder a tu ubicación. Podés elegirla manualmente tocando el mapa."
+          "No se pudo acceder a tu ubicación. Puedes elegirla manualmente tocando el mapa."
         );
         return;
       }
@@ -264,7 +264,7 @@ export default function MapLocationPicker({
             color="#757575"
           />
           <Text style={styles.hintText}>
-            Tocá el mapa para ajustar tu ubicación
+            Toca el mapa para ajustar tu ubicación
           </Text>
         </View>
       </View>
@@ -303,7 +303,7 @@ export default function MapLocationPicker({
           )}
         </View>
         <Text style={styles.addressHint}>
-          Podés editar la dirección si no es exacta
+          Puedes editar la dirección si no es exacta
         </Text>
 
         <TouchableOpacity

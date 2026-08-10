@@ -28,7 +28,7 @@ export default function DishDetailScreen() {
 
   function handleDelete() {
     if (!dish) return;
-    AppAlert.alert("Eliminar plato", "¿Seguro que querés eliminar este plato?", [
+    AppAlert.alert("Eliminar plato", "¿Seguro que quieres eliminar este plato?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Eliminar",

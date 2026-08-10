@@ -10,10 +10,12 @@ import {
   ScrollView,
   Animated,
   PanResponder,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
+import { EmptyState } from "../components/common/EmptyState";
 import {
   MockFoodItem,
   MOCK_PLATOS,
@@ -237,12 +239,10 @@ export default function ExplorarResultadosScreen() {
         contentContainerStyle={styles.resultsList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Ionicons name="fast-food-outline" size={36} color="#D9D9D9" />
-            <Text style={styles.emptyText}>
-              No encontramos {TAB_LABELS[tab].toLowerCase()} con esos filtros.
-            </Text>
-          </View>
+          <EmptyState
+            mascot={require("../../assets/images/buscando-nene.png")}
+            text={`No encontramos ${TAB_LABELS[tab].toLowerCase()} con esos filtros.`}
+          />
         }
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.card} activeOpacity={0.9}>
@@ -469,8 +469,7 @@ const styles = StyleSheet.create({
   sortChipTextActive: { color: "#FFFFFF" },
 
   resultsList: { paddingBottom: 120 },
-  emptyWrap: { alignItems: "center", marginTop: 60, paddingHorizontal: 30, gap: 10 },
-  emptyText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
+
 
   card: {
     flexDirection: "row",

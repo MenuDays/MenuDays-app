@@ -57,19 +57,19 @@ export default function DishFormScreen() {
 
   function validate() {
     if (!name.trim()) {
-      AppAlert.alert("Falta el nombre", "Ingresá el nombre del plato.");
+      AppAlert.alert("Falta el nombre", "Ingresa el nombre del plato.");
       return false;
     }
     if (!description.trim()) {
-      AppAlert.alert("Falta la descripción", "Ingresá una descripción del plato.");
+      AppAlert.alert("Falta la descripción", "Ingresa una descripción del plato.");
       return false;
     }
     if (!price.trim() || isNaN(Number(price))) {
-      AppAlert.alert("Precio inválido", "Ingresá un precio válido.");
+      AppAlert.alert("Precio inválido", "Ingresa un precio válido.");
       return false;
     }
     if (!categoryId) {
-      AppAlert.alert("Falta la categoría", "Elegí una categoría para el plato.");
+      AppAlert.alert("Falta la categoría", "Elige una categoría para el plato.");
       return false;
     }
     if (!isEditing && !imageUri) {
@@ -132,7 +132,7 @@ router.back();
 
           <FormTextField
             label="Nombre del plato"
-            placeholder="Ingresá el nombre del plato"
+            placeholder="Ingresa el nombre del plato"
             value={name}
             onChangeText={setName}
             icon="restaurant-outline"
@@ -149,7 +149,7 @@ router.back();
 
           <FormTextField
             label="Precio"
-            placeholder="Ingresá el precio del plato"
+            placeholder="Ingresa el precio del plato"
             value={price}
             onChangeText={setPrice}
             icon="pricetag-outline"

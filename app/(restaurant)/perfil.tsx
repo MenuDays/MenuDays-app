@@ -67,13 +67,6 @@ export default function RestaurantProfileScreen() {
   const [socialLinks, setSocialLinks] = useState<RestaurantSocialLink[]>([]);
   const [schedule, setSchedule] = useState<RestaurantSchedule[]>([]);
 
-  // Fallback sin subida real de archivo: se pega la URL de una imagen
-  // ya alojada en otro lado (Cloudinary, etc). No hay endpoint de upload
-  // para el perfil todavía.
-  const [imageUrlModalTarget, setImageUrlModalTarget] = useState<"logo" | "cover" | null>(null);
-  const [imageUrlInput, setImageUrlInput] = useState("");
-  const [savingImage, setSavingImage] = useState(false);
-
   useEffect(() => {
     loadRestaurant();
     ProvinceService.getAll().then(setProvinces);
@@ -185,11 +178,11 @@ export default function RestaurantProfileScreen() {
       return;
     }
     if (!editCity) {
-      AppAlert.alert("Falta la ciudad", "Elegí la provincia y ciudad de tu restaurante.");
+      AppAlert.alert("Falta la ciudad", "Elige la provincia y ciudad de tu restaurante.");
       return;
     }
     if (!editLocation) {
-      AppAlert.alert("Falta la ubicación", "Seleccioná la ubicación de tu restaurante en el mapa.");
+      AppAlert.alert("Falta la ubicación", "Selecciona la ubicación de tu restaurante en el mapa.");
       return;
     }
 
@@ -335,35 +328,8 @@ async function handleUploadCover() {
     setSchedule((prev) => prev.map((d) => (d.id === dayId ? { ...d, ...patch } : d)));
   }
 
-  function openImageUrlModal(target: "logo" | "cover") {
-    setImageUrlInput(
-      (target === "logo" ? restaurant?.logo_url : restaurant?.portada_url) ?? ""
-    );
-    setImageUrlModalTarget(target);
-  }
-
-  async function handleSaveImageUrl() {
-    if (!imageUrlModalTarget || !imageUrlInput.trim()) return;
-    setSavingImage(true);
-    try {
-      const payload =
-        imageUrlModalTarget === "logo"
-          ? { logoUrl: imageUrlInput.trim() }
-          : { portadaUrl: imageUrlInput.trim() };
-      const updated = await RestaurantService.updateProfile(payload);
-      setRestaurant(updated);
-      setImageUrlModalTarget(null);
-      setImageUrlInput("");
-    } catch (e) {
-      console.log("Error guardando imagen:", e);
-      AppAlert.alert("Error", "No se pudo guardar. Revisá que sea una URL de imagen válida.");
-    } finally {
-      setSavingImage(false);
-    }
-  }
-
   function handleLogout() {
-    AppAlert.alert("Cerrar sesión", "¿Seguro que querés cerrar tu sesión?", [
+    AppAlert.alert("Cerrar sesión", "¿Seguro que quieres cerrar tu sesión?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Cerrar sesión",
@@ -467,7 +433,7 @@ async function handleUploadCover() {
                 ]}
               >
                 {isEditing
-                  ? editCityProvinceLabel ?? "Elegí provincia y ciudad"
+                  ? editCityProvinceLabel ?? "Elige provincia y ciudad"
                   : cityProvinceLabel ?? "Sin ciudad"}
               </Text>
               {isEditing && <Ionicons name="chevron-down" size={16} color="#3E2723" />}
@@ -546,7 +512,7 @@ async function handleUploadCover() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Elegí la provincia</Text>
+              <Text style={styles.modalTitle}>Elige la provincia</Text>
               <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
               </TouchableOpacity>
@@ -589,7 +555,7 @@ async function handleUploadCover() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Elegí la ciudad{editProvince ? ` (${editProvince.nombre})` : ""}
+                Elige la ciudad{editProvince ? ` (${editProvince.nombre})` : ""}
               </Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
@@ -621,63 +587,6 @@ async function handleUploadCover() {
                 <Text style={styles.emptyListText}>No hay ciudades para esta provincia</Text>
               }
             />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Logo / portada: pegar URL (no hay endpoint de subida todavía) */}
-      <Modal
-        visible={imageUrlModalTarget !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setImageUrlModalTarget(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {imageUrlModalTarget === "logo" ? "URL del logo" : "URL de la portada"}
-              </Text>
-              <TouchableOpacity onPress={() => setImageUrlModalTarget(null)}>
-                <Ionicons name="close" size={24} color="#3E2723" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.pickerLabel}>
-              Pegá el link de una imagen ya subida (Cloudinary, etc). Todavía no hay
-              selector de imagen del celular conectado.
-            </Text>
-
-            <View style={styles.modalSearchContainer}>
-              <Ionicons name="link-outline" size={18} color="#9E9E9E" style={styles.pickerIcon} />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="https://..."
-                placeholderTextColor="#9E9E9E"
-                value={imageUrlInput}
-                onChangeText={setImageUrlInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.saveButton,
-                (savingImage || !imageUrlInput.trim()) && { opacity: 0.7 },
-              ]}
-              onPress={handleSaveImageUrl}
-              disabled={savingImage || !imageUrlInput.trim()}
-            >
-              {savingImage ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                  <Text style={styles.saveButtonText}>Guardar</Text>
-                </>
-              )}
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>

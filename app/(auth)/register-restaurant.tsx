@@ -231,23 +231,23 @@ export default function RegisterRestaurantScreen() {
     }
 
     if (!location) {
-      AppAlert.alert('Ubicación requerida', 'Seleccioná la ubicación del restaurante en el mapa.');
+      AppAlert.alert('Ubicación requerida', 'Selecciona la ubicación del restaurante en el mapa.');
       return;
     }
 
     if (!logo) {
-      AppAlert.alert('Logo requerido', 'Subí el logo de tu restaurante.');
+      AppAlert.alert('Logo requerido', 'Sube el logo de tu restaurante.');
       return;
     }
 
     if (!idFront || !idBack) {
-      AppAlert.alert('Documentos requeridos', 'Subí el frente y el dorso de tu cédula.');
+      AppAlert.alert('Documentos requeridos', 'Sube el frente y el dorso de tu cédula.');
       return;
     }
 
     const openDays = schedules.filter((s) => !s.closed);
     if (openDays.length === 0) {
-      AppAlert.alert('Horarios requeridos', 'Marcá al menos un día en el que tu restaurante esté abierto.');
+      AppAlert.alert('Horarios requeridos', 'Marca al menos un día en el que tu restaurante esté abierto.');
       return;
     }
     const invalidDay = openDays.find(
@@ -257,7 +257,7 @@ export default function RegisterRestaurantScreen() {
       const label = DAYS_OF_WEEK.find((d) => d.day === invalidDay.day)?.label;
       AppAlert.alert(
         'Horario inválido',
-        `Completá la hora de apertura y cierre de ${label} en formato HH:mm (ej: 08:00).`
+        `Completa la hora de apertura y cierre de ${label} en formato HH:mm (ej: 08:00).`
       );
       return;
     }
@@ -383,7 +383,7 @@ export default function RegisterRestaurantScreen() {
           <Ionicons name="storefront-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Ingresá  el nombre del restaurante"
+            placeholder="Ingresa el nombre del restaurante"
             placeholderTextColor="#9E9E9E"
             value={restaurantName}
             onChangeText={setRestaurantName}
@@ -412,7 +412,7 @@ export default function RegisterRestaurantScreen() {
         >
           <Ionicons name="location-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <Text style={[styles.input, !city && styles.placeholderText]}>
-            {city ? city.nombre : province ? 'Elige la  ciudad' : 'Elegí primero la provincia'}
+            {city ? city.nombre : province ? 'Elige la  ciudad' : 'Elige primero la provincia'}
           </Text>
           <Ionicons name="chevron-down" size={18} color="#3E2723" />
         </TouchableOpacity>
@@ -441,7 +441,7 @@ export default function RegisterRestaurantScreen() {
           <View style={[styles.inputContainer, styles.phoneInputContainer]}>
             <TextInput
               style={styles.input}
-              placeholder="Ingresá  el número de teléfono"
+              placeholder="Ingresa el número de teléfono"
               placeholderTextColor="#9E9E9E"
               value={phone}
               onChangeText={setPhone}
@@ -509,7 +509,7 @@ export default function RegisterRestaurantScreen() {
 
         {/* Horarios */}
         <Text style={styles.label}>Horarios de atención</Text>
-        <Text style={styles.optionalLabel}>Marcá los días que abrís y las horas de atención</Text>
+        <Text style={styles.optionalLabel}>Marca los días que abrís y las horas de atención</Text>
 
         {schedules.map((s) => {
           const dayLabel = DAYS_OF_WEEK.find((d) => d.day === s.day)?.label;
@@ -616,7 +616,7 @@ export default function RegisterRestaurantScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Elegí la provincia</Text>
+              <Text style={styles.modalTitle}>Elige la provincia</Text>
               <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
               </TouchableOpacity>
@@ -662,7 +662,7 @@ export default function RegisterRestaurantScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Elegí la ciudad{province ? ` (${province.nombre})` : ''}
+                Elige la ciudad{province ? ` (${province.nombre})` : ''}
               </Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
@@ -711,7 +711,7 @@ export default function RegisterRestaurantScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Elegí el país</Text>
+              <Text style={styles.modalTitle}>Elige el país</Text>
               <TouchableOpacity onPress={() => setCountryPickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
               </TouchableOpacity>

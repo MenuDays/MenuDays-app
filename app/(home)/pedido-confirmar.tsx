@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import OrderService, { DeliveryMethod, Order } from "../../services/order.service";
 import { AppAlert } from "../components/common/AppAlert";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
+import { EmptyState } from "../components/common/EmptyState";
 
 const MEDIO_LABEL: Record<DeliveryMethod, string> = {
   delivery: "Delivery",
@@ -92,13 +93,13 @@ export default function PedidoConfirmarScreen() {
             <Ionicons name="chevron-back" size={22} color="#3E2723" />
           </TouchableOpacity>
         </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={40} color="#E53935" />
-          <Text style={styles.errorText}>{errorMsg}</Text>
-          <TouchableOpacity style={styles.errorRetryButton} onPress={() => router.back()}>
-            <Text style={styles.errorRetryText}>Volver</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          mascot={require("../../assets/images/error-nene.png")}
+          text={errorMsg}
+          tone="error"
+          actionLabel="Volver"
+          onAction={() => router.back()}
+        />
       </SafeAreaView>
     );
   }
@@ -193,22 +194,6 @@ const styles = StyleSheet.create({
   mascotWrap: { alignItems: "center", marginBottom: 12 },
   mascotImage: { width: 130, height: 130 },
   mascotText: { fontSize: 14, fontWeight: "800", color: "#1A1A1A", marginTop: 4, textAlign: "center" },
-  errorContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  errorText: { fontSize: 14, color: "#3E2723", textAlign: "center" },
-  errorRetryButton: {
-    marginTop: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    backgroundColor: "#F5A800",
-  },
-  errorRetryText: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },
   header: { paddingHorizontal: 16, paddingTop: 4 },
   backButton: {
     width: 36,

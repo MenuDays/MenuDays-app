@@ -53,8 +53,12 @@ export default function PedidosScreen() {
 
       {orders.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <Ionicons name="receipt-outline" size={36} color="#D9D9D9" />
-          <Text style={styles.emptyText}>Todavía no tenés pedidos.</Text>
+          <Image
+            source={require("../../assets/images/pedidos-nene.png")}
+            style={styles.emptyMascot}
+            resizeMode="contain"
+          />
+          <Text style={styles.emptyText}>Todavía no tienes pedidos.</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
@@ -106,6 +110,10 @@ const styles = StyleSheet.create({
     marginTop: 60,
     paddingHorizontal: 40,
     gap: 10,
+  },
+  emptyMascot: {
+    width: 160,
+    height: 160,
   },
   emptyText: {
     textAlign: "center",

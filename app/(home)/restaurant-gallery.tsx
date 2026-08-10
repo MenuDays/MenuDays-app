@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import RestaurantService, { PublicGalleryImage } from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { EmptyState } from "../components/common/EmptyState";
 
 // La galería completa ya viene incluida en RestaurantPublicDetail.galeria
 // (GET /restaurants/:id), así que no hace falta ningún endpoint nuevo acá
@@ -74,10 +75,10 @@ export default function RestaurantGalleryScreen() {
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="images-outline" size={36} color="#D9D9D9" />
-              <Text style={styles.emptyText}>Este restaurante todavía no cargó fotos.</Text>
-            </View>
+            <EmptyState
+              mascot={require("../../assets/images/nene-brazos-cruzados.png")}
+              text="Este restaurante todavía no cargó fotos."
+            />
           }
         />
       )}

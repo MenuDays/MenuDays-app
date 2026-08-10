@@ -68,7 +68,7 @@ export default function ModeracionScreen() {
             <SolicitudHeader
               title="Moderación de"
               highlight="Reportes"
-              subtitle="Revisá y gestioná los reportes de restaurantes"
+              subtitle="Revisa y gestiona los reportes de restaurantes"
             />
             <View style={styles.content}>
               <ReporteTabs selected={status} counts={counts} onSelect={setStatus} />

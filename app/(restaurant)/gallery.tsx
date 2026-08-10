@@ -120,7 +120,7 @@ export default function GalleryScreen() {
   }
 
   function handleDelete(id: string) {
-    AppAlert.alert("Eliminar foto", "¿Seguro que querés eliminar esta foto?", [
+    AppAlert.alert("Eliminar foto", "¿Seguro que quieres eliminar esta foto?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Eliminar",
@@ -194,7 +194,7 @@ export default function GalleryScreen() {
             <View style={styles.emptyWrap}>
               <Ionicons name="images-outline" size={36} color="#D9D9D9" />
               <Text style={styles.emptyText}>
-                Todavía no subiste fotos. Tocá + para agregar la primera.
+                Todavía no subiste fotos. Toca + para agregar la primera.
               </Text>
             </View>
           }

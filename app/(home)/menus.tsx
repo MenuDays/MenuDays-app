@@ -16,6 +16,7 @@ import { router } from "expo-router";
 
 import PublicMenuService, { PublicMenu } from "../../services/public-menu.service";
 import UserService from "../../services/user.service";
+import { EmptyState } from "../components/common/EmptyState";
 
 // Pestaña "Menús": todos los menús del día vigentes/publicados cerca del
 // comensal, entre restaurantes (a diferencia de "Menú del día" dentro de
@@ -177,12 +178,10 @@ export default function MenusScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />
           }
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="restaurant-outline" size={36} color="#D9D9D9" />
-              <Text style={styles.emptyText}>
-                No hay menús del día publicados cerca tuyo por ahora. Probá ampliar la distancia o volvé más tarde.
-              </Text>
-            </View>
+            <EmptyState
+              mascot={require("../../assets/images/nene-brazos-cruzados.png")}
+              text="No hay menús del día publicados cerca tuyo por ahora. Probá ampliar la distancia o vuelve más tarde."
+            />
           }
           renderItem={({ item }) => {
             const status = OPEN_LABEL[item.restaurante.estado_operativo] ?? OPEN_LABEL.cerrado;

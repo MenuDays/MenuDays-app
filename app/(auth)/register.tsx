@@ -25,7 +25,7 @@ export default function RegisterScreen() {
   if (!acceptTerms) {
     AppAlert.alert(
       "Error",
-      "Debés aceptar los términos y condiciones."
+      "Debes aceptar los términos y condiciones."
     );
     return;
   }
@@ -80,7 +80,7 @@ export default function RegisterScreen() {
 
       {/* Card blanca */}
       <View style={styles.card}>
-        <Text style={styles.title}>Creá tu cuenta</Text>
+        <Text style={styles.title}>Crea tu cuenta</Text>
         <Text style={styles.subtitle}>Es rápido y fácil</Text>
 
         {/* Nombre completo */}
@@ -117,7 +117,7 @@ export default function RegisterScreen() {
           <Ionicons name="lock-closed-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Creá una contraseña"
+            placeholder="Crea una contraseña"
             placeholderTextColor="#9E9E9E"
             value={password}
             onChangeText={setPassword}
@@ -138,7 +138,7 @@ export default function RegisterScreen() {
           <Ionicons name="lock-closed-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Repetí tu contraseña"
+            placeholder="Repite tu contraseña"
             placeholderTextColor="#9E9E9E"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -184,9 +184,9 @@ export default function RegisterScreen() {
 
         {/* Link login */}
         <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>¿Ya tenés cuenta? </Text>
+          <Text style={styles.loginText}>¿Ya tienes cuenta? </Text>
           <Link href="/(auth)/login">
-            <Text style={styles.loginLink}>Iniciá sesión</Text>
+            <Text style={styles.loginLink}>Inicia sesión</Text>
           </Link>
         </View>
       </View>

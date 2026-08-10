@@ -115,7 +115,7 @@ export default function PerfilScreen() {
   async function handleLogout() {
     AppAlert.alert(
       "Cerrar sesión",
-      "¿Estás seguro que querés salir?",
+      "¿Estás seguro que quieres salir?",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -327,7 +327,7 @@ function getRestaurantCardConfig(requestStatus: RestaurantRequestStatus | null) 
         iconColor: "#4CAF50",
         title: "¡Solicitud aprobada!",
         subtitle: "Ya eres restaurante",
-        body: `Tu solicitud para "${requestStatus.restaurantName}" fue aprobada. Cerrá sesión y volvé a ingresar para acceder al panel de restaurante.`,
+        body: `Tu solicitud para "${requestStatus.restaurantName}" fue aprobada. Cerra sesión y vuelve a ingresar para acceder al panel de restaurante.`,
         buttonText: "Ver estado",
         buttonColors: ["#66BB6A", "#43A047"] as const,
       };
@@ -338,11 +338,11 @@ function getRestaurantCardConfig(requestStatus: RestaurantRequestStatus | null) 
         iconBg: "#FFEBEE",
         iconColor: "#E53935",
         title: "Solicitud rechazada",
-        subtitle: "Podés volver a intentarlo",
+        subtitle: "Puedes volver a intentarlo",
         body:
           requestStatus.adminObservations
             ? `Motivo: ${requestStatus.adminObservations}`
-            : "Tu solicitud anterior no fue aprobada. Podés revisar los detalles y enviar una nueva solicitud.",
+            : "Tu solicitud anterior no fue aprobada. Puedes revisar los detalles y enviar una nueva solicitud.",
         buttonText: "Ver detalle",
         buttonColors: ["#EF5350", "#E53935"] as const,
       };

@@ -41,11 +41,11 @@ export default function PromotionFormScreen() {
 
   function validate() {
     if (!title.trim()) {
-      AppAlert.alert("Falta el título", "Ingresá el título de la promoción.");
+      AppAlert.alert("Falta el título", "Ingresa el título de la promoción.");
       return false;
     }
     if (!DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate)) {
-      AppAlert.alert("Faltan fechas", "Completá la fecha de inicio y de fin con el formato AAAA-MM-DD.");
+      AppAlert.alert("Faltan fechas", "Completa la fecha de inicio y de fin con el formato AAAA-MM-DD.");
       return false;
     }
     if (startDate > endDate) {

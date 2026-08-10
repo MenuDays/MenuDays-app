@@ -75,11 +75,6 @@ export default function PedidoDetalleScreen() {
 
   useEffect(() => {
     if (!id) return;
-    // Igual que en restaurante-detalle.tsx: reseteo "order" (no solo
-    // loading) antes de cada fetch. Sin esto, al entrar al detalle de
-    // otro pedido después de que uno falló, el guard de abajo se
-    // satisfacía con el pedido VIEJO todavía en memoria, y la pantalla
-    // mostraba el pedido equivocado en vez de un error.
     setLoading(true);
     setError(null);
     setOrder(null);

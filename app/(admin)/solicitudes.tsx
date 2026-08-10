@@ -94,7 +94,7 @@ export default function SolicitudesScreen() {
             <SolicitudHeader
               title="Solicitudes de"
               highlight="Restaurantes"
-              subtitle="Gestioná y revisá las solicitudes de nuevos restaurantes"
+              subtitle="Gestiona y revisa las solicitudes de nuevos restaurantes"
             />
             <View style={styles.content}>
               <SolicitudTabs

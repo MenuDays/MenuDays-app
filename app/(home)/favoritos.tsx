@@ -13,6 +13,7 @@ import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FavoriteService, { FavoriteItem } from "../../services/favorite.service";
+import { EmptyState } from "../components/common/EmptyState";
 import { AppAlert } from "../components/common/AppAlert";
 
 const OPEN_LABEL: Record<string, { text: string; color: string }> = {
@@ -54,7 +55,7 @@ export default function FavoritosScreen() {
   function handleRemove(item: FavoriteItem) {
     AppAlert.alert(
       "Quitar de favoritos",
-      `¿Seguro que querés quitar "${item.restaurant.nombreComercial}" de tus favoritos?`,
+      `¿Seguro que quieres quitar "${item.restaurant.nombreComercial}" de tus favoritos?`,
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -100,12 +101,10 @@ export default function FavoritosScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />
         }
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Ionicons name="heart-outline" size={36} color="#D9D9D9" />
-            <Text style={styles.emptyText}>
-              Todavía no tenés restaurantes favoritos. Explorá y tocá el corazón en el que te guste.
-            </Text>
-          </View>
+          <EmptyState
+            mascot={require("../../assets/images/favoritos-nene.png")}
+            text="Todavía no tienes restaurantes favoritos. Explora y toca el corazón en el que te guste."
+          />
         }
         renderItem={({ item }) => {
           const status = OPEN_LABEL[item.restaurant.estadoOperativo] ?? OPEN_LABEL.cerrado;
@@ -195,18 +194,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: "bold", color: "#3E2723", marginBottom: 12 },
   loader: { marginTop: 40 },
   list: { paddingBottom: 120 },
-  emptyWrap: {
-    alignItems: "center",
-    marginTop: 60,
-    paddingHorizontal: 30,
-    gap: 10,
-  },
-  emptyText: {
-    textAlign: "center",
-    color: "#9E9E9E",
-    fontSize: 13,
-    lineHeight: 19,
-  },
+
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 18,

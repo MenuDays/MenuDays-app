@@ -1,8 +1,18 @@
 import { View, Text, StyleSheet, Animated, Easing, ImageBackground } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef } from 'react';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Image } from 'react-native';
+import AuthService from '../../services/auth.service';
+
+
+// Adónde mandar a cada rol una vez logueado. Mismo mapeo que usa
+// login.tsx después de un login exitoso.
+function routeForRole(rol: string | undefined): Href {
+  if (rol === 'administrador') return '/(admin)/dashboard';
+  if (rol === 'restaurante') return '/(restaurant)/dashboard';
+  return '/(province)';
+}
 
 export default function SplashScreen() {
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -16,6 +26,11 @@ export default function SplashScreen() {
   const card2Y = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
+    // Chequeo de sesión en paralelo con la animación (no la bloquea):
+    // arranca ya y para cuando termine la secuencia de abajo ya
+    // tenemos la respuesta lista.
+    const sessionPromise = AuthService.getSession();
+
     Animated.sequence([
       // 1. Barra de carga
       Animated.timing(progressAnim, {
@@ -77,8 +92,16 @@ export default function SplashScreen() {
         }),
       ]),
     ]).start(() => {
-      setTimeout(() => {
-        router.replace('/(auth)/onboarding');
+      setTimeout(async () => {
+        const session = await sessionPromise;
+
+        if (session) {
+          // Ya hay sesión guardada: nos saltamos onboarding y login,
+          // vamos directo a la pantalla que le corresponde al rol.
+          router.replace(routeForRole(session.user?.rol));
+        } else {
+          router.replace('/(auth)/onboarding');
+        }
       }, 2000);
     });
 

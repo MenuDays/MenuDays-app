@@ -6,9 +6,9 @@ import { Ionicons } from "@expo/vector-icons";
 
 import PublicMenuService, { PublicMenuDetail } from "../../services/public-menu.service";
 
-// Conectado a GET /public/menus/:id (PublicMenuController del back). Antes
-// esta pantalla usaba MOCK_PEDIDO_PRODUCTO -- ver restaurante-detalle.tsx
-// para el origen de menuId (botón "Pedir" de la card de Menú del día).
+// Conectado a GET /public/menus/:id (PublicMenuController del back).
+// Ver restaurante-detalle.tsx para el origen de menuId (botón "Pedir"
+// de la card de Menú del día).
 //
 // Por ahora solo soporta menús del día (tipo "menu_dia"); cuando se
 // conecten platos/promociones desde otras pantallas, agregar el mismo

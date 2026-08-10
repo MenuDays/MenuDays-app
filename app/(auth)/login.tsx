@@ -148,7 +148,7 @@ export default function LoginScreen() {
       {/* Card blanca */}
       <View style={styles.card}>
         <Text style={styles.welcome}>¡Bienvenido!</Text>
-        <Text style={styles.subtitle}>Iniciá sesión para continuar</Text>
+        <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
         {/* Campo Email */}
         <Text style={styles.label}>Email o Teléfono</Text>
@@ -206,7 +206,7 @@ export default function LoginScreen() {
 
         {/* Link registro */}
         <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>¿No tenés cuenta? </Text>
+          <Text style={styles.registerText}>¿No tienes cuenta? </Text>
           <Link href="/(auth)/register">
             <Text style={styles.registerLink}>Registrate</Text>
           </Link>

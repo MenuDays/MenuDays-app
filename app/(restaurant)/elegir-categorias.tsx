@@ -64,7 +64,7 @@ export default function ChooseCategoriesScreen() {
 
   async function handleSave() {
     if (selectedIds.size === 0) {
-      AppAlert.alert("Elegí al menos una categoría", "Seleccioná las categorías que ofrece tu restaurante.");
+      AppAlert.alert("Elige al menos una categoría", "Selecciona las categorías que ofrece tu restaurante.");
       return;
     }
     setSaving(true);
@@ -87,7 +87,7 @@ export default function ChooseCategoriesScreen() {
           </TouchableOpacity>
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerTitle}>Elegir categorías</Text>
-            <Text style={styles.headerSubtitle}>Seleccioná las categorías que ofrece tu restaurante</Text>
+            <Text style={styles.headerSubtitle}>Selecciona las categorías que ofrece tu restaurante</Text>
           </View>
           <View style={{ width: 26 }} />
         </View>

@@ -57,7 +57,7 @@ export default function MenuListScreen() {
   }
 
   function handleDelete(id: string) {
-    AppAlert.alert("Eliminar menú", "¿Seguro que querés eliminar este menú?", [
+    AppAlert.alert("Eliminar menú", "¿Seguro que quieres eliminar este menú?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Eliminar",

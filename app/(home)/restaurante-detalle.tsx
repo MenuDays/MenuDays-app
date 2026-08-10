@@ -51,14 +51,6 @@ const restaurantId = previewRestaurantId ?? routeId;
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
    useEffect(() => {
-    // Reseteo todo antes de cada fetch: esta pantalla está montada de
-    // forma persistente (Tabs.Screen con href: null), así que sin esto,
-    // al entrar al detalle de otro restaurante después de que uno
-    // falló (o incluso de uno que cargó bien), se seguía mostrando el
-    // restaurante/reseñas/favorito/distancia del anterior -- el guard
-    // de abajo era `loading || !restaurant`, y "restaurant" nunca se
-    // limpiaba, así que un fetch fallido dejaba la pantalla mostrando
-    // los datos viejos como si fueran los del restaurante nuevo.
     if (!restaurantId) {
       setLoading(false);
       return;
@@ -156,7 +148,7 @@ const restaurantId = previewRestaurantId ?? routeId;
   function handleCompartir() {
     if (!restaurant) return;
     Share.share({
-      message: `Mirá ${restaurant.nombreComercial} en MenuDays${restaurant.direccion ? ` — ${restaurant.direccion}` : ""}`,
+      message: `Mira ${restaurant.nombreComercial} en MenuDays${restaurant.direccion ? ` — ${restaurant.direccion}` : ""}`,
     });
   }
 
@@ -422,7 +414,17 @@ const restaurantId = previewRestaurantId ?? routeId;
                 <Text style={styles.sectionTitle}>Galería de Fotos</Text>
                 {/* TODO: navegar a una pantalla de galería completa (grid)
                     cuando exista; por ahora solo se ve el scroll horizontal. */}
-                <TouchableOpacity onPress={() => AppAlert.alert("Próximamente", "La galería completa todavía no está disponible.")}>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(home)/restaurant-gallery",
+                      params: {
+                        id: String(restaurant.id),
+                        nombre: restaurant.nombreComercial,
+                      },
+                    })
+                  }
+                >
                   <Text style={styles.linkText}>Ver todas</Text>
                 </TouchableOpacity>
               </View>
@@ -495,7 +497,12 @@ const restaurantId = previewRestaurantId ?? routeId;
                 reseñas (con paginación) cuando exista. */}
             <TouchableOpacity
               style={styles.reviewsButton}
-              onPress={() => AppAlert.alert("Próximamente", "El listado completo de reseñas todavía no está disponible.")}
+              onPress={() =>
+                router.push({
+                  pathname: "/restaurant-reviews",
+                  params: { id: restaurantId },
+                })
+              }
             >
               <Ionicons name="chatbubble-outline" size={15} color="#FB8C00" />
               <Text style={styles.reviewsButtonText}>Ver las {restaurant.cantidadResenas} reseñas</Text>

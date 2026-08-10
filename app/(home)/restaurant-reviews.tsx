@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import ReviewService, { Review } from "../../services/review.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { EmptyState } from "../components/common/EmptyState";
 
 // Pantalla de "Ver todas las reseñas". El back todavía devuelve el
 // listado completo en una sola llamada (GET /restaurants/:id/reviews sin
@@ -180,12 +181,14 @@ export default function RestaurantReviewsScreen() {
             </View>
           )}
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="chatbubble-outline" size={36} color="#D9D9D9" />
-              <Text style={styles.emptyText}>
-                {starFilter === 0 ? "Este restaurante todavía no tiene reseñas." : "No hay reseñas con esa calificación."}
-              </Text>
-            </View>
+            <EmptyState
+              mascot={require("../../assets/images/nene-pensando.png")}
+              text={
+                starFilter === 0
+                  ? "Este restaurante todavía no tiene reseñas."
+                  : "No hay reseñas con esa calificación."
+              }
+            />
           }
           ListFooterComponent={
             hasMore ? (

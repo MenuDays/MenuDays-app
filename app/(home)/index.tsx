@@ -16,7 +16,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WaveBottom from '../components/home/WaveBottom';
 import WaveTop from '../components/home/WaveTop';
-import Colors from '../../constants/Colors'; // ajustá el path si tu estructura es distinta
+import Colors from '../../constants/Colors'; 
 import UserService, { User } from '../../services/user.service';
 import CategoryService, { Category } from '../../services/category.service';
 import ExploreService, { ExploreRestaurant } from '../../services/explore.service';

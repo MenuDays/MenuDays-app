@@ -2,8 +2,6 @@ import { api } from "./api";
 import RestaurantService from "./restaurant.service";
 
 // ==========================================================================
-// Conectado a los endpoints reales del back (antes esto estaba mockeado).
-//
 // - POST /orders          -- ya soporta menuId/dishId/promotionId +
 //   metodoEntrega (DELIVERY | RETIRO_EN_LOCAL). Responde solo un resumen
 //   (id, estado, tipo, metodoEntrega, fechaPedido, total), no el pedido
@@ -15,16 +13,6 @@ import RestaurantService from "./restaurant.service";
 //   no hace falta el mock ni el fallback local salvo que falle el fetch.
 // - Teléfono/WhatsApp del restaurante: no viene en ningún endpoint de
 //   /orders, se pide aparte con RestaurantService.getPublicDetail().
-//
-// PENDIENTE (pedirle a Belén, no es urgente):
-// - La tabla "pedidos" ya tiene columna "codigo_unico" (autogenerada en
-//   la base), pero ningún endpoint de OrderService (back) la devuelve
-//   todavía -- ni create(), ni findOne()/serializeOrder(), ni
-//   getHistory()/serializeListOrder(). Acá ya está todo listo para
-//   cuando la agregue: OrderDetail.codigoUnico es opcional y
-//   buildFullOrder() ya lo lee de la respuesta si existe. Hasta que
-//   eso pase, codigoUnico queda en null y pedido-confirmar.tsx usa un
-//   fallback (ver ese archivo).
 // ==========================================================================
 
 export type OrderItemType = "plato" | "menu_dia" | "promocion";

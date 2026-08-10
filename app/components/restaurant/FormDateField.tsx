@@ -232,7 +232,7 @@ export default function FormDateField({
                 <Text style={styles.headerDate}>
                   {selectedDate
                     ? displayDate(dateToString(selectedDate))
-                    : "Elegí una fecha"}
+                    : "Elige una fecha"}
                 </Text>
               </View>
 

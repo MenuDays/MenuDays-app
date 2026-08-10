@@ -46,15 +46,15 @@ export default function MenuFormScreen() {
 
   function validate() {
     if (!name.trim()) {
-      AppAlert.alert("Falta el nombre", "Ingresá el nombre del menú.");
+      AppAlert.alert("Falta el nombre", "Ingresa el nombre del menú.");
       return false;
     }
     if (!price.trim() || isNaN(Number(price))) {
-      AppAlert.alert("Precio inválido", "Ingresá un precio válido.");
+      AppAlert.alert("Precio inválido", "Ingresa un precio válido.");
       return false;
     }
     if (!startDate.trim() || !endDate.trim()) {
-      AppAlert.alert("Faltan fechas", "Ingresá la fecha de inicio y fin del menú.");
+      AppAlert.alert("Faltan fechas", "Ingresa la fecha de inicio y fin del menú.");
       return false;
     }
     if (!isEditing && !imageUri) {
@@ -124,7 +124,7 @@ export default function MenuFormScreen() {
 
           <FormTextField
             label="Nombre del menú"
-            placeholder="Ingresá el nombre del menú"
+            placeholder="Ingresa el nombre del menú"
             value={name}
             onChangeText={setName}
             icon="restaurant-outline"
@@ -141,7 +141,7 @@ export default function MenuFormScreen() {
 
           <FormTextField
             label="Precio"
-            placeholder="Ingresá el precio del menú"
+            placeholder="Ingresa el precio del menú"
             value={price}
             onChangeText={setPrice}
             icon="pricetag-outline"
@@ -164,8 +164,6 @@ export default function MenuFormScreen() {
   value={endDate}
   onChangeText={setEndDate}
 />
-          <Text style={styles.dateHint}>Dejá vacío si es solo para hoy</Text>
-
           {/* El create/update no acepta "estado" directamente -- después
               de guardar, handleSave compara este valor contra el estado
               real del menú y llama a MenuService.toggle() si hace falta

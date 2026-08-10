@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
 import CategoryService, { Category } from "../../services/category.service";
+import { EmptyState } from "../components/common/EmptyState";
 
 // Tab "Explorar": grilla de categorías. Al tocar una, se navega a
 // explorar-resultados.tsx (buscador + filtros completos), precargada
@@ -83,8 +84,12 @@ export default function ExplorarCategoriasScreen() {
             contentContainerStyle={styles.grid}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <View style={styles.centerWrap}>
-                <Text style={styles.errorText}>Todavía no hay categorías cargadas.</Text>
+              <View style={styles.emptyCard}>
+                <EmptyState
+                  mascot={require("../../assets/images/nene-brazos-cruzados.png")}
+                  text="Todavía no hay categorías cargadas."
+                  size={120}
+                />
               </View>
             }
             renderItem={({ item }) => (
@@ -126,6 +131,14 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
+  emptyCard: {
+    marginTop: 40,
+    marginHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingBottom: 24,
+  },
   errorText: { textAlign: "center", color: "#FFFFFF", fontSize: 13, lineHeight: 19 },
   retryButton: {
     marginTop: 4,
