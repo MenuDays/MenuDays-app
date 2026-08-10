@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppAlertProvider } from "./components/common/AppAlert";
 import IPhonePreview from "./preview/IPhonePreview";
@@ -16,37 +17,43 @@ export default function RootLayout() {
   // 📱 Expo Go / Android / iOS
   if (Platform.OS !== "web") {
     return (
-      <AppAlertProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-          }}
-        />
-      </AppAlertProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppAlertProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          />
+        </AppAlertProvider>
+      </GestureHandlerRootView>
     );
   }
 
   // 💻 Web Preview
   if (WEB_PREVIEW) {
     return (
-      <AppAlertProvider>
-        <IPhonePreview>
-          <RestaurantDashboard />
-        </IPhonePreview>
-      </AppAlertProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppAlertProvider>
+          <IPhonePreview>
+            <RestaurantDashboard />
+          </IPhonePreview>
+        </AppAlertProvider>
+      </GestureHandlerRootView>
     );
   }
 
   // Web normal (si algún día querés usar Expo Router en web)
   return (
-    <SafeAreaProvider>
-      <AppAlertProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-          }}
-        />
-      </AppAlertProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppAlertProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          />
+        </AppAlertProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

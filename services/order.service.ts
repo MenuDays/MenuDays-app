@@ -90,15 +90,36 @@ export interface Order {
 //   portada); para contactarlo hay que pedir aparte
 //   RestaurantService.getPublicDetail(restauranteId) y usar
 //   telefonos[0], igual que en restaurante-detalle.tsx.
-// - codigoUnico es opcional porque el back todavía no lo devuelve (ver
-//   nota arriba); queda listo para cuando lo agregue.
+// - codigoUnico: el back lo manda como codigo_unico (snake_case); getById()
+//   ya lo normaliza a camelCase acá abajo, así que en el resto de la app
+//   siempre se usa codigoUnico.
 // - No incluye "historial" acá tampoco (eso solo se arma para el lado
 //   restaurante, vía GET /orders/restaurant/:id).
 // ==========================================================================
 
+// Shape TAL CUAL lo manda el back en GET /orders/:id (serializeOrder()):
+// codigo_unico en snake_case, sin transformar. No se expone fuera de este
+// archivo -- getById() lo normaliza a OrderDetail (camelCase) antes de
+// devolverlo, para no mezclar las dos convenciones en el resto de la app.
+interface OrderDetailRaw {
+  id: string;
+  codigo_unico: string | null;
+  usuario: { id: string; nombre: string; foto: string | null };
+  restaurante: { id: string; nombre: string; portada: string | null };
+  pedido: {
+    tipo: OrderItemType;
+    estado: OrderStatus;
+    total: number;
+    observaciones: string | null;
+    metodoEntrega: BackendDeliveryMethod;
+    fecha: string;
+  };
+  producto: OrderProduct;
+}
+
 export interface OrderDetail {
   id: string;
-  codigoUnico?: string | null;
+  codigoUnico: string | null;
   usuario: { id: string; nombre: string; foto: string | null };
   restaurante: { id: string; nombre: string; portada: string | null };
   pedido: {
@@ -228,7 +249,9 @@ class OrderService {
 
   // Detalle de un pedido puntual, vista comensal -- GET /orders/:id.
   async getById(id: string | number): Promise<OrderDetail> {
-    return await api<OrderDetail>(`/orders/${id}`);
+    const raw = await api<OrderDetailRaw>(`/orders/${id}`);
+    const { codigo_unico, ...rest } = raw;
+    return { ...rest, codigoUnico: codigo_unico ?? null };
   }
 
   // Texto armado por el back para mandar por WhatsApp -- GET

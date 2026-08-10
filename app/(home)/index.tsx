@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Image,
   FlatList,
   ActivityIndicator,
@@ -27,17 +26,25 @@ const C = Colors.light; // por ahora fijo en light, luego se puede swapear con u
 
 // Categorías: vienen del back (GET /categories), con el ícono en
 // item.iconos.url. Se muestran TODAS en un carrusel horizontal de una
-// sola línea, con auto-scroll (ver homeCategories más abajo), así que
-// da lo mismo si el back devuelve 5, 10 o más.
+// sola línea, con auto-scroll (dos copias del set renderizadas una al
+// lado de la otra para simular loop infinito, ver categoriesSetWidth
+// más abajo), así que da lo mismo si el back devuelve 5, 10 o más.
 // Nombres curados que se usaban antes para filtrar solo 5 categorías
-// en Inicio. Ya no se usa (ver homeCategories más abajo), pero queda
-// como referencia por si se quiere volver a ese comportamiento.
+// en Inicio. Ya no se usa, pero queda como referencia por si se quiere
+// volver a ese comportamiento.
 const HOME_CATEGORY_NAMES = ['Ejecutivo', 'Mariscos', 'Parrillas', 'Sopas', 'Pollo'];
 
-// Radio fijo de la tira de Inicio (el pill "5 km" de arriba, todavía no
-// interactivo -- si se quiere hacerlo seleccionable, ver el patrón de
-// DISTANCE_OPTIONS en restaurantes.tsx/menus.tsx).
+// Radio fijo de la tira "Restaurantes cercanos" de Inicio. No hay
+// buscador ni selector de distancia en esta pantalla (para eso ya está
+// restaurantes.tsx/menus.tsx/explorar-resultados.tsx, que sí filtran de
+// verdad) -- acá el radio queda fijo en 5km, sin UI para cambiarlo.
 const HOME_RADIUS_KM = 5;
+
+// Separación entre categorías del carrusel de Inicio. Mismo valor que
+// styles.categoriesRow.gap -- se usa acá también (no solo en el
+// stylesheet) porque el cálculo del punto de "loop" del auto-scroll
+// necesita este número a mano (ver categoriesSetWidth más arriba).
+const CATEGORIES_GAP = 14;
 
 // Mismo mapeo de estado operativo que menus.tsx, para la tira "Menús
 // disponibles hoy" (acá viene de item.restaurante.estado_operativo).
@@ -50,6 +57,11 @@ const OPEN_LABEL: Record<string, { text: string; color: string }> = {
 
 export default function HomeScreen() {
   const [user, setUser] = useState<User | null>(null);
+  // Se pone en true recién cuando loadUser() termina (haya funcionado o
+  // no). Sirve para no disparar la carga de restaurantes/menús ANTES de
+  // saber si el usuario tiene una ubicación guardada -- ver el useEffect
+  // de loadRestaurants/loadMenus más abajo.
+  const [userLoaded, setUserLoaded] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
@@ -57,52 +69,95 @@ export default function HomeScreen() {
   // lo toca para scrollear manualmente, se pausa el auto-scroll y
   // recién retoma unos segundos después de que lo suelta.
   const categoriesScrollRef = useRef<ScrollView>(null);
-  const categoriesScrollX = useRef(0);
-  const categoriesContentWidth = useRef(0);
-  const categoriesViewportWidth = useRef(0);
-  const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const resumeAutoScrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+const categoriesScrollX = useRef(0);
 
-  function startCategoriesAutoScroll() {
-    stopCategoriesAutoScroll();
-    autoScrollTimer.current = setInterval(() => {
-      const maxScroll = categoriesContentWidth.current - categoriesViewportWidth.current;
-      if (maxScroll <= 0) return; // no alcanza para scrollear (pocas categorías)
+// Ancho real de UNA sola copia del set de categorías (medido con
+// onLayout sobre el View que envuelve esa copia, ver JSX más abajo).
+// OJO: antes esto se calculaba como contentWidth/2 a partir de
+// onContentSizeChange del ScrollView completo (las dos copias juntas),
+// pero esa cuenta no da el ancho real de una copia: el contenido total
+// incluye el padding exterior del ScrollView (paddingHorizontal: 12,
+// osea 24px repartidos en los dos bordes) + el gap entre items (14px),
+// y esos dos valores no coinciden. Como consecuencia, "la mitad" del
+// ancho total quedaba corrida ~5px respecto al punto real donde termina
+// la primera copia y empieza la segunda, y cada vez que el auto-scroll
+// completaba una vuelta se notaba un salto/glitch en vez de un loop
+// perfectamente continuo. Midiendo el View de una sola copia (que no
+// tiene el padding del ScrollView, solo el gap interno entre sus
+// items) se obtiene el ancho exacto y el loop no salta.
+const categoriesSetWidth = useRef(0);
 
-      let next = categoriesScrollX.current + 0.6; // velocidad del auto-scroll
-      if (next >= maxScroll) next = 0; // vuelve al principio (loop)
+const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+const resumeAutoScrollTimeout =
+  useRef<ReturnType<typeof setTimeout> | null>(null);
 
-      categoriesScrollX.current = next;
-      categoriesScrollRef.current?.scrollTo({ x: next, animated: false });
-    }, 16);
+function stopCategoriesAutoScroll() {
+  if (autoScrollTimer.current) {
+    clearInterval(autoScrollTimer.current);
+    autoScrollTimer.current = null;
   }
+}
 
-  function stopCategoriesAutoScroll() {
-    if (autoScrollTimer.current) {
-      clearInterval(autoScrollTimer.current);
-      autoScrollTimer.current = null;
+function startCategoriesAutoScroll() {
+  stopCategoriesAutoScroll();
+
+  autoScrollTimer.current = setInterval(() => {
+    const setWidth = categoriesSetWidth.current;
+
+    if (setWidth <= 0 || categories.length === 0) {
+      return;
     }
+
+    // El período real del patrón es el ancho de una copia MÁS el gap
+    // que separa esa copia de la siguiente (mismo "gap: 14" que separa
+    // a cada item entre sí -- ver CATEGORIES_GAP más abajo), no solo
+    // el ancho de la copia.
+    const period = setWidth + CATEGORIES_GAP;
+
+    let nextX = categoriesScrollX.current + 0.6;
+
+    // Cuando terminamos la primera copia,
+    // saltamos a la misma posición de la segunda copia.
+    if (nextX >= period) {
+      nextX = nextX - period;
+    }
+
+    categoriesScrollX.current = nextX;
+
+    categoriesScrollRef.current?.scrollTo({
+      x: nextX,
+      animated: false,
+    });
+  }, 16);
+}
+
+function handleCategoriesTouchStart() {
+  stopCategoriesAutoScroll();
+
+  if (resumeAutoScrollTimeout.current) {
+    clearTimeout(resumeAutoScrollTimeout.current);
+  }
+}
+
+function handleCategoriesTouchEnd() {
+  if (resumeAutoScrollTimeout.current) {
+    clearTimeout(resumeAutoScrollTimeout.current);
   }
 
-  // Cuando el usuario empieza a arrastrar el carrusel manualmente, se
-  // pausa el auto-scroll para no pelear con su gesto.
-  function handleCategoriesTouchStart() {
+  resumeAutoScrollTimeout.current = setTimeout(() => {
+    startCategoriesAutoScroll();
+  }, 2500);
+}
+
+useEffect(() => {
+  return () => {
     stopCategoriesAutoScroll();
-    if (resumeAutoScrollTimeout.current) clearTimeout(resumeAutoScrollTimeout.current);
-  }
 
-  // Al soltar, se retoma el auto-scroll después de una pausa breve.
-  function handleCategoriesTouchEnd() {
-    if (resumeAutoScrollTimeout.current) clearTimeout(resumeAutoScrollTimeout.current);
-    resumeAutoScrollTimeout.current = setTimeout(startCategoriesAutoScroll, 2500);
-  }
-
-  useEffect(() => {
-    return () => {
-      stopCategoriesAutoScroll();
-      if (resumeAutoScrollTimeout.current) clearTimeout(resumeAutoScrollTimeout.current);
-    };
-  }, []);
+    if (resumeAutoScrollTimeout.current) {
+      clearTimeout(resumeAutoScrollTimeout.current);
+    }
+  };
+}, []);
 
 
   // "Restaurantes cercanos" -- GET /explore/restaurants, mismo endpoint
@@ -132,13 +187,20 @@ export default function HomeScreen() {
 
   // Las tiras de restaurantes/menús dependen de la ubicación guardada del
   // usuario para poder filtrar por radio (igual que restaurantes.tsx y
-  // menus.tsx); se disparan de nuevo apenas loadUser() resuelve. Sin
-  // coords guardadas, se listan igual pero sin filtro de distancia.
+  // menus.tsx). Se espera a que loadUser() resuelva (userLoaded) antes
+  // de disparar el primer fetch -- antes este efecto corría también en
+  // el montaje inicial (userLoaded no existía), con user todavía en
+  // null, así que pedía restaurantes/menús SIN ubicación y un instante
+  // después los volvía a pedir CON ubicación apenas loadUser()
+  // resolvía: dos fetches de más y un parpadeo de resultados sin
+  // filtrar que se reemplazaban solos. Sin coords guardadas, se listan
+  // igual pero sin filtro de distancia (una sola vez, no dos).
   useEffect(() => {
+    if (!userLoaded) return;
     loadRestaurants();
     loadMenus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.latitude, user?.longitude]);
+  }, [userLoaded, user?.latitude, user?.longitude]);
 
   async function loadUser() {
     try {
@@ -147,12 +209,20 @@ export default function HomeScreen() {
       setUser(data);
     } catch (e) {
       console.log('[HomeScreen] ERROR cargando usuario:', e);
+    } finally {
+      setUserLoaded(true);
     }
   }
 
   async function loadCategories() {
     try {
       const data = await CategoryService.getAll();
+
+      categoriesScrollX.current = 0;
+      categoriesScrollRef.current?.scrollTo({
+        x: 0,
+        animated: false,
+      });
       setCategories(data);
     } catch (e) {
       console.log('[HomeScreen] ERROR cargando categorías:', e);
@@ -201,7 +271,6 @@ export default function HomeScreen() {
   // 10 o más -- se acomodan solas. Si en algún momento se quiere volver
   // a curar cuáles se muestran acá, se puede filtrar por
   // HOME_CATEGORY_NAMES como antes.
-  const homeCategories = categories;
 
   // Texto a mostrar en el pill: primero la dirección exacta reverse-geocodeada
   // a partir de la ubicación guardada en el perfil; si no hay coords guardadas
@@ -244,13 +313,6 @@ export default function HomeScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.categoriesRow}
-                onLayout={(e) => {
-                  categoriesViewportWidth.current = e.nativeEvent.layout.width;
-                }}
-                onContentSizeChange={(w) => {
-                  categoriesContentWidth.current = w;
-                  startCategoriesAutoScroll();
-                }}
                 onScrollBeginDrag={handleCategoriesTouchStart}
                 onScrollEndDrag={handleCategoriesTouchEnd}
                 onMomentumScrollEnd={handleCategoriesTouchEnd}
@@ -259,26 +321,32 @@ export default function HomeScreen() {
                 }}
                 scrollEventThrottle={16}
               >
-                {homeCategories.map(cat => (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={styles.categoryItem}
-                    onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre } })}
-                  >
-                    <View style={styles.categoryCircle}>
-                      {cat.iconos?.url ? (
-                        <Image source={{ uri: cat.iconos.url }} style={styles.categoryImage} />
-                      ) : (
-                        <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
-                          <Ionicons name="restaurant-outline" size={22} color="#BDBDBD" />
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.categoryPill}>
-                      <Text style={styles.categoryName} numberOfLines={1}>{cat.nombre}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                {/* Dos copias del mismo set, una al lado de la otra, para
+                    simular un loop infinito (ver comentario en
+                    categoriesSetWidth arriba). Solo la primera copia
+                    necesita onLayout: como ambas tienen el mismo
+                    contenido, miden lo mismo. */}
+                <View
+                  style={styles.categoriesSet}
+                  onLayout={(e) => {
+                    categoriesSetWidth.current = e.nativeEvent.layout.width;
+
+                    if (!autoScrollTimer.current && categories.length > 0) {
+                      setTimeout(() => {
+                        startCategoriesAutoScroll();
+                      }, 300);
+                    }
+                  }}
+                >
+                  {categories.map((cat) => (
+                    <CategoryItem key={`a-${cat.id}`} category={cat} />
+                  ))}
+                </View>
+                <View style={styles.categoriesSet}>
+                  {categories.map((cat) => (
+                    <CategoryItem key={`b-${cat.id}`} category={cat} />
+                  ))}
+                </View>
               </ScrollView>
             )}
 
@@ -301,23 +369,9 @@ export default function HomeScreen() {
           <View style={styles.content}>
           <View style={styles.contentInner}>
 
-            {/* Buscador */}
-            <View style={styles.searchContainer}>
-              <Ionicons name="search-outline" size={20} color={C.placeholder} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Busca una comida..."
-                placeholderTextColor={C.placeholder}
-              />
-            </View>
-
             {/* Restaurantes cercanos */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Restaurantes cercanos</Text>
-              <TouchableOpacity style={styles.distancePill}>
-                <Text style={styles.distanceText}>5 km</Text>
-                <Ionicons name="chevron-down" size={14} color={C.text} />
-              </TouchableOpacity>
             </View>
 
             {restaurantsLoading ? (
@@ -443,6 +497,46 @@ export default function HomeScreen() {
   );
 }
 
+function CategoryItem({ category }: { category: Category }) {
+  return (
+    <TouchableOpacity
+      style={styles.categoryItem}
+      onPress={() =>
+        router.push({
+          pathname: '/(home)/explorar-resultados',
+          params: {
+            categoria: category.nombre,
+          },
+        })
+      }
+    >
+      <View style={styles.categoryCircle}>
+        {category.iconos?.url ? (
+          <Image
+            source={{ uri: category.iconos.url }}
+            style={styles.categoryImage}
+          />
+        ) : (
+          <View
+            style={[
+              styles.categoryImage,
+              styles.categoryImagePlaceholder,
+            ]}
+          >
+            <Ionicons name="restaurant-outline" size={22} color="#BDBDBD" />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.categoryPill}>
+        <Text style={styles.categoryName} numberOfLines={1}>
+          {category.nombre}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   header: { paddingTop: 16, position: 'relative' },
@@ -460,7 +554,13 @@ const styles = StyleSheet.create({
   },
   locationText: { fontSize: 15, fontWeight: '600', color: Colors.light.text, flexShrink: 1 },
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginVertical: 12 },
-  categoriesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 4 },
+  categoriesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 12 },
+  // Envoltorio de UNA copia del set de categorías, con el mismo gap
+  // interno que categoriesRow (así el espaciado visual entre items es
+  // idéntico a como era con el array plano de antes). El gap ENTRE las
+  // dos copias lo pone categoriesRow (es su gap, aplicado entre sus dos
+  // hijos: este View y su copia hermana).
+  categoriesSet: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   categoryItem: { alignItems: 'center', width: 68 },
   categoryCircle: {
   width: 60,
@@ -509,37 +609,14 @@ const styles = StyleSheet.create({
 verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700' },
   content: { backgroundColor: Colors.light.background, paddingBottom: 100 },
   contentInner: { paddingHorizontal: 16 },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 48,
-    marginTop: 24,
-    marginBottom: 20,
-    gap: 10,
-  },
-  searchInput: { flex: 1, fontSize: 14, color: Colors.light.text },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 24,
     marginBottom: 12,
   },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.light.text },
-  distancePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    backgroundColor: Colors.light.background,
-    paddingVertical: 8,
-    gap: 6,
-  },
-  distanceText: { fontSize: 13, color: Colors.light.text },
   restaurantsList: { paddingBottom: 16, gap: 10 },
   restaurantsLoadingWrap: { paddingVertical: 20, alignItems: 'center' },
   emptyStripText: { fontSize: 12, color: Colors.light.textSecondary, paddingBottom: 16 },

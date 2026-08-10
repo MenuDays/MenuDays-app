@@ -6,7 +6,9 @@ import ScreenHeader from "../../components/restaurant/ScreenHeader";
 import FormImagePicker from "../../components/restaurant/FormImagePicker";
 import FormTextField from "../../components/restaurant/FormTextField";
 import FormDateField from "../../components/restaurant/FormDateField";
+import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
 import PromotionService from "../../../services/promotion.service";
+import CategoryService, { Category } from "../../../services/category.service";
 import { AppAlert } from "../../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 
@@ -19,11 +21,23 @@ export default function PromotionFormScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    CategoryService.getMyCategories()
+      .then(setCategories)
+      .catch((e) => AppAlert.alert("Error", e.message || "No se pudieron cargar las categorías."))
+      .finally(() => setCategoriesLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -31,8 +45,10 @@ export default function PromotionFormScreen() {
       .then((promotion) => {
         setTitle(promotion.titulo);
         setDescription(promotion.descripcion ?? "");
+        setPrice(String(promotion.precio));
         setStartDate(promotion.fecha_inicio.slice(0, 10));
         setEndDate(promotion.fecha_fin.slice(0, 10));
+        setCategoryId(promotion.categoria_id);
         setImageUri(promotion.imagen_url);
       })
       .catch((e) => AppAlert.alert("Error", e.message || "No se pudo cargar la promoción."))
@@ -42,6 +58,10 @@ export default function PromotionFormScreen() {
   function validate() {
     if (!title.trim()) {
       AppAlert.alert("Falta el título", "Ingresa el título de la promoción.");
+      return false;
+    }
+    if (!price.trim() || isNaN(Number(price)) || Number(price) < 0) {
+      AppAlert.alert("Precio inválido", "Ingresa un precio válido.");
       return false;
     }
     if (!DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate)) {
@@ -66,8 +86,10 @@ export default function PromotionFormScreen() {
       const payload = {
         titulo: title.trim(),
         descripcion: description.trim(),
+        precio: Number(price),
         fechaInicio: startDate,
         fechaFin: endDate,
+        categoriaId: categoryId ?? undefined,
         imageUri,
       };
 
@@ -121,8 +143,25 @@ export default function PromotionFormScreen() {
             maxLength={500}
           />
 
+          <FormTextField
+            label="Precio"
+            placeholder="Ingresa el precio de la promoción"
+            value={price}
+            onChangeText={setPrice}
+            icon="pricetag-outline"
+            keyboardType="decimal-pad"
+          />
+
           <FormDateField label="Fecha de inicio" value={startDate} onChangeText={setStartDate} />
           <FormDateField label="Fecha de fin" value={endDate} onChangeText={setEndDate} />
+
+          <FormCategoryPicker
+            label="Categoría (opcional)"
+            categories={categories}
+            value={categoryId}
+            onChange={setCategoryId}
+            loading={categoriesLoading}
+          />
 
           <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
             <LinearGradient

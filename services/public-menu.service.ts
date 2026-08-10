@@ -18,9 +18,17 @@ export interface PublicMenuRestaurant {
   cantidad_resenas: number;
 }
 
+export interface PublicMenuCategory {
+  id: string;
+  nombre: string;
+  icono_id: string | null;
+  iconos?: { url: string } | null;
+}
+
 export interface PublicMenu {
   id: string;
   restaurante_id: string;
+  categoria_id: string | null; // nullable: se agregó recién (migración del 10/08)
   nombre: string;
   descripcion: string | null;
   precio: number;
@@ -31,6 +39,7 @@ export interface PublicMenu {
   created_at: string;
   updated_at: string;
   restaurante: PublicMenuRestaurant;
+  categorias: PublicMenuCategory | null; // el back ya incluye esta relación
   distancia?: number; // solo viene si se mandó latitude + longitude
 }
 

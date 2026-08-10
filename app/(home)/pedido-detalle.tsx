@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -64,6 +64,23 @@ const ENTREGA_ICON: Record<BackendDeliveryMethod, keyof typeof Ionicons.glyphMap
   RETIRO_EN_LOCAL: "storefront-outline",
 };
 
+// El mensaje de WhatsApp acá es DISTINTO al de pedido-confirmar.tsx: ese
+// usa GET /orders/:id/whatsapp-summary, que arma un texto tipo "Quisiera
+// realizar el siguiente pedido..." pensado para cuando el pedido recién
+// se está armando. Acá el pedido YA existe (puede estar entregado,
+// rechazado, en preparación, etc.), así que reusar ese mismo endpoint
+// generaría un mensaje confuso ("quiero pedir" sobre algo que ya se
+// pidió). Por eso este mensaje se arma local, de consulta, sin pegarle
+// a ese endpoint.
+function buildConsultaMessage(order: OrderDetail): string {
+  const referencia = order.codigoUnico ? `código ${order.codigoUnico}` : `pedido #${order.id}`;
+  return [
+    `Hola, soy ${order.usuario.nombre}.`,
+    "",
+    `Tengo una consulta sobre mi ${referencia} (${order.producto.nombre}).`,
+  ].join("\n");
+}
+
 export default function PedidoDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -71,7 +88,13 @@ export default function PedidoDetalleScreen() {
   const [restaurantPhone, setRestaurantPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [contactLoading, setContactLoading] = useState(false);
+
+  // Igual que en pedido-producto.tsx: la tab bar de "(home)" es
+  // position:"absolute" (height 74 + bottom 18+insets.bottom), así que
+  // no reserva espacio real en el layout. Sin sumar esto acá, el footer
+  // (bottom:0) queda debajo de la tab bar y el CTA se ve tapado.
+  const insets = useSafeAreaInsets();
+  const tabBarSpace = 74 + 18 + insets.bottom;
 
   useEffect(() => {
     if (!id) return;
@@ -103,20 +126,24 @@ export default function PedidoDetalleScreen() {
       AppAlert.alert("Sin contacto", "Este restaurante todavía no cargó un teléfono de contacto.");
       return;
     }
-    setContactLoading(true);
-    try {
-      const { mensajeWhatsapp } = await OrderService.getWhatsAppSummary(order.id);
-      Linking.openURL(buildWhatsAppUrl(restaurantPhone, mensajeWhatsapp));
-    } catch (e: any) {
-      AppAlert.alert("Error", e.message || "No se pudo generar el mensaje.");
-    } finally {
-      setContactLoading(false);
-    }
+    Linking.openURL(buildWhatsAppUrl(restaurantPhone, buildConsultaMessage(order)));
   }
 
   function handleVerRestaurante() {
     if (!order) return;
     router.push(`/(home)/restaurante-detalle?id=${order.restaurante.id}`);
+  }
+
+  function handleDejarResena() {
+    if (!order) return;
+    router.push({
+      pathname: "/(home)/crear-resena",
+      params: {
+        pedidoId: order.id,
+        restauranteNombre: order.restaurante.nombre,
+        productoNombre: order.producto.nombre,
+      },
+    });
   }
 
   if (loading) {
@@ -144,9 +171,15 @@ export default function PedidoDetalleScreen() {
     );
   }
 
+  // Alto aproximado del footer (que es absolute) para que el contenido del
+  // ScrollView no quede tapado atrás: paddingTop del footer + 1 o 2 CTAs
+  // de ~50px con su gap + la tab bar de abajo.
+  const footerButtons = order.pedido.estado === "entregado" ? 2 : 1;
+  const scrollBottomPadding = tabBarSpace + 34 + footerButtons * 58;
+
   return (
     <View style={styles.container}>
-      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: scrollBottomPadding }}>
         <View style={styles.coverWrap}>
           {order.restaurante.portada ? (
             <Image source={{ uri: order.restaurante.portada }} style={styles.cover} />
@@ -230,20 +263,16 @@ export default function PedidoDetalleScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.cta, contactLoading && { opacity: 0.7 }]}
-          onPress={handleContactar}
-          disabled={contactLoading}
-        >
-          {contactLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
-              <Text style={styles.ctaText}>Contactar al restaurante</Text>
-            </>
-          )}
+      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
+        {order.pedido.estado === "entregado" && (
+          <TouchableOpacity style={styles.ctaSecondary} onPress={handleDejarResena}>
+            <Ionicons name="star-outline" size={18} color="#FB8C00" />
+            <Text style={styles.ctaSecondaryText}>Dejar reseña</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.cta} onPress={handleContactar}>
+          <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+          <Text style={styles.ctaText}>Contactar al restaurante</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -351,7 +380,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    gap: 10,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
@@ -366,4 +397,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ctaText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  ctaSecondary: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "#FFF3E0",
+    borderRadius: 24,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaSecondaryText: { color: "#FB8C00", fontWeight: "800", fontSize: 14 },
 });

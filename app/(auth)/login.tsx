@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthService from "../../services/auth.service";
+import CategoryService from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
 
 const { width } = Dimensions.get('window');
@@ -74,7 +75,21 @@ export default function LoginScreen() {
       if (rol === "administrador") {
         router.replace("/(admin)/dashboard");
       } else if (rol === "restaurante") {
-        router.replace("/(restaurant)/dashboard");
+        // Si el restaurante todavía no eligió sus categorías, lo
+        // mandamos primero a esa pantalla (obligatoria) antes del
+        // dashboard. Si la llamada falla por lo que sea, no bloqueamos
+        // el login: lo dejamos entrar igual y ya podrá elegirlas desde
+        // "Mi perfil" más tarde.
+        try {
+          const myCategories = await CategoryService.getRestaurantCategories();
+          if (myCategories.length === 0) {
+            router.replace("/(restaurant)/elegir-categorias");
+          } else {
+            router.replace("/(restaurant)/dashboard");
+          }
+        } catch {
+          router.replace("/(restaurant)/dashboard");
+        }
       } else {
         // comensal (o cualquier otro caso no contemplado)
         router.replace("/(province)");

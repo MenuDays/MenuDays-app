@@ -2,9 +2,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import CategoryService, { Category } from "../../../services/category.service";
 import MenuService, { Menu } from "../../../services/menu.service";
 import { AppAlert } from "../../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
 import FormDateField from "../../components/restaurant/FormDateField";
 import FormImagePicker from "../../components/restaurant/FormImagePicker";
 import FormTextField from "../../components/restaurant/FormTextField";
@@ -22,10 +24,29 @@ export default function MenuFormScreen() {
   const [price, setPrice] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [publishOnSave, setPublishOnSave] = useState(true);
   const [currentEstado, setCurrentEstado] = useState<Menu["estado"] | null>(null);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  useEffect(() => {
+    CategoryService.getMyCategories()
+      .then((cats) => {
+        setCategories(cats);
+        if (cats.length === 0) {
+          AppAlert.alert(
+            "Sin categorías",
+            "Todavía no elegiste las categorías de tu restaurante. Andá a Mi perfil > Categorías para elegirlas antes de crear un menú."
+          );
+        }
+      })
+      .catch((e) => AppAlert.alert("Error", e.message || "No se pudieron cargar las categorías."))
+      .finally(() => setCategoriesLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -36,6 +57,7 @@ export default function MenuFormScreen() {
         setPrice(String(menu.precio));
         setStartDate(menu.fecha_inicio.slice(0, 10));
         setEndDate(menu.fecha_fin.slice(0, 10));
+        setCategoryId(menu.categoria_id);
         setImageUri(menu.foto_url);
         setCurrentEstado(menu.estado);
         setPublishOnSave(menu.estado === "publicado");
@@ -57,6 +79,10 @@ export default function MenuFormScreen() {
       AppAlert.alert("Faltan fechas", "Ingresa la fecha de inicio y fin del menú.");
       return false;
     }
+    if (!categoryId) {
+      AppAlert.alert("Falta la categoría", "Elige una categoría para el menú.");
+      return false;
+    }
     if (!isEditing && !imageUri) {
       AppAlert.alert("Falta la foto", "El menú necesita una foto para poder crearse.");
       return false;
@@ -74,6 +100,7 @@ export default function MenuFormScreen() {
         precio: Number(price),
         fechaInicio: startDate.trim(),
         fechaFin: endDate.trim(),
+        categoriaId: categoryId!,
         imageUri,
       };
 
@@ -146,6 +173,14 @@ export default function MenuFormScreen() {
             onChangeText={setPrice}
             icon="pricetag-outline"
             keyboardType="decimal-pad"
+          />
+
+          <FormCategoryPicker
+            label="Categoría"
+            categories={categories}
+            value={categoryId}
+            onChange={setCategoryId}
+            loading={categoriesLoading}
           />
 
           <Text style={styles.label}>Programar fechas</Text>

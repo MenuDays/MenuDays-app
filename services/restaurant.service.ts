@@ -154,17 +154,35 @@ export interface RestaurantPublicDetail {
   platos: PublicDish[];
   promociones: PublicPromotion[];
 }
+// ==========================================================================
+// GET /restaurants/dashboard -- shape tal cual RestaurantService.getDashboard()
+// en el backend: objeto anidado en camelCase (NO snake_case plano como se
+// esperaba antes acá). "menuPublicadoHoy" ya viene calculado por el back
+// (fecha_inicio/fecha_fin vigentes + estado "publicado"), así que no hace
+// falta pedir GET /menus aparte para saber si el menú de hoy está publicado.
+// ==========================================================================
+
 export interface RestaurantDashboard {
-  nombre_comercial: string;
-  logo_url: string | null;
-  portada_url: string | null;
-
-  calificacion_promedio: number;
-  cantidad_resenas: number;
-
-  platos_registrados: number;
-  promociones_activas: number;
-  pedidos_pendientes: number;
+  restaurante: {
+    id: number;
+    nombreComercial: string;
+    logoUrl: string | null;
+    portadaUrl: string | null;
+    estadoOperativo: EstadoOperativo;
+  };
+  resumen: {
+    calificacionPromedio: number;
+    cantidadResenas: number;
+    platosRegistrados: number;
+    promocionesActivas: number;
+    pedidosPendientes: number;
+    menuPublicadoHoy: boolean;
+  };
+  estadisticas: {
+    resenas: number;
+    promocionesActivas: number;
+    platosRegistrados: number;
+  };
 }
 export interface RestaurantReview {
   id: number;

@@ -6,6 +6,7 @@ export type MenuStatus = "programado" | "publicado" | "oculto" | "agotado";
 export interface Menu {
   id: string;
   restaurante_id: string;
+  categoria_id: string | null;
   nombre: string;
   descripcion: string | null;
   precio: number;
@@ -23,6 +24,8 @@ export interface MenuFormInput {
   precio: number;
   fechaInicio: string; // "YYYY-MM-DD", requerido por @IsDateString en el DTO
   fechaFin: string;
+  // requerido por @IsInt @IsPositive en CreateMenuDto (sin @IsOptional)
+  categoriaId: string;
   // uri local de expo-image-picker. Requerida al crear (el backend
   // rechaza el POST sin imagen); opcional al editar (si no se manda,
   // el backend conserva la imagen actual).
@@ -36,6 +39,7 @@ function buildFormData(input: Partial<MenuFormInput>): FormData {
   if (input.precio !== undefined) formData.append("precio", String(input.precio));
   if (input.fechaInicio) formData.append("fechaInicio", input.fechaInicio);
   if (input.fechaFin) formData.append("fechaFin", input.fechaFin);
+  if (input.categoriaId !== undefined) formData.append("categoriaId", input.categoriaId);
   if (input.imageUri) {
     formData.append("image", {
       uri: input.imageUri,

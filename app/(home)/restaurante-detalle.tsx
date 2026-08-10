@@ -321,21 +321,116 @@ const restaurantId = previewRestaurantId ?? routeId;
                     ) : null}
                     {/* Va al detalle de producto (pedido-producto.tsx), no
                         arma el pedido acá directo. Esa pantalla es la que
-                        tiene el botón real "Realizar pedido". Por ahora
-                        pedido-producto.tsx todavía usa datos mock (ver TODO
-                        ahí mismo), así que menuId/restauranteId quedan
-                        listos para cuando se conecte al back real. */}
-                    <TouchableOpacity
-                      style={styles.pedirButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/(home)/pedido-producto",
-                          params: { menuId: menu.id, restauranteId: restaurant.id },
-                        })
-                      }
-                    >
-                      <Text style={styles.pedirButtonText}>Pedir</Text>
-                    </TouchableOpacity>
+                        tiene el botón real "Realizar pedido". */}
+                    {!ownerPreview && (
+                      <TouchableOpacity
+                        style={styles.pedirButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/(home)/pedido-producto",
+                            params: { id: menu.id, tipo: "menu_dia" },
+                          })
+                        }
+                      >
+                        <Text style={styles.pedirButtonText}>Pedir</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {restaurant.platos.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Platos</Text>
+              </View>
+
+              {restaurant.platos.map((plato) => (
+                <View key={plato.id} style={styles.menuCard}>
+                  {plato.plato_imagenes[0]?.url ? (
+                    <Image source={{ uri: plato.plato_imagenes[0].url }} style={styles.menuImage} />
+                  ) : (
+                    <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
+                      <Ionicons name="fast-food-outline" size={18} color="#BDBDBD" />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.menuTopRow}>
+                      <Text style={styles.menuName} numberOfLines={1}>
+                        {plato.nombre}
+                      </Text>
+                      <View style={styles.priceBadge}>
+                        <Text style={styles.priceBadgeText}>${plato.precio.toFixed(2)}</Text>
+                      </View>
+                    </View>
+                    {plato.descripcion ? (
+                      <Text style={styles.menuDescription} numberOfLines={2}>
+                        {plato.descripcion}
+                      </Text>
+                    ) : null}
+                    {!ownerPreview && (
+                      <TouchableOpacity
+                        style={styles.pedirButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/(home)/pedido-producto",
+                            params: { id: plato.id, tipo: "plato" },
+                          })
+                        }
+                      >
+                        <Text style={styles.pedirButtonText}>Pedir</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {restaurant.promociones.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Promociones</Text>
+              </View>
+
+              {restaurant.promociones.map((promo) => (
+                <View key={promo.id} style={styles.menuCard}>
+                  {promo.imagen_url ? (
+                    <Image source={{ uri: promo.imagen_url }} style={styles.menuImage} />
+                  ) : (
+                    <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
+                      <Ionicons name="pricetag-outline" size={18} color="#BDBDBD" />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.menuTopRow}>
+                      <Text style={styles.menuName} numberOfLines={1}>
+                        {promo.titulo}
+                      </Text>
+                      <View style={styles.priceBadge}>
+                        <Text style={styles.priceBadgeText}>${promo.precio.toFixed(2)}</Text>
+                      </View>
+                    </View>
+                    {promo.descripcion ? (
+                      <Text style={styles.menuDescription} numberOfLines={2}>
+                        {promo.descripcion}
+                      </Text>
+                    ) : null}
+                    {!ownerPreview && (
+                      <TouchableOpacity
+                        style={styles.pedirButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/(home)/pedido-producto",
+                            params: { id: promo.id, tipo: "promocion" },
+                          })
+                        }
+                      >
+                        <Text style={styles.pedirButtonText}>Pedir</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))}

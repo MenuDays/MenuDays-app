@@ -17,9 +17,6 @@ import {
 import {
   useSafeAreaInsets
 } from "react-native-safe-area-context";
-import DishService from "../../services/dish.service";
-import MenuService from "../../services/menu.service";
-import PromotionService from "../../services/promotion.service";
 import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
@@ -174,61 +171,42 @@ export default function RestaurantDashboard() {
   const [showDashboardMenu, setShowDashboardMenu] = React.useState(false);
 
 
-  useEffect(() => {
-    async function loadTodayMenuStatus() {
-      try {
-        const menus = await MenuService.getAll();
-        const today = new Date().toISOString().slice(0, 10);
-        const todayMenu = menus.find(
-          (menu) => menu.fecha_inicio.slice(0, 10) <= today && today <= menu.fecha_fin.slice(0, 10)
-        );
-        setMenuPublished(todayMenu?.estado === "publicado");
-      } catch (e: any) {
-        AppAlert.alert("Error", e.message || "No se pudo revisar el estado del menú de hoy.");
-        setMenuPublished(false);
-      }
-    }
-
-    loadTodayMenuStatus();
-  }, []);
-
-  // Platos registrados, promociones activas y reseñas ya tienen backend
-  // real detrás -- se arrancan con el shape mockeado (para que el layout
-  // y las animaciones no salten) y se pisan al llegar la respuesta.
-  // "Pedidos pendientes" se deja mockeado: todavía no existe el módulo
-  // de pedidos en el backend.
+  // Platos registrados, promociones activas, pedidos pendientes, reseñas
+  // y el estado del menú de hoy vienen todos juntos de un único llamado
+  // a GET /restaurants/dashboard (RestaurantService.getDashboard()) --
+  // antes esto eran 3 llamadas separadas (platos/promociones/perfil) +
+  // "Pedidos pendientes" hardcodeado en 0 para siempre, porque ese dato
+  // no se pedía. Se arranca con el shape mockeado (para que el layout y
+  // las animaciones no salten) y se pisa al llegar la respuesta real.
   const [stats, setStats] = React.useState<StatItem[]>(STATS);
   const [breakdown, setBreakdown] = React.useState<BreakdownItem[]>(BREAKDOWN);
 
   useEffect(() => {
-    async function loadRealStats() {
-      
+    async function loadDashboard() {
       try {
-        const [dishes, promotions, profile] = await Promise.all([
-          DishService.getAll(),
-          PromotionService.getAll(),
-          RestaurantService.getProfile(),
-        ]);
-        
+        const data = await RestaurantService.getDashboard();
+        const { resumen } = data;
 
-        const dishesCount = dishes.length;
-        const activePromotions = promotions.filter((p) => p.activa).length;
-        const rating = Number(profile.calificacion_promedio ?? 0);
         setRestaurant({
-  name: profile.nombre_comercial ?? "",
-  rating,
-});
+          name: data.restaurante.nombreComercial ?? "",
+          rating: resumen.calificacionPromedio,
+        });
+
+        setMenuPublished(resumen.menuPublicadoHoy);
 
         setStats((prev) =>
           prev.map((stat) => {
             if (stat.label === "Platos registrados") {
-              return { ...stat, value: String(dishesCount) };
+              return { ...stat, value: String(resumen.platosRegistrados) };
             }
             if (stat.label === "Promociones activas") {
-              return { ...stat, value: String(activePromotions) };
+              return { ...stat, value: String(resumen.promocionesActivas) };
+            }
+            if (stat.label === "Pedidos pendientes") {
+              return { ...stat, value: String(resumen.pedidosPendientes) };
             }
             if (stat.label === "Reseñas") {
-              return { ...stat, value: rating.toFixed(1) };
+              return { ...stat, value: resumen.calificacionPromedio.toFixed(1) };
             }
             return stat;
           })
@@ -237,23 +215,36 @@ export default function RestaurantDashboard() {
         setBreakdown((prev) =>
           prev.map((item) => {
             if (item.label === "Reseñas") {
-              return { ...item, value: rating, display: rating.toFixed(1) };
+              return {
+                ...item,
+                value: resumen.calificacionPromedio,
+                display: resumen.calificacionPromedio.toFixed(1),
+              };
             }
             if (item.label === "Promociones activas") {
-              return { ...item, value: activePromotions, display: String(activePromotions) };
+              return {
+                ...item,
+                value: resumen.promocionesActivas,
+                display: String(resumen.promocionesActivas),
+              };
             }
             if (item.label === "Platos registrados") {
-              return { ...item, value: dishesCount, display: String(dishesCount) };
+              return {
+                ...item,
+                value: resumen.platosRegistrados,
+                display: String(resumen.platosRegistrados),
+              };
             }
             return item;
           })
         );
       } catch (e: any) {
         AppAlert.alert("Error", e.message || "No se pudieron cargar las estadísticas.");
+        setMenuPublished(false);
       }
     }
 
-    loadRealStats();
+    loadDashboard();
   }, []);
 
   // ------- Animaciones de entrada -------

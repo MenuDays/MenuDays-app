@@ -33,8 +33,16 @@ export default function DishFormScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    CategoryService.getAll()
-      .then(setCategories)
+    CategoryService.getMyCategories()
+      .then((cats) => {
+        setCategories(cats);
+        if (cats.length === 0) {
+          AppAlert.alert(
+            "Sin categorías",
+            "Todavía no elegiste las categorías de tu restaurante. Andá a Mi perfil > Categorías para elegirlas antes de crear un plato."
+          );
+        }
+      })
       .catch((e) => AppAlert.alert("Error", e.message || "No se pudieron cargar las categorías."))
       .finally(() => setCategoriesLoading(false));
   }, []);

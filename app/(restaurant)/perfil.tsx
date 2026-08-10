@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AuthService from "../../services/auth.service";
+import CategoryService, { Category } from "../../services/category.service";
 import LocationService, { City } from "../../services/location.service";
 import ProvinceService, { Province } from "../../services/province.service";
 import RestaurantService, {
@@ -67,17 +68,34 @@ export default function RestaurantProfileScreen() {
   const [socialLinks, setSocialLinks] = useState<RestaurantSocialLink[]>([]);
   const [schedule, setSchedule] = useState<RestaurantSchedule[]>([]);
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   useEffect(() => {
     loadRestaurant();
     ProvinceService.getAll().then(setProvinces);
+    loadCategories();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       const picked = RestaurantLocationPickerBridge.consume();
       if (picked) setEditLocation(picked);
+      // Por si venimos de vuelta de "Elegir categorías" con cambios.
+      loadCategories();
     }, [])
   );
+
+  async function loadCategories() {
+    try {
+      const data = await CategoryService.getMyCategories();
+      setCategories(data);
+    } catch (e) {
+      console.log("Error cargando categorías:", e);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }
 
   async function loadRestaurant() {
     try {
@@ -476,6 +494,39 @@ async function handleUploadCover() {
               </View>
             )}
 
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Categorías</Text>
+              <TouchableOpacity
+                style={styles.editTrigger}
+                onPress={() => router.push("/(restaurant)/elegir-categorias?from=perfil")}
+              >
+                <Ionicons name="create-outline" size={16} color="#F5A800" />
+                <Text style={styles.editTriggerText}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {categoriesLoading ? (
+              <ActivityIndicator size="small" color="#F5A800" style={{ marginBottom: 10 }} />
+            ) : categories.length === 0 ? (
+              <TouchableOpacity
+                style={styles.categoriesEmptyBox}
+                onPress={() => router.push("/(restaurant)/elegir-categorias?from=perfil")}
+              >
+                <Ionicons name="pricetags-outline" size={18} color="#F5A800" />
+                <Text style={styles.categoriesEmptyText}>
+                  Todavía no elegiste categorías. Toca acá para elegirlas.
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.categoriesWrap}>
+                {categories.map((category) => (
+                  <View key={category.id} style={styles.categoryChip}>
+                    <Text style={styles.categoryChipText}>{category.nombre}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Teléfonos</Text>
             <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
             <PhoneListEditor phones={phones} onAdd={handleAddPhone} onRemove={handleRemovePhone} />
@@ -636,6 +687,42 @@ const styles = StyleSheet.create({
     color: "#9E9E9E",
     marginTop: -6,
     marginBottom: 10,
+  },
+  categoriesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 4,
+  },
+  categoryChip: {
+    backgroundColor: "#FFF6E2",
+    borderWidth: 1,
+    borderColor: "#FFE0A3",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  categoryChipText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#B87A00",
+  },
+  categoriesEmptyBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF8EE",
+    borderWidth: 1,
+    borderColor: "#FFE0A3",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 4,
+  },
+  categoriesEmptyText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: "#B87A00",
+    fontWeight: "500",
   },
   editTrigger: {
     flexDirection: "row",

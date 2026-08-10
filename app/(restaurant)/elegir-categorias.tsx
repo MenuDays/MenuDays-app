@@ -10,13 +10,19 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import CategoryService, { Category } from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 export default function ChooseCategoriesScreen() {
+  // Si venimos de "Mi perfil" para editar (from=perfil), al guardar
+  // volvemos ahí y mostramos el botón de volver. Si venimos del login
+  // (primera vez, todavía sin categorías elegidas), no hay a dónde
+  // volver: se oculta el back y al guardar se entra al dashboard.
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const cameFromProfile = from === "perfil";
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -29,9 +35,8 @@ export default function ChooseCategoriesScreen() {
         const all = await CategoryService.getAll();
         setCategories(all);
 
-        // Todavía no existe este endpoint en el backend (ver nota en
-        // category.service.ts) -- si falla, simplemente arrancamos sin
-        // nada preseleccionado, como corresponde la primera vez.
+        // Si el restaurante ya tenía categorías elegidas (ej. venimos a
+        // editar desde "Mi perfil"), las precargamos seleccionadas.
         try {
           const current = await CategoryService.getRestaurantCategories();
           setSelectedIds(new Set(current));
@@ -70,7 +75,11 @@ export default function ChooseCategoriesScreen() {
     setSaving(true);
     try {
       await CategoryService.updateRestaurantCategories(Array.from(selectedIds));
-      router.replace("/(restaurant)/dashboard");
+      if (cameFromProfile) {
+        router.back();
+      } else {
+        router.replace("/(restaurant)/dashboard");
+      }
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudieron guardar las categorías.");
     } finally {
@@ -82,9 +91,13 @@ export default function ChooseCategoriesScreen() {
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingScreen>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
-            <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
-          </TouchableOpacity>
+          {cameFromProfile ? (
+            <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
+              <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 26 }} />
+          )}
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerTitle}>Elegir categorías</Text>
             <Text style={styles.headerSubtitle}>Selecciona las categorías que ofrece tu restaurante</Text>

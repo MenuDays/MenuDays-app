@@ -8,25 +8,6 @@ import { api } from "./api";
 // diferencia de /promotions (CRUD del restaurante dueño), este es de solo
 // lectura y ya viene con el restaurante embebido. Ver
 // src/modules/public-promotions en el back.
-//
-// OJO categoría: `promociones` sí tiene `categoria_id` en el schema, pero
-// a diferencia de platos/menús, PublicPromotionService.findAvailable NO
-// incluye la relación `categorias` en el select (solo trae `restaurantes`).
-// Por eso acá abajo NO hay un campo `categorias` anidado con el nombre,
-// sólo el `categoria_id` crudo. Para filtrar por categoría en el front hay
-// que resolver el id contra CategoryService.getAll() (ver
-// explorar-resultados.tsx). Si el back agrega `categorias: true` al
-// include, este tipo debería actualizarse para agregar ese campo también.
-//
-// OJO `search`: igual que en platos/menús, FindPublicPromotionsDto no
-// agrega nada propio a FindRestaurantsDto, así que ese filtro busca por
-// `nombre_comercial` del restaurante, NO por el título de la promoción.
-// Por eso el buscador de la pantalla filtra por título del lado del
-// cliente en vez de mandar `search` acá.
-//
-// OJO precio: el schema de `promociones` sólo tiene un campo `precio` (el
-// de la promo). No existe un "precio original" para mostrar tachado; eso
-// era puramente de mock.
 // ==========================================================================
 
 export interface PublicPromotionRestaurant {
@@ -36,6 +17,13 @@ export interface PublicPromotionRestaurant {
   estado_operativo: "abierto" | "cerrado" | "cerrado_temporal" | "vacaciones";
   calificacion_promedio: number;
   cantidad_resenas: number;
+}
+
+export interface PublicPromotionCategory {
+  id: string;
+  nombre: string;
+  icono_id: string | null;
+  iconos?: { url: string } | null;
 }
 
 export interface PublicPromotion {
@@ -52,6 +40,7 @@ export interface PublicPromotion {
   created_at: string;
   updated_at: string;
   restaurante: PublicPromotionRestaurant;
+  categorias: PublicPromotionCategory | null; // el back ya incluye esta relación
   distancia?: number; // solo viene si se mandó latitude + longitude
 }
 

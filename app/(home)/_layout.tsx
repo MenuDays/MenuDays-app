@@ -181,6 +181,10 @@ export default function TabLayout() {
         }}
       />
 
+      {/* Se accede desde el botón "Dejar reseña" de pedido-detalle.tsx
+          (solo visible con estado "entregado"), no es un tab. */}
+      <Tabs.Screen name="crear-resena" options={{ href: null }} />
+
       <Tabs.Screen
         name="perfil"
         options={{
