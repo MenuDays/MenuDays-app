@@ -1,32 +1,34 @@
-import React, { useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ImageBackground,
-  Dimensions,
-  Animated,
-  Easing,
-} from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
 import { router } from "expo-router";
-import WaveTop from "../components/home/WaveTop";
-import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
+import {
+  useSafeAreaInsets
+} from "react-native-safe-area-context";
 import DishService from "../../services/dish.service";
+import MenuService from "../../services/menu.service";
 import PromotionService from "../../services/promotion.service";
 import RestaurantService from "../../services/restaurant.service";
-import MenuService from "../../services/menu.service";
-import OrderService from "../../services/order.service";
 import { AppAlert } from "../components/common/AppAlert";
+import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+const platosBg = require("../../assets/dashboard/platos.png");
+const promocionesBg = require("../../assets/dashboard/promociones.png");
+const menusBg = require("../../assets/dashboard/menus.png");
+const galeriaBg = require("../../assets/dashboard/galeria.png");
+const heroBg = require("../../assets/dashboard/hero-restaurante.png");
+const menuReminderCharacter = require("../../assets/characters/niñoPensando.png");
 
 const { width } = Dimensions.get("screen");
 
@@ -37,10 +39,6 @@ const { width } = Dimensions.get("screen");
 // resultado de la llamada; el JSX no debería necesitar cambios.
 // ============================================================
 
-interface DailyVisit {
-  day: string;
-  value: number;
-}
 
 interface BreakdownItem {
   label: string;
@@ -64,79 +62,86 @@ interface QuickAccessItem {
   sub: string;
   route: string;
   gradient: [string, string];
+  image: any;
 }
-
-// Fallback mientras carga el perfil real (para que el layout y las
-// animaciones no salten antes del primer fetch).
-const RESTAURANT_FALLBACK = {
-  name: "Tu restaurante",
-  rating: "—",
-};
-
-// Visitas de los últimos 7 días — el último valor (hoy) coincide con el
-// "247" que ya se muestra en el header y en la card hero
-const WEEKLY_VISITS: DailyVisit[] = [
-  { day: "L", value: 142 },
-  { day: "M", value: 168 },
-  { day: "X", value: 155 },
-  { day: "J", value: 190 },
-  { day: "V", value: 210 },
-  { day: "S", value: 231 },
-  { day: "D", value: 247 },
-];
-
-const TODAY_VISITS = WEEKLY_VISITS[WEEKLY_VISITS.length - 1].value;
-const TODAY_TREND = "+18%";
-
-// Desglose que reutiliza los mismos datos de la card de stats
-// (reseñas, menús activos, platos) como barras comparativas
-const BREAKDOWN: BreakdownItem[] = [
-  { label: "Reseñas", value: 4.8, max: 5, display: "4.8", gradient: ["#FF9D42", "#F5751A"] },
-  { label: "Promociones activas", value: 2, max: 5, display: "2", gradient: ["#FFC94D", "#F5A800"] },
-  { label: "Platos registrados", value: 12, max: 20, display: "12", gradient: ["#FFA94D", "#F5871A"] },
-];
-
-// Grid 2x2 — cubre lo que necesitás ver como restaurante:
-// platos registrados, promociones activas, pedidos pendientes
-// (solo visual por ahora, sin backend detrás todavía) y reseñas.
 const STATS: StatItem[] = [
   {
     icon: "list-outline",
-    value: "12",
+    value: "0",
     label: "Platos registrados",
     gradient: ["#FFA94D", "#F5871A"],
     trend: null,
   },
   {
     icon: "pricetag-outline",
-    value: "2",
+    value: "0",
     label: "Promociones activas",
     gradient: ["#FFC94D", "#F5A800"],
     trend: null,
   },
   {
     icon: "time-outline",
-    value: "5",
+    value: "0",
     label: "Pedidos pendientes",
     gradient: ["#FFB800", "#F5A800"],
     trend: null,
   },
   {
     icon: "star",
-    value: "4.8",
+    value: "0.0",
     label: "Reseñas",
     gradient: ["#FF9D42", "#F5751A"],
-    trend: "+0.2",
+    trend: null,
   },
 ];
 
+const BREAKDOWN: BreakdownItem[] = [
+  {
+    label: "Reseñas",
+    value: 0,
+    max: 5,
+    display: "0.0",
+    gradient: ["#FF9D42", "#F5751A"],
+  },
+  {
+    label: "Promociones activas",
+    value: 0,
+    max: 5,
+    display: "0",
+    gradient: ["#FFC94D", "#F5A800"],
+  },
+  {
+    label: "Platos registrados",
+    value: 0,
+    max: 20,
+    display: "0",
+    gradient: ["#FFA94D", "#F5871A"],
+  },
+];
 const QUICK_ACCESS: QuickAccessItem[] = [
   {
     icon: "fast-food-outline",
     label: "Platos",
-    sub: "Tu carta completa",
+    sub: "Gestionar platos",
     route: "/(restaurant)/platos",
     gradient: ["#FF9D42", "#F5751A"],
+    image: platosBg,
+  },
+  {
+    icon: "pricetag-outline",
+    label: "Promociones",
+    sub: "Crear y administrar",
+    route: "/(restaurant)/promociones",
+    gradient: ["#FFC94D", "#F5A800"],
+    image: promocionesBg,
+  },
+  {
+    icon: "restaurant-outline",
+    label: "Menús del día",
+    sub: "Crear menús",
+    route: "/(restaurant)/menu",
+    gradient: ["#FF9D42", "#F5751A"],
+    image: menusBg,
   },
   {
     icon: "images-outline",
@@ -144,20 +149,7 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     sub: "Fotos del local",
     route: "/(restaurant)/gallery",
     gradient: ["#FF9D42", "#F5751A"],
-  },
-  {
-    icon: "pricetag-outline",
-    label: "Promociones",
-    sub: "Ofertas activas",
-    route: "/(restaurant)/promociones",
-    gradient: ["#FFC94D", "#F5A800"],
-  },
-  {
-    icon: "star-outline",
-    label: "Reseñas",
-    sub: "Lo que dicen",
-    route: "/(restaurant)/resenas",
-    gradient: ["#FFA94D", "#F5871A"],
+    image: galeriaBg,
   },
 ];
 
@@ -168,26 +160,19 @@ function getGreeting(): string {
   return "Buenas noches";
 }
 
-function getInsightMessage(): string {
-  const values = WEEKLY_VISITS.map((d) => d.value);
-  const todayIsBest = TODAY_VISITS === Math.max(...values);
-  if (todayIsBest) return "Este es tu mejor día de la semana 🎉";
-
-  const yesterday = WEEKLY_VISITS[WEEKLY_VISITS.length - 2].value;
-  if (TODAY_VISITS > yesterday) return "Vas mejor que ayer, seguí así";
-  return "Un poco más tranquilo que ayer";
-}
-
 export default function RestaurantDashboard() {
   const insets = useSafeAreaInsets();
   const greeting = getGreeting();
-  const insightMessage = getInsightMessage();
-  const [isOpen, setIsOpen] = React.useState(true);
-  const [restaurantName, setRestaurantName] = React.useState(RESTAURANT_FALLBACK.name);
-  const [restaurantRating, setRestaurantRating] = React.useState<string>(RESTAURANT_FALLBACK.rating);
   // Arranca en null ("todavía no sabemos") para no mostrar ni el estado
   // publicado ni el de "falta publicar" hasta tener la respuesta real.
   const [menuPublished, setMenuPublished] = React.useState<boolean | null>(null);
+  const [showMenuReminder, setShowMenuReminder] = React.useState(true);
+  const [restaurant, setRestaurant] = React.useState({
+  name: "",
+  rating: 0,
+});
+  const [showDashboardMenu, setShowDashboardMenu] = React.useState(false);
+
 
   useEffect(() => {
     async function loadTodayMenuStatus() {
@@ -210,29 +195,29 @@ export default function RestaurantDashboard() {
   // Platos registrados, promociones activas y reseñas ya tienen backend
   // real detrás -- se arrancan con el shape mockeado (para que el layout
   // y las animaciones no salten) y se pisan al llegar la respuesta.
-  // "Pedidos pendientes" ahora también es real: GET /orders/restaurant
-  // filtrado por estado=pendiente (el módulo de pedidos ya existe).
+  // "Pedidos pendientes" se deja mockeado: todavía no existe el módulo
+  // de pedidos en el backend.
   const [stats, setStats] = React.useState<StatItem[]>(STATS);
   const [breakdown, setBreakdown] = React.useState<BreakdownItem[]>(BREAKDOWN);
 
   useEffect(() => {
     async function loadRealStats() {
+      
       try {
-        const [dishes, promotions, profile, pendingOrders] = await Promise.all([
+        const [dishes, promotions, profile] = await Promise.all([
           DishService.getAll(),
           PromotionService.getAll(),
           RestaurantService.getProfile(),
-          OrderService.getRestaurantOrders({ estado: "pendiente" }).catch(() => []),
         ]);
+        
 
         const dishesCount = dishes.length;
         const activePromotions = promotions.filter((p) => p.activa).length;
         const rating = Number(profile.calificacion_promedio ?? 0);
-        const pendingCount = pendingOrders.length;
-
-        setRestaurantName(profile.nombre_comercial);
-        setRestaurantRating(rating.toFixed(1));
-        setIsOpen(profile.estado_operativo === "abierto");
+        setRestaurant({
+  name: profile.nombre_comercial ?? "",
+  rating,
+});
 
         setStats((prev) =>
           prev.map((stat) => {
@@ -241,9 +226,6 @@ export default function RestaurantDashboard() {
             }
             if (stat.label === "Promociones activas") {
               return { ...stat, value: String(activePromotions) };
-            }
-            if (stat.label === "Pedidos pendientes") {
-              return { ...stat, value: String(pendingCount) };
             }
             if (stat.label === "Reseñas") {
               return { ...stat, value: rating.toFixed(1) };
@@ -300,8 +282,7 @@ export default function RestaurantDashboard() {
 
   const headerStatsAnim = useRef(new Animated.Value(0)).current;
 
-  // Pulso continuo del ícono de tendencia en el header
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  
 
   useEffect(() => {
     Animated.parallel([
@@ -323,7 +304,10 @@ export default function RestaurantDashboard() {
 
     Animated.stagger(
       75,
-      cardAnims.map((anim) =>
+      cardAnims.map((anim: {
+  opacity: Animated.Value;
+  translateY: Animated.Value;
+}) =>
         Animated.parallel([
           Animated.timing(anim.opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
           Animated.timing(anim.translateY, {
@@ -365,167 +349,237 @@ export default function RestaurantDashboard() {
       )
     ).start();
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.25,
-          duration: 900,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.in(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    
   }, []);
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-
-        {/* Header con foto del restaurante */}
-        <View style={styles.headerWrapper}>
-          <ImageBackground
-            source={require("../../assets/images/restauranteHeader.png")}
-            style={[
-              styles.headerImage,
-              {
-                height: 230 + insets.top,
-                paddingTop: insets.top + 16,
-              },
-            ]}
-            resizeMode="cover"
-          >
-            <LinearGradient
-              colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.55)"]}
-              style={StyleSheet.absoluteFill}
-            />
-
-            <View style={styles.headerTopRow}>
-              <Text style={styles.headerBrand}>MenuDays</Text>
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => setIsOpen((prev) => !prev)}
-                style={[
-                  styles.statusPill,
-                  { backgroundColor: isOpen ? "rgba(47,185,102,0.9)" : "rgba(158,158,158,0.55)" },
-                ]}
-              >
-                {/* OJO: este toggle es solo visual -- no hay endpoint en el
-                    back para persistir estado_operativo todavía. Arranca
-                    sincronizado con el valor real del perfil, pero tocarlo
-                    no lo guarda. */}
-                {isOpen && (
-                  <Animated.View style={[styles.statusDot, { transform: [{ scale: pulseAnim }] }]} />
-                )}
-                {!isOpen && <View style={[styles.statusDot, { backgroundColor: "#E0E0E0" }]} />}
-                <Text style={styles.statusPillText}>{isOpen ? "Abierto" : "Cerrado"}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.headerContent}>
-              <Text style={styles.headerGreeting}>{greeting} 👋</Text>
-              <Text style={styles.headerRestaurantName}>{restaurantName}</Text>
-
-              <Animated.View
-                style={[
-                  styles.headerStatsRow,
-                  {
-                    opacity: headerStatsAnim,
-                    transform: [
-                      {
-                        translateY: headerStatsAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [10, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.headerStatPill}>
-                  <Ionicons name="star" size={13} color="#FFD54D" />
-                  <Text style={styles.headerStatText}>{restaurantRating}</Text>
-                </View>
-              </Animated.View>
-            </View>
-          </ImageBackground>
-
-          <View style={styles.waveWrapper}>
-            <WaveTop />
-          </View>
-        </View>
-
-        {/* Contenido */}
-        <Animated.View
-          style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-        >
-
-          {/* Menú del día: publicado o no -- esto lo necesitás ver
-              y poder resolver de un toque, no es solo un dato más.
-              Mientras se confirma el estado real (menuPublished === null)
-              se muestra en gris; el toque siempre lleva a /menu, tanto
-              para revisarlo como para publicarlo. */}
+    <ImageBackground
+      source={heroBg}
+      resizeMode="cover"
+      style={styles.dashboardBackground}
+      imageStyle={styles.dashboardBackgroundImage}
+    >
+      {/* Todo el dashboard vive sobre la imagen hero de fondo. */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.dashboardScrollContent,
+          { paddingTop: insets.top + 22 },
+        ]}
+      >
+        <View style={styles.dashboardMenuWrapper}>
           <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => router.push("/(restaurant)/menu" as any)}
-            style={[
-              styles.menuStatusCard,
-              { borderLeftColor: menuPublished === null ? "#C9C9C9" : menuPublished ? "#2FB966" : "#E53935" },
-            ]}
+            activeOpacity={0.75}
+            onPress={() => setShowDashboardMenu((prev) => !prev)}
+            style={styles.dashboardMenuButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <View
-              style={[
-                styles.menuStatusIcon,
-                { backgroundColor: menuPublished === null ? "#F5F5F5" : menuPublished ? "#E9FBF1" : "#FFEBEE" },
-              ]}
-            >
-              <Ionicons
-                name={menuPublished === null ? "time-outline" : menuPublished ? "checkmark-circle" : "alert-circle"}
-                size={20}
-                color={menuPublished === null ? "#9E9E9E" : menuPublished ? "#2FB966" : "#E53935"}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuStatusTitle}>
-                {menuPublished === null
-                  ? "Revisando el menú de hoy..."
-                  : menuPublished
-                  ? "Menú de hoy publicado"
-                  : "Todavía no publicaste el menú de hoy"}
-              </Text>
-              <Text style={styles.menuStatusSub}>
-                {menuPublished === null
-                  ? "Un momento"
-                  : menuPublished
-                  ? "Tus clientes ya pueden verlo"
-                  : "Tocá para revisarlo"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#C9C9C9" />
+            <Ionicons
+              name={showDashboardMenu ? "close" : "menu-outline"}
+              size={25}
+              color="#FFFFFF"
+            />
           </TouchableOpacity>
 
-          {/* Stats 2x2 */}
+          {showDashboardMenu && (
+            <View style={styles.dashboardDropdown}>
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.dashboardDropdownItem}
+                onPress={() => {
+                  setShowDashboardMenu(false);
+                  router.push("/(restaurant)/menu" as any);
+                }}
+              >
+                <Ionicons name="restaurant-outline" size={18} color="#F5751A" />
+                <Text style={styles.dashboardDropdownText}>Menús del día</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.dashboardDropdownItem}
+                onPress={() => {
+                  setShowDashboardMenu(false);
+                  router.push("/(restaurant)/platos" as any);
+                }}
+              >
+                <Ionicons name="fast-food-outline" size={18} color="#F5751A" />
+                <Text style={styles.dashboardDropdownText}>Platos</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.dashboardDropdownItem}
+                onPress={() => {
+                  setShowDashboardMenu(false);
+                  router.push("/(restaurant)/promociones" as any);
+                }}
+              >
+                <Ionicons name="pricetag-outline" size={18} color="#F5751A" />
+                <Text style={styles.dashboardDropdownText}>Promociones</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.dashboardDropdownItem}
+                onPress={() => {
+                  setShowDashboardMenu(false);
+                  router.push("/(restaurant)/gallery" as any);
+                }}
+              >
+                <Ionicons name="images-outline" size={18} color="#F5751A" />
+                <Text style={styles.dashboardDropdownText}>Galería</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* RESUMEN DEL RESTAURANTE */}
+          <View style={styles.heroIntro}>
+            <View style={styles.heroIntroText}>
+              <Text style={styles.heroGreeting}>{greeting},</Text>
+
+              <Text style={styles.heroRestaurantName}>
+                {restaurant.name || "Tu restaurante"}!
+              </Text>
+
+              <Text style={styles.heroDescription}>
+                Aquí tienes un resumen de tu{"\n"}
+                restaurante hoy.
+              </Text>
+            </View>
+
+            <View style={styles.heroRatingCard}>
+              <View style={styles.heroRatingTop}>
+                <Ionicons
+                  name="star"
+                  size={25}
+                  color="#F5751A"
+                />
+
+                <Text style={styles.heroRatingValue}>
+                  {restaurant.rating.toFixed(1)}
+                </Text>
+              </View>
+
+              <Text style={styles.heroRatingLabel}>
+                {restaurant.rating > 0 ? "Excelente" : "Sin reseñas"}
+              </Text>
+            </View>
+          </View>
+
+          {/* RECORDATORIO DEL MENÚ DE HOY */}
+          {menuPublished === false && showMenuReminder && (
+            <Animated.View
+              style={[
+                styles.menuReminderCard,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <View style={styles.menuReminderGlow} />
+
+              <View style={styles.menuReminderContent}>
+                <View style={styles.menuReminderCopy}>
+                  <View style={styles.menuReminderBadge}>
+                    <Ionicons
+                      name="restaurant-outline"
+                      size={14}
+                      color="#F5751A"
+                    />
+                    <Text style={styles.menuReminderBadgeText}>
+                      MENÚ DE HOY
+                    </Text>
+                  </View>
+
+                  <Text style={styles.menuReminderTitle}>
+                    ¿Ya preparaste el menú de hoy?
+                  </Text>
+
+                  <Text style={styles.menuReminderDescription}>
+                    Tus clientes están esperando ver qué hay rico hoy.
+                  </Text>
+
+                  <View style={styles.menuReminderActions}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setShowMenuReminder(false)}
+                      style={styles.remindLaterButton}
+                    >
+                      <Text style={styles.remindLaterText}>
+                        Recordar luego
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.88}
+                      onPress={() => router.push("/(restaurant)/menu" as any)}
+                      style={styles.uploadMenuButton}
+                    >
+                      <LinearGradient
+                        colors={["#FF9D42", "#F5751A"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.uploadMenuButtonGradient}
+                      >
+                        <Text style={styles.uploadMenuButtonText}>
+                          Subir ahora
+                        </Text>
+                        <Ionicons
+                          name="arrow-forward"
+                          size={15}
+                          color="#FFFFFF"
+                        />
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <Image
+                  source={menuReminderCharacter}
+                  resizeMode="contain"
+                  style={styles.menuReminderCharacter}
+                />
+              </View>
+            </Animated.View>
+          )}
+
+          {/* STATS 2x2 */}
           <View style={styles.statsGrid}>
             {stats.map((stat, i) => (
               <Animated.View
                 key={i}
                 style={[
                   styles.statCard,
-                  { borderLeftColor: stat.gradient[1] },
                   {
+                    borderTopColor: stat.gradient[0],
                     opacity: cardAnims[i].opacity,
-                    transform: [{ translateY: cardAnims[i].translateY }],
+                    transform: [
+                      {
+                        translateY: cardAnims[i].translateY,
+                      },
+                    ],
                   },
                 ]}
               >
+                <View
+                  style={[
+                    styles.statGlow,
+                    { backgroundColor: stat.gradient[0] },
+                  ]}
+                />
+
                 <View style={styles.statTopRow}>
                   <LinearGradient
                     colors={stat.gradient}
@@ -533,48 +587,78 @@ export default function RestaurantDashboard() {
                     end={{ x: 1, y: 1 }}
                     style={styles.statIconBadge}
                   >
-                    <Ionicons name={stat.icon as any} size={18} color="#FFFFFF" />
+                    <Ionicons
+                      name={stat.icon as any}
+                      size={19}
+                      color="#FFFFFF"
+                    />
                   </LinearGradient>
-                  {stat.trend && (
-                    <View style={styles.trendPill}>
-                      <Ionicons name="trending-up" size={10} color="#2FB966" />
-                      <Text style={styles.trendText}>{stat.trend}</Text>
-                    </View>
-                  )}
+
+                  <View style={styles.statMiniLabel}>
+                    <View
+                      style={[
+                        styles.statMiniDot,
+                        { backgroundColor: stat.gradient[1] },
+                      ]}
+                    />
+                    <Text style={styles.statMiniLabelText}>ACTUAL</Text>
+                  </View>
                 </View>
+
                 <Text style={styles.statValue}>{stat.value}</Text>
+
                 <Text style={styles.statLabel}>{stat.label}</Text>
+
+                <View
+                  style={[
+                    styles.statAccentLine,
+                    { backgroundColor: stat.gradient[1] },
+                  ]}
+                />
               </Animated.View>
             ))}
           </View>
 
-          {/* Estadísticas */}
+          {/* ESTADÍSTICAS */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Estadísticas</Text>
+
             <View style={styles.sectionTag}>
-              <Text style={styles.sectionTagText}>Últimos 7 días</Text>
+              <Text style={styles.sectionTagText}>
+                Resumen actual
+              </Text>
             </View>
           </View>
 
           <Animated.View
             style={[
               styles.chartCard,
-              { opacity: chartAnim.opacity, transform: [{ translateY: chartAnim.translateY }] },
+              {
+                opacity: chartAnim.opacity,
+                transform: [
+                  {
+                    translateY: chartAnim.translateY,
+                  },
+                ],
+              },
             ]}
           >
-            <BarChart data={WEEKLY_VISITS} />
-
             <View style={styles.divider} />
 
             {breakdown.map((item, i) => (
-              <BreakdownRow key={i} item={item} delay={i * 90} />
+              <BreakdownRow
+                key={i}
+                item={item}
+                delay={i * 90}
+              />
             ))}
           </Animated.View>
 
-          {/* Accesos rápidos */}
+          {/* ACCESOS RÁPIDOS */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Accesos rápidos</Text>
-            <Text style={styles.sectionLink}>Ver todo</Text>
+            <Text style={styles.sectionTitle}>
+              Accesos rápidos
+            </Text>
           </View>
 
           <View style={styles.quickGrid}>
@@ -587,14 +671,11 @@ export default function RestaurantDashboard() {
               />
             ))}
           </View>
-
         </Animated.View>
       </ScrollView>
 
-      {/* Nav bar */}
       <RestaurantBottomNav />
-
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -614,42 +695,95 @@ function QuickAccessCard({
   const pressScale = useRef(new Animated.Value(1)).current;
 
   function onPressIn() {
-    Animated.spring(pressScale, { toValue: 0.95, friction: 6, useNativeDriver: true }).start();
+    Animated.spring(pressScale, {
+      toValue: 0.97,
+      friction: 6,
+      useNativeDriver: true,
+    }).start();
   }
+
   function onPressOut() {
-    Animated.spring(pressScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+    Animated.spring(pressScale, {
+      toValue: 1,
+      friction: 5,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
   }
 
   return (
-    <Animated.View style={{ opacity, transform: [{ translateY }, { scale: pressScale }] }}>
-      <TouchableOpacity
-        style={[styles.quickCard, { borderLeftColor: item.gradient[1] }]}
-        onPress={() => router.push(item.route as any)}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        activeOpacity={0.92}
+  <Animated.View
+    style={{
+      opacity,
+      transform: [
+        { translateY },
+        { scale: pressScale },
+      ],
+    }}
+  >
+    <TouchableOpacity
+      onPress={() => router.push(item.route as any)}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      activeOpacity={0.95}
+    >
+      <ImageBackground
+        source={item.image}
+        style={styles.quickCard}
+        imageStyle={styles.quickBackgroundImage}
+        resizeMode="cover"
       >
+        {/* Degradado para que el texto siempre se lea */}
         <LinearGradient
-          colors={item.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.quickIconBadge}
-        >
-          <Ionicons name={item.icon as any} size={22} color="#FFFFFF" />
-        </LinearGradient>
-        <Text style={styles.quickLabel}>{item.label}</Text>
-        <Text style={styles.quickSub}>{item.sub}</Text>
-        <View style={styles.quickArrow}>
-          <Ionicons name="chevron-forward" size={14} color="#C9C9C9" />
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
+          colors={[
+            "rgba(255,255,255,0.98)",
+            "rgba(255,255,255,0.88)",
+            "rgba(255,255,255,0.20)",
+          ]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.quickBackgroundImageStyle}
+        />
 
-function BreakdownRow({ item, delay }: { item: BreakdownItem; delay: number }) {
+        <View style={styles.quickCardContent}>
+          {/* Icono */}
+          <View style={styles.quickIconBadge}>
+            <Ionicons
+              name={item.icon as any}
+              size={22}
+              color="#F5751A"
+            />
+          </View>
+
+          {/* Textos */}
+          <View style={styles.quickTextContainer}>
+            <Text style={styles.quickLabel}>
+              {item.label}
+            </Text>
+
+            <Text style={styles.quickSub}>
+              {item.sub}
+            </Text>
+          </View>
+        </View>
+      </ImageBackground>
+    </TouchableOpacity>
+  </Animated.View>
+);
+}
+function BreakdownRow({
+  item,
+  delay,
+}: {
+  item: BreakdownItem;
+  delay: number;
+}) {
   const widthAnim = useRef(new Animated.Value(0)).current;
-  const targetWidth = Math.min(100, (item.value / item.max) * 100);
+
+  const targetWidth =
+    item.max > 0
+      ? Math.min(100, (item.value / item.max) * 100)
+      : 0;
 
   useEffect(() => {
     Animated.timing(widthAnim, {
@@ -659,14 +793,20 @@ function BreakdownRow({ item, delay }: { item: BreakdownItem; delay: number }) {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, []);
+  }, [targetWidth, delay]);
 
   return (
     <View style={styles.breakdownRow}>
       <View style={styles.breakdownLabelRow}>
-        <Text style={styles.breakdownLabel}>{item.label}</Text>
-        <Text style={styles.breakdownValue}>{item.display}</Text>
+        <Text style={styles.breakdownLabel}>
+          {item.label}
+        </Text>
+
+        <Text style={styles.breakdownValue}>
+          {item.display}
+        </Text>
       </View>
+
       <View style={styles.breakdownTrack}>
         <Animated.View
           style={[
@@ -691,166 +831,146 @@ function BreakdownRow({ item, delay }: { item: BreakdownItem; delay: number }) {
   );
 }
 
-function BarChart({ data }: { data: DailyVisit[] }) {
-  const chartWidth = width - 32 - 36;
-  const chartHeight = 110;
-  const barGap = 10;
-  const barWidth = (chartWidth - barGap * (data.length - 1)) / data.length;
-  const maxValue = Math.max(...data.map((d) => d.value));
-
-  const barAnims = useRef(data.map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    Animated.stagger(
-      60,
-      barAnims.map((anim, i) =>
-        Animated.timing(anim, {
-          toValue: (data[i].value / maxValue) * chartHeight,
-          duration: 550,
-          delay: 200,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        })
-      )
-    ).start();
-  }, []);
-
-  return (
-    <View style={styles.barChartWrapper}>
-      <View style={{ width: chartWidth, height: chartHeight, flexDirection: "row", alignItems: "flex-end" }}>
-        <Svg width={0} height={0}>
-          <Defs>
-            <SvgGradient id="unused" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#FFB800" />
-              <Stop offset="1" stopColor="#F5A800" />
-            </SvgGradient>
-          </Defs>
-        </Svg>
-        {data.map((item, i) => {
-          const isLast = i === data.length - 1;
-          return (
-            <Animated.View
-              key={i}
-              style={{
-                width: barWidth,
-                height: barAnims[i],
-                marginRight: i === data.length - 1 ? 0 : barGap,
-                borderRadius: 7,
-                overflow: "hidden",
-              }}
-            >
-              <LinearGradient
-                colors={isLast ? ["#FF8A1F", "#F5751A"] : ["#FFB800", "#F5A800"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
-          );
-        })}
-      </View>
-      <View style={[styles.barChartLabels, { width: chartWidth }]}>
-        {data.map((item, i) => (
-          <Text
-            key={i}
-            style={[
-              styles.barChartDayLabel,
-              i === data.length - 1 && styles.barChartDayLabelActive,
-            ]}
-          >
-            {item.day}
-          </Text>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
+  flex: 1,
+  backgroundColor: "transparent",
+},
+  dashboardBackground: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    width: "100%",
+    backgroundColor: "transparent",
   },
-  headerWrapper: {
-    width: width,
-    position: "relative",
+
+  dashboardBackgroundImage: {
+    width: "100%",
+    height: "100%",
   },
-  waveWrapper: {
+
+
+dashboardScrollContent: {
+  paddingBottom: 110,
+},
+  // ============================================================
+  // MENÚ DESPLEGABLE — SOLO DASHBOARD
+  // ============================================================
+
+  dashboardMenuWrapper: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    top: 16,
+    right: 18,
+    zIndex: 50,
+    alignItems: "flex-end",
   },
-  headerImage: {
-    width: width,
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-  },
-  headerTopRow: {
-    flexDirection: "row",
+
+  dashboardMenuButton: {
+    width: 38,
+    height: 38,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
   },
-  headerBrand: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "rgba(255,255,255,0.85)",
-    letterSpacing: 1,
-  },
-  statusPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#FFFFFF",
-  },
-  statusPillText: {
-    fontSize: 12.5,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.2,
-  },
-  headerContent: {
-    gap: 3,
-    paddingBottom: 34,
-  },
-  headerGreeting: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-    fontWeight: "500",
-  },
-  headerRestaurantName: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: -0.3,
-  },
-  headerStatsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 10,
-  },
-  headerStatPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: 12,
-    paddingHorizontal: 10,
+
+  dashboardDropdown: {
+    width: 174,
+    marginTop: 7,
     paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.97)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.95)",
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
-  headerStatText: {
+
+  dashboardDropdownItem: {
+    minHeight: 42,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  dashboardDropdownText: {
     fontSize: 12.5,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: "700",
+    color: "#2A2A2A",
   },
+
+  // ============================================================
+  // HERO / HEADER NUEVO
+  // ============================================================
+
+  heroIntro: {
+  minHeight: 158,
+  marginBottom: 18,
+  paddingHorizontal: 8,
+  position: "relative",
+  justifyContent: "center",
+},
+
+heroIntroText: {
+  paddingRight: 118,
+},
+
+heroGreeting: {
+  fontSize: 16,
+  fontWeight: "600",
+  color: "#5C5C5C",
+  marginBottom: 2,
+},
+
+heroRestaurantName: {
+  fontSize: 34,
+  fontWeight: "900",
+  color: "#1A1A1A",
+  letterSpacing: -1,
+},
+
+heroDescription: {
+  fontSize: 15,
+  lineHeight: 21,
+  fontWeight: "500",
+  color: "#777777",
+  marginTop: 10,
+},
+
+heroRatingCard: {
+  position: "absolute",
+  right: 4,
+  top: 36,
+  minWidth: 92,
+  backgroundColor: "rgba(255,255,255,0.92)",
+  borderRadius: 18,
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  shadowColor: "#000",
+  shadowOpacity: 0.08,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 3,
+},
+
+heroRatingTop: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 7,
+},
+
+heroRatingValue: {
+  fontSize: 25,
+  fontWeight: "900",
+  color: "#1A1A1A",
+},
+
+heroRatingLabel: {
+  fontSize: 11,
+  fontWeight: "700",
+  color: "#999999",
+  marginTop: 2,
+},
 
   /* ------- Contenido ------- */
   content: {
@@ -859,43 +979,128 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
 
-  heroCard: {
-    borderRadius: 22,
-    padding: 20,
-    marginBottom: 18,
+
+  menuReminderCard: {
+    minHeight: 190,
+    marginBottom: 20,
+    borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#F5751A",
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    position: "relative",
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(245,168,0,0.18)",
+    shadowColor: "#8A4A00",
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  heroValue: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: -0.4,
+  menuReminderGlow: {
+    position: "absolute",
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    right: -48,
+    bottom: -58,
+    backgroundColor: "rgba(255,169,77,0.16)",
   },
-  heroTrendRow: {
+  menuReminderContent: {
+    flex: 1,
+    minHeight: 190,
+    flexDirection: "row",
+    paddingLeft: 18,
+    paddingTop: 18,
+    paddingBottom: 14,
+  },
+  menuReminderCopy: {
+    flex: 1,
+    paddingRight: 6,
+    zIndex: 2,
+  },
+  menuReminderBadge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: "#FFF4E3",
+    marginBottom: 9,
   },
-  heroTrendText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.92)",
+  menuReminderBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "900",
+    color: "#C36D00",
+    letterSpacing: 0.7,
   },
-  heroDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.28)",
-    marginVertical: 12,
+  menuReminderTitle: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "900",
+    color: "#1A1A1A",
+    letterSpacing: -0.3,
+    maxWidth: 215,
   },
-  heroMessage: {
-    fontSize: 14,
-    fontWeight: "600",
+  menuReminderDescription: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: "500",
+    color: "#8A8A8A",
+    marginTop: 6,
+    maxWidth: 215,
+  },
+  menuReminderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 13,
+  },
+  remindLaterButton: {
+    height: 36,
+    paddingHorizontal: 11,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F7F7F7",
+    borderWidth: 1,
+    borderColor: "#EEEEEE",
+  },
+  remindLaterText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#777777",
+  },
+  uploadMenuButton: {
+    height: 36,
+    borderRadius: 11,
+    overflow: "hidden",
+    shadowColor: "#F5751A",
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  uploadMenuButtonGradient: {
+    height: "100%",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+  uploadMenuButtonText: {
+    fontSize: 10.5,
+    fontWeight: "900",
     color: "#FFFFFF",
+  },
+  menuReminderCharacter: {
+    position: "absolute",
+    right: -8,
+    bottom: -4,
+    width: 138,
+    height: 178,
+    zIndex: 1,
   },
 
   statsGrid: {
@@ -904,56 +1109,58 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 26,
   },
-  menuStatusCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#FFFAF2",
-    borderRadius: 16,
-    borderLeftWidth: 4,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  menuStatusIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuStatusTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#1A1A1A",
-  },
-  menuStatusSub: {
-    fontSize: 12,
-    color: "#9E9E9E",
-    marginTop: 2,
-  },
   statCard: {
     width: (width - 44) / 2,
-    backgroundColor: "#FFFAF2",
-    borderRadius: 18,
-    borderLeftWidth: 4,
+    minHeight: 142,
+    backgroundColor: "rgba(255,255,255,0.78)",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.92)",
+    borderTopWidth: 2,
     padding: 16,
-    paddingLeft: 13,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    paddingTop: 15,
+    paddingLeft: 15,
+    overflow: "hidden",
+    position: "relative",
+    shadowColor: "#8A4A00",
+    shadowOpacity: 0.10,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
+  },
+  statGlow: {
+    position: "absolute",
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    right: -34,
+    top: -34,
+    opacity: 0.10,
   },
   statTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  statMiniLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.72)",
+  },
+  statMiniDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  statMiniLabelText: {
+    fontSize: 7.5,
+    fontWeight: "900",
+    color: "#A0A0A0",
+    letterSpacing: 0.8,
   },
   statIconBadge: {
     width: 38,
@@ -989,9 +1196,18 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12.5,
-    color: "#9E9E9E",
+    color: "#777777",
     marginTop: 2,
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  statAccentLine: {
+    position: "absolute",
+    left: 15,
+    right: 15,
+    bottom: 11,
+    height: 2,
+    borderRadius: 2,
+    opacity: 0.28,
   },
 
   sectionHeader: {
@@ -1025,8 +1241,10 @@ const styles = StyleSheet.create({
 
   /* ------- Estadísticas ------- */
   chartCard: {
-    backgroundColor: "#FFFAF2",
+    backgroundColor: "rgba(255,255,255,0.94)",
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(245,168,0,0.10)",
     padding: 18,
     marginBottom: 26,
     shadowColor: "#000",
@@ -1088,54 +1306,70 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
-  quickGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  quickCard: {
-    width: (width - 44) / 2,
-    backgroundColor: "#FFFAF2",
-    borderRadius: 18,
-    borderLeftWidth: 4,
-    padding: 18,
-    paddingLeft: 15,
-    gap: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-    minHeight: 118,
-    position: "relative",
-    overflow: "hidden",
-  },
-  quickIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-    shadowColor: "#F5A800",
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  quickLabel: {
-    fontSize: 14.5,
-    fontWeight: "800",
-    color: "#1A1A1A",
-    letterSpacing: -0.2,
-  },
-  quickSub: {
-    fontSize: 11.5,
-    color: "#B0B0B0",
-    fontWeight: "500",
-  },
-  quickArrow: {
-    position: "absolute",
-    top: 16,
-    right: 14,
-  },
+quickGrid: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 12,
+},
+quickCard: {
+  width: (width - 44) / 2,
+  minHeight: 118,
+  borderRadius: 18,
+  overflow: "hidden",
+  position: "relative",
+
+  shadowColor: "#000",
+  shadowOpacity: 0.08,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 2,
+},
+
+quickBackgroundImage: {
+  borderRadius: 18,
+},
+
+quickBackgroundImageStyle: {
+  ...StyleSheet.absoluteFillObject,
+},
+
+quickCardContent: {
+  flex: 1,
+  minHeight: 118,
+  padding: 16,
+  paddingLeft: 15,
+  justifyContent: "center",
+},
+
+quickTextContainer: {
+  marginTop: 2,
+},
+quickIconBadge: {
+  width: 44,
+  height: 44,
+  borderRadius: 13,
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 8,
+  shadowColor: "#F5A800",
+  shadowOpacity: 0.3,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+},
+quickLabel: {
+  fontSize: 14.5,
+  fontWeight: "800",
+  color: "#1A1A1A",
+  letterSpacing: -0.2,
+},
+quickSub: {
+  fontSize: 11.5,
+  color: "#B0B0B0",
+  fontWeight: "500",
+},
+quickArrow: {
+  position: "absolute",
+  top: 16,
+  right: 14,
+},
 });

@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, ScrollView, TouchableOpacity, Text, ActivityIndicator } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import ScreenHeader from "../../components/restaurant/ScreenHeader";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import CategoryService, { Category } from "../../../services/category.service";
+import DishService from "../../../services/dish.service";
+import { AppAlert } from "../../components/common/AppAlert";
+import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
 import FormImagePicker from "../../components/restaurant/FormImagePicker";
 import FormTextField from "../../components/restaurant/FormTextField";
 import FormToggleRow from "../../components/restaurant/FormToggleRow";
-import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
-import DishService from "../../../services/dish.service";
-import CategoryService, { Category } from "../../../services/category.service";
-import { AppAlert } from "../../components/common/AppAlert";
-import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import ScreenHeader from "../../components/restaurant/ScreenHeader";
 
 const DESCRIPTION_MAX = 500; // @MaxLength(500) en CreateDishDto
 
@@ -84,21 +84,25 @@ export default function DishFormScreen() {
     setSaving(true);
     try {
       const payload = {
-        nombre: name.trim(),
-        descripcion: description.trim(),
-        precio: Number(price),
-        categoriaId: categoryId!,
-        estado: available ? ("disponible" as const) : ("agotado" as const),
-        activo: active,
-        imageUri,
-      };
+  nombre: name.trim(),
+  descripcion: description.trim(),
+  precio: Number(price),
+  categoriaId: categoryId!,
+  estado: available ? ("disponible" as const) : ("agotado" as const),
+  activo: true,
+  imageUri,
+};
 
-      if (isEditing) {
-        await DishService.update(id!, payload);
-      } else {
-        await DishService.create(payload);
-      }
-      router.back();
+if (isEditing) {
+  await DishService.update(id!, {
+    ...payload,
+    activo: active,
+  });
+} else {
+  await DishService.create(payload);
+}
+
+router.back();
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo guardar el plato.");
     } finally {

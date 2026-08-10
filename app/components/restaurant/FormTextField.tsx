@@ -1,6 +1,6 @@
-import React from "react";
-import { View, Text, TextInput, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 
 interface FormTextFieldProps {
   label: string;
@@ -114,10 +114,14 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   textarea: {
-    fontSize: 14,
-    color: "#3E2723",
-    height: 80,
-  },
+  fontSize: 14,
+  color: "#3E2723",
+  minHeight: 80,
+  textAlignVertical: "top",
+  paddingTop: 0,
+  paddingBottom: 0,
+  includeFontPadding: false,
+},
   charCount: {
     fontSize: 12,
     color: "#9E9E9E",

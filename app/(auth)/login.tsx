@@ -186,10 +186,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Olvidaste contraseña */}
-        <TouchableOpacity style={styles.forgotContainer}>
-          <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
-        </TouchableOpacity>
+        
 
         {/* Botón iniciar sesión */}
         <TouchableOpacity

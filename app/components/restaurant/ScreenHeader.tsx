@@ -1,9 +1,9 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface ScreenHeaderProps {
   title: string;
@@ -32,10 +32,17 @@ export default function ScreenHeader({
           {showBack ? (
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={onBack ?? (() => router.back())}
+              onPress={
+                onBack ??
+                (() => router.replace("/(restaurant)/dashboard"))
+              }
               hitSlop={10}
             >
-              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+              <Ionicons
+                name="arrow-back"
+                size={22}
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
           ) : (
             <View style={styles.iconButtonPlaceholder} />
@@ -46,8 +53,16 @@ export default function ScreenHeader({
           </Text>
 
           {rightIcon ? (
-            <TouchableOpacity style={styles.iconButton} onPress={onRightPress} hitSlop={10}>
-              <Ionicons name={rightIcon} size={22} color="#FFFFFF" />
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={onRightPress}
+              hitSlop={10}
+            >
+              <Ionicons
+                name={rightIcon}
+                size={22}
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
           ) : (
             <View style={styles.iconButtonPlaceholder} />
@@ -62,30 +77,30 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingBottom: 20,
-
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     overflow: "hidden",
   },
+
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 8,
   },
-  // Sin fondo circular -- los íconos van sueltos, igual que en la
-  // referencia. Se mantiene el tamaño fijo para que el título quede
-  // centrado sin importar si hay ícono a la izquierda/derecha o no.
+
   iconButton: {
     width: 32,
     height: 32,
     alignItems: "center",
     justifyContent: "center",
   },
+
   iconButtonPlaceholder: {
     width: 32,
     height: 32,
   },
+
   title: {
     flex: 1,
     fontSize: 19,

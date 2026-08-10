@@ -1,14 +1,14 @@
-import React, { useCallback, useState } from "react";
-import { View, StyleSheet, FlatList, Text, ActivityIndicator, TouchableOpacity, Image, RefreshControl } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import ScreenHeader from "../components/restaurant/ScreenHeader";
-import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
-import GalleryService, { GalleryImage } from "../../services/gallery.service";
+import { router } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import DishService, { Dish } from "../../services/dish.service";
+import GalleryService, { GalleryImage } from "../../services/gallery.service";
 import { AppAlert } from "../components/common/AppAlert";
+import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import ScreenHeader from "../components/restaurant/ScreenHeader";
 
 type Tab = "restaurant" | "dishes";
 
@@ -149,6 +149,7 @@ export default function GalleryScreen() {
     <View style={styles.container}>
       <ScreenHeader
         title="Galería"
+        showBack
         rightIcon={isRestaurantTab && !uploading ? "add" : undefined}
         onRightPress={isRestaurantTab ? handleAddPhoto : undefined}
       />

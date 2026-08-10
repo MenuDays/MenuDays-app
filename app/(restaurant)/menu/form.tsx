@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, ScrollView, TouchableOpacity, Text, ActivityIndicator } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import ScreenHeader from "../../components/restaurant/ScreenHeader";
-import FormImagePicker from "../../components/restaurant/FormImagePicker";
-import FormTextField from "../../components/restaurant/FormTextField";
-import FormToggleRow from "../../components/restaurant/FormToggleRow";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MenuService, { Menu } from "../../../services/menu.service";
 import { AppAlert } from "../../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
-
+import FormDateField from "../../components/restaurant/FormDateField";
+import FormImagePicker from "../../components/restaurant/FormImagePicker";
+import FormTextField from "../../components/restaurant/FormTextField";
+import FormToggleRow from "../../components/restaurant/FormToggleRow";
+import ScreenHeader from "../../components/restaurant/ScreenHeader";
 const DESCRIPTION_MAX = 500; // @MaxLength(500) en CreateMenuDto
 
 export default function MenuFormScreen() {
@@ -153,26 +153,17 @@ export default function MenuFormScreen() {
               @react-native-community/datetimepicker) que arme el string
               en formato YYYY-MM-DD -- el backend usa @IsDateString y
               rechaza cualquier otro formato. */}
-          <View style={styles.dateRow}>
-            <View style={styles.dateField}>
-              <FormTextField
-                label=""
-                placeholder="AAAA-MM-DD"
-                value={startDate}
-                onChangeText={setStartDate}
-                icon="calendar-outline"
-              />
-            </View>
-            <View style={styles.dateField}>
-              <FormTextField
-                label=""
-                placeholder="AAAA-MM-DD"
-                value={endDate}
-                onChangeText={setEndDate}
-                icon="calendar-outline"
-              />
-            </View>
-          </View>
+          <FormDateField
+  label="Fecha de inicio"
+  value={startDate}
+  onChangeText={setStartDate}
+/>
+
+<FormDateField
+  label="Fecha de fin"
+  value={endDate}
+  onChangeText={setEndDate}
+/>
           <Text style={styles.dateHint}>Dejá vacío si es solo para hoy</Text>
 
           {/* El create/update no acepta "estado" directamente -- después

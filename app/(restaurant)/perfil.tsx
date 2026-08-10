@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -13,31 +15,30 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
+import AuthService from "../../services/auth.service";
+import LocationService, { City } from "../../services/location.service";
+import ProvinceService, { Province } from "../../services/province.service";
 import RestaurantService, {
+  RedSocial,
   Restaurant,
   RestaurantPhone,
-  RestaurantSocialLink,
   RestaurantSchedule,
-  RedSocial,
+  RestaurantSocialLink,
 } from "../../services/restaurant.service";
-import ProvinceService, { Province } from "../../services/province.service";
-import LocationService, { City } from "../../services/location.service";
 import RestaurantLocationPickerBridge from "../../services/restaurantLocationPicker.bridge";
-import AuthService from "../../services/auth.service";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 // OJO: estos dos siguen siendo del comensal, sin tocar.
-import ProfileHero from "../components/profile/ProfileHero";
 import PhoneListEditor from "../components/profile/PhoneListEditor";
-import SocialLinksEditor from "../components/profile/SocialLinksEditor";
+import ProfileHero from "../components/profile/ProfileHero";
 import ScheduleEditor from "../components/profile/ScheduleEditor";
+import SocialLinksEditor from "../components/profile/SocialLinksEditor";
 
 // Propios del restaurante.
-import FormTextField from "../components/restaurant/FormTextField";
-import ScreenHeader from "../components/restaurant/ScreenHeader";
-import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import { AppAlert } from "../components/common/AppAlert";
+import FormTextField from "../components/restaurant/FormTextField";
+import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import ScreenHeader from "../components/restaurant/ScreenHeader";
 
 export default function RestaurantProfileScreen() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
@@ -225,7 +226,99 @@ export default function RestaurantProfileScreen() {
       setSaving(false);
     }
   }
+async function handleUploadLogo() {
+  const permission =
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
 
+  if (!permission.granted) {
+    AppAlert.alert(
+      "Permiso requerido",
+      "Necesitamos acceso a tu galería."
+    );
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    quality: 0.8,
+  });
+
+  if (result.canceled) return;
+
+  try {
+    const response = await RestaurantService.uploadLogo(
+      result.assets[0]
+    );
+
+    setRestaurant((prev) =>
+      prev
+        ? {
+            ...prev,
+            logo_url: response.logo_url,
+          }
+        : prev
+    );
+
+    AppAlert.alert(
+      "¡Listo!",
+      "Logo actualizado correctamente."
+    );
+  } catch (e) {
+    console.log("Error subiendo logo:", e);
+
+    AppAlert.alert(
+      "Error",
+      "No se pudo actualizar el logo."
+    );
+  }
+}
+
+async function handleUploadCover() {
+  const permission =
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+  if (!permission.granted) {
+    AppAlert.alert(
+      "Permiso requerido",
+      "Necesitamos acceso a tu galería."
+    );
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    quality: 0.8,
+  });
+
+  if (result.canceled) return;
+
+  try {
+    const response = await RestaurantService.uploadCover(
+      result.assets[0]
+    );
+
+    setRestaurant((prev) =>
+      prev
+        ? {
+            ...prev,
+            portada_url: response.portada_url,
+          }
+        : prev
+    );
+
+    AppAlert.alert(
+      "¡Listo!",
+      "Portada actualizada correctamente."
+    );
+  } catch (e) {
+    console.log("Error subiendo portada:", e);
+
+    AppAlert.alert(
+      "Error",
+      "No se pudo actualizar la portada."
+    );
+  }
+}
   function handleAddPhone(telefono: string) {
     setPhones((prev) => [...prev, { id: Date.now(), telefono }]);
   }
@@ -332,8 +425,8 @@ export default function RestaurantProfileScreen() {
               mode="cover"
               logoUrl={restaurant.logo_url}
               coverUrl={restaurant.portada_url}
-              onPressEditLogo={() => openImageUrlModal("logo")}
-              onPressEditCover={() => openImageUrlModal("cover")}
+              onPressEditLogo={handleUploadLogo}
+              onPressEditCover={handleUploadCover}
             />
           </View>
 
