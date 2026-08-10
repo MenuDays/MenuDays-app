@@ -1,25 +1,25 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  ImageBackground,
-  Image,
-  Modal,
-  FlatList,
-} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
-import ProvinceService, { Province } from '../../services/province.service';
-import LocationService, { City } from '../../services/location.service';
-import RestaurantLocationPickerBridge from '../../services/restaurantLocationPicker.bridge';
+import {
+  FlatList,
+  Image,
+  ImageBackground,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { api } from '../../services/api';
-import * as ImagePicker from 'expo-image-picker';
+import LocationService, { City } from '../../services/location.service';
+import ProvinceService, { Province } from '../../services/province.service';
+import RestaurantLocationPickerBridge from '../../services/restaurantLocationPicker.bridge';
 import { AppAlert } from "../components/common/AppAlert";
 
 interface CountryCode {

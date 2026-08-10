@@ -35,6 +35,8 @@ export interface Restaurant {
   ubicacion_lng: number | null;
   logo_url: string | null;
   portada_url: string | null;
+  ofrece_delivery: boolean;
+  nombre_delivery: string | null;
   calificacion_promedio: number;
   cantidad_resenas: number;
   ciudad: {
@@ -63,6 +65,8 @@ export interface UpdateRestaurantPayload {
   ubicacionLng?: number;
   logoUrl?: string;
   portadaUrl?: string;
+  ofreceDelivery?: boolean;
+  nombreDelivery?: string | null;
 }
 
 // ==========================================================================

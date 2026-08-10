@@ -206,7 +206,8 @@ export default function RestaurantProfileScreen() {
     }
   }
 async function handleUploadLogo() {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const permission =
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
 
   if (!permission.granted) {
     AppAlert.alert(
@@ -218,34 +219,42 @@ async function handleUploadLogo() {
 
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
-    allowsEditing: true,
-    aspect: [1, 1],
     quality: 0.8,
   });
 
   if (result.canceled) return;
 
   try {
-    const response = await RestaurantService.uploadLogo(result.assets[0]);
-    console.log(response);
-    setRestaurant((prev) =>
-  prev
-    ? {
-        ...prev,
-        logo_url: response.logo_url,
-      }
-    : prev
-);
+    const response = await RestaurantService.uploadLogo(
+      result.assets[0]
+    );
 
-    AppAlert.alert("Éxito", "Logo actualizado correctamente.");
+    setRestaurant((prev) =>
+      prev
+        ? {
+            ...prev,
+            logo_url: response.logo_url,
+          }
+        : prev
+    );
+
+    AppAlert.alert(
+      "¡Listo!",
+      "Logo actualizado correctamente."
+    );
   } catch (e) {
-    console.log(e);
-    AppAlert.alert("Error", "No se pudo actualizar el logo.");
+    console.log("Error subiendo logo:", e);
+
+    AppAlert.alert(
+      "Error",
+      "No se pudo actualizar el logo."
+    );
   }
 }
 
 async function handleUploadCover() {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const permission =
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
 
   if (!permission.granted) {
     AppAlert.alert(
@@ -257,15 +266,15 @@ async function handleUploadCover() {
 
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
-    allowsEditing: true,
-    aspect: [16, 9],
     quality: 0.8,
   });
 
   if (result.canceled) return;
 
   try {
-    const response = await RestaurantService.uploadCover(result.assets[0]);
+    const response = await RestaurantService.uploadCover(
+      result.assets[0]
+    );
 
     setRestaurant((prev) =>
       prev
@@ -276,10 +285,17 @@ async function handleUploadCover() {
         : prev
     );
 
-    AppAlert.alert("Éxito", "Portada actualizada correctamente.");
+    AppAlert.alert(
+      "¡Listo!",
+      "Portada actualizada correctamente."
+    );
   } catch (e) {
-    console.log(e);
-    AppAlert.alert("Error", "No se pudo actualizar la portada.");
+    console.log("Error subiendo portada:", e);
+
+    AppAlert.alert(
+      "Error",
+      "No se pudo actualizar la portada."
+    );
   }
 }
   function handleAddPhone(telefono: string) {
