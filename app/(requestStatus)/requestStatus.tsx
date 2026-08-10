@@ -11,7 +11,6 @@ import RestaurantRequestService from "../../services/restaurant-request.service"
 
 import RequestStatusCard from "./componentes/RequestStatusCard";
 import RequestStatusHeader from "./componentes/RequestStatusHeader";
-import RequestStatusInfo from "./componentes/RequestStatusInfo";
 import RequestStatusTimeline from "./componentes/RequestStatusTimeline";
 import RequestStatusMessage from "./componentes/RequestStatusMessage";
 import RequestStatusActions from "./componentes/RequestStatusActions";
@@ -103,10 +102,6 @@ export default function RequestStatusScreen() {
         />
 
         <RequestStatusTimeline
-          status={status}
-        />
-
-        <RequestStatusInfo
           status={status}
         />
 

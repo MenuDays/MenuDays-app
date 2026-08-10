@@ -129,6 +129,29 @@ export interface WhatsAppSummary {
 }
 
 // ==========================================================================
+// Historial del comensal -- GET /orders/history. A diferencia de
+// OrderDetail (GET /orders/:id), este endpoint devuelve un shape PLANO
+// (mismo que serializeListOrder() del lado restaurante): nombre/imagen/
+// estado/total sueltos en el objeto, no anidados en "producto"/"pedido".
+// codigo_unico llega en snake_case tal cual la columna de la base (api.ts
+// no transforma keys).
+// ==========================================================================
+
+export interface OrderHistoryItem {
+  id: string;
+  codigo_unico: string | null;
+  usuario: { id: string; nombre: string; foto: string | null };
+  restaurante: { id: string; nombre: string };
+  tipo: OrderItemType;
+  nombre: string | null;
+  imagen: string | null;
+  estado: OrderStatus;
+  metodoEntrega: BackendDeliveryMethod;
+  total: number;
+  fecha: string;
+}
+
+// ==========================================================================
 // Lado restaurante -- "Mi Local" (gestión de pedidos). Shape tal cual
 // serializeListOrder() / serializeOrder() en el backend cuando se llaman
 // desde las rutas /orders/restaurant*.
@@ -209,8 +232,10 @@ class OrderService {
   }
 
   // Historial de pedidos del comensal autenticado -- GET /orders/history.
-  async getHistory(): Promise<OrderDetail[]> {
-    return await api<OrderDetail[]>("/orders/history");
+  // Shape plano, ver OrderHistoryItem arriba (no confundir con
+  // OrderDetail, que es GET /orders/:id).
+  async getHistory(): Promise<OrderHistoryItem[]> {
+    return await api<OrderHistoryItem[]>("/orders/history");
   }
 
   // Detalle de un pedido puntual, vista comensal -- GET /orders/:id.

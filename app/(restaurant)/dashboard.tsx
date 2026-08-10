@@ -25,6 +25,7 @@ import DishService from "../../services/dish.service";
 import PromotionService from "../../services/promotion.service";
 import RestaurantService from "../../services/restaurant.service";
 import MenuService from "../../services/menu.service";
+import OrderService from "../../services/order.service";
 import { AppAlert } from "../components/common/AppAlert";
 
 const { width } = Dimensions.get("screen");
@@ -65,9 +66,11 @@ interface QuickAccessItem {
   gradient: [string, string];
 }
 
-const RESTAURANT = {
-  name: "Sabor Ecuatoriano",
-  rating: 4.8,
+// Fallback mientras carga el perfil real (para que el layout y las
+// animaciones no salten antes del primer fetch).
+const RESTAURANT_FALLBACK = {
+  name: "Tu restaurante",
+  rating: "—",
 };
 
 // Visitas de los últimos 7 días — el último valor (hoy) coincide con el
@@ -180,6 +183,8 @@ export default function RestaurantDashboard() {
   const greeting = getGreeting();
   const insightMessage = getInsightMessage();
   const [isOpen, setIsOpen] = React.useState(true);
+  const [restaurantName, setRestaurantName] = React.useState(RESTAURANT_FALLBACK.name);
+  const [restaurantRating, setRestaurantRating] = React.useState<string>(RESTAURANT_FALLBACK.rating);
   // Arranca en null ("todavía no sabemos") para no mostrar ni el estado
   // publicado ni el de "falta publicar" hasta tener la respuesta real.
   const [menuPublished, setMenuPublished] = React.useState<boolean | null>(null);
@@ -205,23 +210,29 @@ export default function RestaurantDashboard() {
   // Platos registrados, promociones activas y reseñas ya tienen backend
   // real detrás -- se arrancan con el shape mockeado (para que el layout
   // y las animaciones no salten) y se pisan al llegar la respuesta.
-  // "Pedidos pendientes" se deja mockeado: todavía no existe el módulo
-  // de pedidos en el backend.
+  // "Pedidos pendientes" ahora también es real: GET /orders/restaurant
+  // filtrado por estado=pendiente (el módulo de pedidos ya existe).
   const [stats, setStats] = React.useState<StatItem[]>(STATS);
   const [breakdown, setBreakdown] = React.useState<BreakdownItem[]>(BREAKDOWN);
 
   useEffect(() => {
     async function loadRealStats() {
       try {
-        const [dishes, promotions, profile] = await Promise.all([
+        const [dishes, promotions, profile, pendingOrders] = await Promise.all([
           DishService.getAll(),
           PromotionService.getAll(),
           RestaurantService.getProfile(),
+          OrderService.getRestaurantOrders({ estado: "pendiente" }).catch(() => []),
         ]);
 
         const dishesCount = dishes.length;
         const activePromotions = promotions.filter((p) => p.activa).length;
         const rating = Number(profile.calificacion_promedio ?? 0);
+        const pendingCount = pendingOrders.length;
+
+        setRestaurantName(profile.nombre_comercial);
+        setRestaurantRating(rating.toFixed(1));
+        setIsOpen(profile.estado_operativo === "abierto");
 
         setStats((prev) =>
           prev.map((stat) => {
@@ -230,6 +241,9 @@ export default function RestaurantDashboard() {
             }
             if (stat.label === "Promociones activas") {
               return { ...stat, value: String(activePromotions) };
+            }
+            if (stat.label === "Pedidos pendientes") {
+              return { ...stat, value: String(pendingCount) };
             }
             if (stat.label === "Reseñas") {
               return { ...stat, value: rating.toFixed(1) };
@@ -404,6 +418,10 @@ export default function RestaurantDashboard() {
                   { backgroundColor: isOpen ? "rgba(47,185,102,0.9)" : "rgba(158,158,158,0.55)" },
                 ]}
               >
+                {/* OJO: este toggle es solo visual -- no hay endpoint en el
+                    back para persistir estado_operativo todavía. Arranca
+                    sincronizado con el valor real del perfil, pero tocarlo
+                    no lo guarda. */}
                 {isOpen && (
                   <Animated.View style={[styles.statusDot, { transform: [{ scale: pulseAnim }] }]} />
                 )}
@@ -414,7 +432,7 @@ export default function RestaurantDashboard() {
 
             <View style={styles.headerContent}>
               <Text style={styles.headerGreeting}>{greeting} 👋</Text>
-              <Text style={styles.headerRestaurantName}>{RESTAURANT.name}</Text>
+              <Text style={styles.headerRestaurantName}>{restaurantName}</Text>
 
               <Animated.View
                 style={[
@@ -434,7 +452,7 @@ export default function RestaurantDashboard() {
               >
                 <View style={styles.headerStatPill}>
                   <Ionicons name="star" size={13} color="#FFD54D" />
-                  <Text style={styles.headerStatText}>{RESTAURANT.rating}</Text>
+                  <Text style={styles.headerStatText}>{restaurantRating}</Text>
                 </View>
               </Animated.View>
             </View>

@@ -66,6 +66,13 @@ export default function RestaurantProfileScreen() {
   const [socialLinks, setSocialLinks] = useState<RestaurantSocialLink[]>([]);
   const [schedule, setSchedule] = useState<RestaurantSchedule[]>([]);
 
+  // Fallback sin subida real de archivo: se pega la URL de una imagen
+  // ya alojada en otro lado (Cloudinary, etc). No hay endpoint de upload
+  // para el perfil todavía.
+  const [imageUrlModalTarget, setImageUrlModalTarget] = useState<"logo" | "cover" | null>(null);
+  const [imageUrlInput, setImageUrlInput] = useState("");
+  const [savingImage, setSavingImage] = useState(false);
+
   useEffect(() => {
     loadRestaurant();
     ProvinceService.getAll().then(setProvinces);
@@ -194,6 +201,20 @@ export default function RestaurantProfileScreen() {
         ciudadId: editCity.id,
         ubicacionLat: editLocation.latitude,
         ubicacionLng: editLocation.longitude,
+        telefonos: phones.map((p) => ({
+          telefono: p.telefono,
+          tipo: "ambos" as const,
+        })),
+        redesSociales: socialLinks.map((s) => ({
+          plataforma: s.plataforma,
+          url: s.url,
+        })),
+        horarios: schedule.map((d) => ({
+          diaSemana: d.dia_semana,
+          horaApertura: d.cerrado ? undefined : d.hora_apertura ?? undefined,
+          horaCierre: d.cerrado ? undefined : d.hora_cierre ?? undefined,
+          cerrado: d.cerrado,
+        })),
       });
       setRestaurant(updated);
       setIsEditing(false);
@@ -219,6 +240,33 @@ export default function RestaurantProfileScreen() {
   }
   function handleScheduleChange(dayId: number, patch: Partial<RestaurantSchedule>) {
     setSchedule((prev) => prev.map((d) => (d.id === dayId ? { ...d, ...patch } : d)));
+  }
+
+  function openImageUrlModal(target: "logo" | "cover") {
+    setImageUrlInput(
+      (target === "logo" ? restaurant?.logo_url : restaurant?.portada_url) ?? ""
+    );
+    setImageUrlModalTarget(target);
+  }
+
+  async function handleSaveImageUrl() {
+    if (!imageUrlModalTarget || !imageUrlInput.trim()) return;
+    setSavingImage(true);
+    try {
+      const payload =
+        imageUrlModalTarget === "logo"
+          ? { logoUrl: imageUrlInput.trim() }
+          : { portadaUrl: imageUrlInput.trim() };
+      const updated = await RestaurantService.updateProfile(payload);
+      setRestaurant(updated);
+      setImageUrlModalTarget(null);
+      setImageUrlInput("");
+    } catch (e) {
+      console.log("Error guardando imagen:", e);
+      AppAlert.alert("Error", "No se pudo guardar. Revisá que sea una URL de imagen válida.");
+    } finally {
+      setSavingImage(false);
+    }
   }
 
   function handleLogout() {
@@ -284,14 +332,8 @@ export default function RestaurantProfileScreen() {
               mode="cover"
               logoUrl={restaurant.logo_url}
               coverUrl={restaurant.portada_url}
-              onPressEditLogo={() => {
-                // TODO: abrir selector de imagen y subir, luego
-                // RestaurantService.updateProfile({ logoUrl })
-              }}
-              onPressEditCover={() => {
-                // TODO: abrir selector de imagen y subir, luego
-                // RestaurantService.updateProfile({ portadaUrl })
-              }}
+              onPressEditLogo={() => openImageUrlModal("logo")}
+              onPressEditCover={() => openImageUrlModal("cover")}
             />
           </View>
 
@@ -376,9 +418,11 @@ export default function RestaurantProfileScreen() {
             )}
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Teléfonos</Text>
+            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
             <PhoneListEditor phones={phones} onAdd={handleAddPhone} onRemove={handleRemovePhone} />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Redes Sociales</Text>
+            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
             <SocialLinksEditor
               links={socialLinks}
               onAdd={handleAddSocialLink}
@@ -386,6 +430,7 @@ export default function RestaurantProfileScreen() {
             />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Horarios de atención</Text>
+            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
             <ScheduleEditor schedule={schedule} onChange={handleScheduleChange} />
 
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -486,6 +531,63 @@ export default function RestaurantProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Logo / portada: pegar URL (no hay endpoint de subida todavía) */}
+      <Modal
+        visible={imageUrlModalTarget !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setImageUrlModalTarget(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {imageUrlModalTarget === "logo" ? "URL del logo" : "URL de la portada"}
+              </Text>
+              <TouchableOpacity onPress={() => setImageUrlModalTarget(null)}>
+                <Ionicons name="close" size={24} color="#3E2723" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.pickerLabel}>
+              Pegá el link de una imagen ya subida (Cloudinary, etc). Todavía no hay
+              selector de imagen del celular conectado.
+            </Text>
+
+            <View style={styles.modalSearchContainer}>
+              <Ionicons name="link-outline" size={18} color="#9E9E9E" style={styles.pickerIcon} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="https://..."
+                placeholderTextColor="#9E9E9E"
+                value={imageUrlInput}
+                onChangeText={setImageUrlInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                (savingImage || !imageUrlInput.trim()) && { opacity: 0.7 },
+              ]}
+              onPress={handleSaveImageUrl}
+              disabled={savingImage || !imageUrlInput.trim()}
+            >
+              {savingImage ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                  <Text style={styles.saveButtonText}>Guardar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -525,6 +627,12 @@ const styles = StyleSheet.create({
   },
   sectionTitleSpaced: {
     marginTop: 24,
+    marginBottom: 10,
+  },
+  disclaimerText: {
+    fontSize: 11,
+    color: "#9E9E9E",
+    marginTop: -6,
     marginBottom: 10,
   },
   editTrigger: {

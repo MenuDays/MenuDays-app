@@ -25,6 +25,8 @@ export interface RestaurantSchedule {
   cerrado: boolean;
 }
 
+export type EstadoOperativo = "abierto" | "cerrado" | "cerrado_temporal" | "vacaciones";
+
 export interface Restaurant {
   id: number;
   nombre_comercial: string;
@@ -37,6 +39,7 @@ export interface Restaurant {
   portada_url: string | null;
   calificacion_promedio: number;
   cantidad_resenas: number;
+  estado_operativo: EstadoOperativo;
   ciudad: {
     id: number;
     nombre: string;
@@ -49,10 +52,9 @@ export interface Restaurant {
 
 /**
  * Forma que espera UpdateRestaurantDto en el backend.
- * OJO: no incluye teléfonos, redes sociales ni horarios -- esas
- * relaciones no están en el DTO que compartiste, así que asumo que
- * tienen (o van a tener) sus propios endpoints de create/update/delete
- * por fila. Ajustar cuando estén definidos.
+ * telefonos/redesSociales/horarios están en el DTO pero el service del
+ * backend no los persiste todavía (confirmado). Se mandan igual porque
+ * no rompe nada, pero no asumas que quedan guardados.
  */
 export interface UpdateRestaurantPayload {
   nombreComercial?: string;
@@ -63,6 +65,14 @@ export interface UpdateRestaurantPayload {
   ubicacionLng?: number;
   logoUrl?: string;
   portadaUrl?: string;
+  telefonos?: { telefono: string; tipo: "llamadas" | "whatsapp" | "ambos" }[];
+  redesSociales?: { plataforma: RedSocial; url: string }[];
+  horarios?: {
+    diaSemana: number;
+    horaApertura?: string;
+    horaCierre?: string;
+    cerrado: boolean;
+  }[];
 }
 
 // ==========================================================================

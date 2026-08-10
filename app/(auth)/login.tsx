@@ -5,7 +5,9 @@ import LottieView from 'lottie-react-native';
 import { useEffect, useState } from 'react';
 import {
   Dimensions,
+  Image,
   ImageBackground,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -56,8 +58,11 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
+    if (loading) return;
+    setLoading(true);
     try {
       const response = await AuthService.login({
         email,
@@ -79,7 +84,11 @@ export default function LoginScreen() {
         "Error",
         error.message || "No se pudo iniciar sesión."
       );
+      setLoading(false);
     }
+    // No hago setLoading(false) en el caso de éxito a propósito: la
+    // pantalla se desmonta por el router.replace, y dejar loading=true
+    // evita un parpadeo del botón/mascota mientras navega.
   }
 
   // Auto carrusel
@@ -184,15 +193,16 @@ export default function LoginScreen() {
 
         {/* Botón iniciar sesión */}
         <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleLogin}
+              disabled={loading}
         >
           <LinearGradient
               colors={['#FFB74D', '#FB8C00']}
               style={styles.buttonGradient}
           >
             <Text style={styles.buttonText}>
-              Iniciar sesión
+              {loading ? "Iniciando sesión..." : "Iniciar sesión"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -205,6 +215,18 @@ export default function LoginScreen() {
           </Link>
         </View>
       </View>
+
+      {/* Overlay con la mascota mientras se espera la respuesta del login */}
+      <Modal visible={loading} transparent animationType="fade">
+        <View style={styles.loadingOverlay}>
+          <Image
+            source={require('../../assets/images/login-nene.png')}
+            style={styles.loadingMascot}
+            resizeMode="contain"
+          />
+          <Text style={styles.loadingText}>Iniciando sesión...</Text>
+        </View>
+      </Modal>
     </KeyboardAwareScrollView>
   );
 }
@@ -324,10 +346,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingMascot: {
+    width: 200,
+    height: 200,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
   separator: {
     flexDirection: 'row',

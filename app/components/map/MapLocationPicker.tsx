@@ -126,13 +126,34 @@ export default function MapLocationPicker({
       });
       if (results.length > 0) {
         const r = results[0];
-        const parts = [r.street, r.streetNumber, r.district]
+        // Orden de prioridad: calle+numero > calle sola > barrio/sector > ciudad.
+        // Antes esto quedaba en "" apenas faltaba street/streetNumber/district,
+        // que es lo mas comun fuera de zonas urbanas bien mapeadas.
+        const streetLine = [r.street, r.streetNumber].filter(Boolean).join(" ");
+        const fallback = [r.district, r.subregion, r.city, r.region]
           .filter(Boolean)
           .join(", ");
-        setAddress(parts || "");
+        const resolved = streetLine || fallback;
+        if (resolved) {
+          setAddress(resolved);
+        } else {
+          AppAlert.alert(
+            "No se pudo detectar la dirección",
+            "Escribí la dirección manualmente para este punto."
+          );
+        }
+      } else {
+        AppAlert.alert(
+          "No se pudo detectar la dirección",
+          "Escribí la dirección manualmente para este punto."
+        );
       }
     } catch (e) {
       console.log("Error en geocoding:", e);
+      AppAlert.alert(
+        "No se pudo obtener la dirección",
+        "Revisá tu conexión o escribí la dirección manualmente."
+      );
     }
   }
 
@@ -250,7 +271,12 @@ export default function MapLocationPicker({
 
       {/* Panel inferior */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // En Android, con android:windowSoftInputMode en "resize" (el default de
+        // Expo), el sistema ya achica la ventana cuando aparece el teclado.
+        // Si acá además usamos behavior="height", se descuenta el alto del
+        // teclado dos veces y el panel queda mal calculado (tapa el input).
+        // Por eso en Android no aplicamos ningún behavior extra.
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.bottomPanel}
       >
         <Text style={styles.addressLabel}>Dirección aproximada</Text>

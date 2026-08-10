@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProvinceService, { Province } from '../../services/province.service';
 import LocationService, { City } from '../../services/location.service';
 import RestaurantLocationPickerBridge from '../../services/restaurantLocationPicker.bridge';
@@ -89,6 +90,7 @@ function normalizeSocialUrl(platform: 'instagram' | 'facebook' | 'tiktok', value
 }
 
 export default function RegisterRestaurantScreen() {
+  const insets = useSafeAreaInsets();
   const [logo, setLogo] = useState<string | null>(null);
   const [restaurantName, setRestaurantName] = useState('');
   const [province, setProvince] = useState<Province | null>(null);
@@ -338,6 +340,15 @@ export default function RegisterRestaurantScreen() {
         resizeMode="cover"
       >
         <View style={styles.overlay} />
+
+        <TouchableOpacity
+          style={[styles.backButton, { top: insets.top + 12 }]}
+          activeOpacity={0.85}
+          onPress={() => router.replace('/(home)/perfil')}
+        >
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+
         <View style={styles.headerContent}>
           <View style={styles.clocheWrapper}>
             <View style={styles.handle} />
@@ -757,6 +768,17 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
   },
   headerContent: {
     alignItems: 'center',

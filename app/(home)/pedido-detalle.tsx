@@ -70,11 +70,20 @@ export default function PedidoDetalleScreen() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [restaurantPhone, setRestaurantPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [contactLoading, setContactLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
+    // Igual que en restaurante-detalle.tsx: reseteo "order" (no solo
+    // loading) antes de cada fetch. Sin esto, al entrar al detalle de
+    // otro pedido después de que uno falló, el guard de abajo se
+    // satisfacía con el pedido VIEJO todavía en memoria, y la pantalla
+    // mostraba el pedido equivocado en vez de un error.
     setLoading(true);
+    setError(null);
+    setOrder(null);
+    setRestaurantPhone(null);
     OrderService.getById(id)
       .then((data) => {
         setOrder(data);
@@ -85,7 +94,11 @@ export default function PedidoDetalleScreen() {
           .then((r) => setRestaurantPhone(r.telefonos[0]?.telefono ?? null))
           .catch(() => setRestaurantPhone(null));
       })
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar el pedido."))
+      .catch((e: any) => {
+        const msg = e.message || "No se pudo cargar el pedido.";
+        setError(msg);
+        AppAlert.alert("Error", msg);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -111,10 +124,27 @@ export default function PedidoDetalleScreen() {
     router.push(`/(home)/restaurante-detalle?id=${order.restaurante.id}`);
   }
 
-  if (loading || !order) {
+  if (loading) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#FB8C00" />
+      </View>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <View style={styles.loaderContainer}>
+        <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+        <Text style={{ marginTop: 10, textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
+          {error || "No se pudo cargar el pedido."}
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 14, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Volver</Text>
+        </TouchableOpacity>
       </View>
     );
   }

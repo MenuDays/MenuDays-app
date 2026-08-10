@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -26,10 +26,12 @@ import { useDeviceLocation } from '../../hooks/useDeviceLocation';
 const C = Colors.light; // por ahora fijo en light, luego se puede swapear con useColorScheme
 
 // Categorías: vienen del back (GET /categories), con el ícono en
-// item.iconos.url. El back las devuelve ordenadas alfabéticamente, así
-// que acá se buscan por nombre las 5 curadas para Inicio (mismas que
-// antes eran hardcodeadas) y se conservan en este orden. El resto de
-// las categorías se ve en la pantalla "Explorar" (grilla completa).
+// item.iconos.url. Se muestran TODAS en un carrusel horizontal de una
+// sola línea, con auto-scroll (ver homeCategories más abajo), así que
+// da lo mismo si el back devuelve 5, 10 o más.
+// Nombres curados que se usaban antes para filtrar solo 5 categorías
+// en Inicio. Ya no se usa (ver homeCategories más abajo), pero queda
+// como referencia por si se quiere volver a ese comportamiento.
 const HOME_CATEGORY_NAMES = ['Ejecutivo', 'Mariscos', 'Parrillas', 'Sopas', 'Pollo'];
 
 // Radio fijo de la tira de Inicio (el pill "5 km" de arriba, todavía no
@@ -50,6 +52,58 @@ export default function HomeScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Carrusel de categorías: se mueve solo de a poquito, y si el usuario
+  // lo toca para scrollear manualmente, se pausa el auto-scroll y
+  // recién retoma unos segundos después de que lo suelta.
+  const categoriesScrollRef = useRef<ScrollView>(null);
+  const categoriesScrollX = useRef(0);
+  const categoriesContentWidth = useRef(0);
+  const categoriesViewportWidth = useRef(0);
+  const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resumeAutoScrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function startCategoriesAutoScroll() {
+    stopCategoriesAutoScroll();
+    autoScrollTimer.current = setInterval(() => {
+      const maxScroll = categoriesContentWidth.current - categoriesViewportWidth.current;
+      if (maxScroll <= 0) return; // no alcanza para scrollear (pocas categorías)
+
+      let next = categoriesScrollX.current + 0.6; // velocidad del auto-scroll
+      if (next >= maxScroll) next = 0; // vuelve al principio (loop)
+
+      categoriesScrollX.current = next;
+      categoriesScrollRef.current?.scrollTo({ x: next, animated: false });
+    }, 16);
+  }
+
+  function stopCategoriesAutoScroll() {
+    if (autoScrollTimer.current) {
+      clearInterval(autoScrollTimer.current);
+      autoScrollTimer.current = null;
+    }
+  }
+
+  // Cuando el usuario empieza a arrastrar el carrusel manualmente, se
+  // pausa el auto-scroll para no pelear con su gesto.
+  function handleCategoriesTouchStart() {
+    stopCategoriesAutoScroll();
+    if (resumeAutoScrollTimeout.current) clearTimeout(resumeAutoScrollTimeout.current);
+  }
+
+  // Al soltar, se retoma el auto-scroll después de una pausa breve.
+  function handleCategoriesTouchEnd() {
+    if (resumeAutoScrollTimeout.current) clearTimeout(resumeAutoScrollTimeout.current);
+    resumeAutoScrollTimeout.current = setTimeout(startCategoriesAutoScroll, 2500);
+  }
+
+  useEffect(() => {
+    return () => {
+      stopCategoriesAutoScroll();
+      if (resumeAutoScrollTimeout.current) clearTimeout(resumeAutoScrollTimeout.current);
+    };
+  }, []);
+
 
   // "Restaurantes cercanos" -- GET /explore/restaurants, mismo endpoint
   // que restaurantes.tsx (ExploreService). Acá se muestran las primeras
@@ -141,12 +195,13 @@ export default function HomeScreen() {
     }
   }
 
-  // Las 5 curadas de Inicio, en el orden fijo de HOME_CATEGORY_NAMES
-  // (no las primeras 5 alfabéticas que devuelve el back). Si alguna
-  // todavía no existe en el back, simplemente no se muestra.
-  const homeCategories = HOME_CATEGORY_NAMES.map((name) =>
-    categories.find((c) => c.nombre.toLowerCase() === name.toLowerCase())
-  ).filter((c): c is Category => !!c);
+  // Categorías del carrusel de Inicio: se muestran TODAS las que
+  // devuelve el back (antes eran solo 5 curadas por nombre). Al ser un
+  // carrusel horizontal con auto-scroll, ahora da lo mismo si son 5,
+  // 10 o más -- se acomodan solas. Si en algún momento se quiere volver
+  // a curar cuáles se muestran acá, se puede filtrar por
+  // HOME_CATEGORY_NAMES como antes.
+  const homeCategories = categories;
 
   // Texto a mostrar en el pill: primero la dirección exacta reverse-geocodeada
   // a partir de la ubicación guardada en el perfil; si no hay coords guardadas
@@ -184,52 +239,47 @@ export default function HomeScreen() {
                 <ActivityIndicator size="small" color={C.text} />
               </View>
             ) : (
-              <View style={styles.categoriesGrid}>
-                <View style={styles.categoriesRow}>
-                  {homeCategories.slice(0, 3).map(cat => (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={styles.categoryItem}
-                      onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre } })}
-                    >
-                      <View style={styles.categoryCircle}>
-                        {cat.iconos?.url ? (
-                          <Image source={{ uri: cat.iconos.url }} style={styles.categoryImage} />
-                        ) : (
-                          <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
-                            <Ionicons name="restaurant-outline" size={28} color="#BDBDBD" />
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.categoryPill}>
-                        <Text style={styles.categoryName}>{cat.nombre}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.categoriesRow}>
-                  {homeCategories.slice(3, 5).map(cat => (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={styles.categoryItem}
-                      onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre } })}
-                    >
-                      <View style={styles.categoryCircle}>
-                        {cat.iconos?.url ? (
-                          <Image source={{ uri: cat.iconos.url }} style={styles.categoryImage} />
-                        ) : (
-                          <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
-                            <Ionicons name="restaurant-outline" size={28} color="#BDBDBD" />
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.categoryPill}>
-                        <Text style={styles.categoryName}>{cat.nombre}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+              <ScrollView
+                ref={categoriesScrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesRow}
+                onLayout={(e) => {
+                  categoriesViewportWidth.current = e.nativeEvent.layout.width;
+                }}
+                onContentSizeChange={(w) => {
+                  categoriesContentWidth.current = w;
+                  startCategoriesAutoScroll();
+                }}
+                onScrollBeginDrag={handleCategoriesTouchStart}
+                onScrollEndDrag={handleCategoriesTouchEnd}
+                onMomentumScrollEnd={handleCategoriesTouchEnd}
+                onScroll={(e) => {
+                  categoriesScrollX.current = e.nativeEvent.contentOffset.x;
+                }}
+                scrollEventThrottle={16}
+              >
+                {homeCategories.map(cat => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={styles.categoryItem}
+                    onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre } })}
+                  >
+                    <View style={styles.categoryCircle}>
+                      {cat.iconos?.url ? (
+                        <Image source={{ uri: cat.iconos.url }} style={styles.categoryImage} />
+                      ) : (
+                        <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
+                          <Ionicons name="restaurant-outline" size={22} color="#BDBDBD" />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.categoryPill}>
+                      <Text style={styles.categoryName} numberOfLines={1}>{cat.nombre}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             )}
 
           </View>
@@ -394,7 +444,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.primaryDark },
+  container: { flex: 1, backgroundColor: Colors.light.background },
   header: { paddingTop: 16, position: 'relative' },
   headerContent: { paddingHorizontal: 16 },
   locationPill: {
@@ -410,13 +460,12 @@ const styles = StyleSheet.create({
   },
   locationText: { fontSize: 15, fontWeight: '600', color: Colors.light.text, flexShrink: 1 },
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginVertical: 12 },
-  categoriesGrid: { gap: 12 },
-  categoriesRow: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
-  categoryItem: { alignItems: 'center' },
+  categoriesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 4 },
+  categoryItem: { alignItems: 'center', width: 68 },
   categoryCircle: {
-  width: 90,
-  height: 90,
-  borderRadius: 45,
+  width: 60,
+  height: 60,
+  borderRadius: 30,
   backgroundColor: Colors.light.background,
   overflow: 'hidden',
   borderWidth: 2,
@@ -427,15 +476,16 @@ const styles = StyleSheet.create({
   categoriesLoadingWrap: { paddingVertical: 30, alignItems: 'center' },
   categoryPill: {
     backgroundColor: Colors.light.background,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginTop: -8,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: -6,
     zIndex: 1,
     borderWidth: 1,
     borderColor: '#FB8C00',
+    maxWidth: 68,
   },
-  categoryName: { fontSize: 12, fontWeight: '600', color: Colors.light.text },
+  categoryName: { fontSize: 11, fontWeight: '600', color: Colors.light.text, textAlign: 'center' },
   verTodosContainer: {
     position: 'absolute',
     bottom: 6,

@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-import OrderService, { OrderDetail, OrderStatus } from "../../services/order.service";
+import OrderService, { OrderHistoryItem, OrderStatus } from "../../services/order.service";
 import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
 import { AppAlert } from "../components/common/AppAlert";
 
@@ -29,7 +29,7 @@ const ESTADO_TONE: Record<OrderStatus, StatusTone> = {
 };
 
 export default function PedidosScreen() {
-  const [orders, setOrders] = useState<OrderDetail[]>([]);
+  const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,8 +65,8 @@ export default function PedidosScreen() {
               activeOpacity={0.9}
               onPress={() => router.push(`/(home)/pedido-detalle?id=${order.id}`)}
             >
-              {order.producto.imagen ? (
-                <Image source={{ uri: order.producto.imagen }} style={styles.image} />
+              {order.imagen ? (
+                <Image source={{ uri: order.imagen }} style={styles.image} />
               ) : (
                 <View style={[styles.image, styles.imagePlaceholder]}>
                   <Ionicons name="restaurant-outline" size={18} color="#BDBDBD" />
@@ -76,17 +76,17 @@ export default function PedidosScreen() {
               <View style={{ flex: 1 }}>
                 <View style={styles.cardTopRow}>
                   <Text style={styles.cardTitle} numberOfLines={1}>
-                    {order.producto.nombre}
+                    {order.nombre ?? "Producto eliminado"}
                   </Text>
                   <StatusBadge
-                    label={ESTADO_LABEL[order.pedido.estado]}
-                    tone={ESTADO_TONE[order.pedido.estado]}
+                    label={ESTADO_LABEL[order.estado]}
+                    tone={ESTADO_TONE[order.estado]}
                   />
                 </View>
                 <Text style={styles.cardSubtitle} numberOfLines={1}>
                   {order.restaurante.nombre}
                 </Text>
-                <Text style={styles.cardPrice}>${order.pedido.total.toFixed(2)}</Text>
+                <Text style={styles.cardPrice}>${Number(order.total).toFixed(2)}</Text>
               </View>
             </TouchableOpacity>
           ))}

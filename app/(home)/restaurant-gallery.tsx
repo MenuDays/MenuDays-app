@@ -35,6 +35,12 @@ export default function RestaurantGalleryScreen() {
 
   useEffect(() => {
     if (!id) return;
+    // Mismo caso: sin resetear, al entrar a la galería de otro
+    // restaurante se veían por un instante (o directamente quedaban,
+    // si el fetch nuevo fallaba) las fotos del restaurante anterior.
+    setLoading(true);
+    setImages([]);
+    setSelectedIndex(null);
     RestaurantService.getPublicDetail(id)
       .then((detail) => setImages([...detail.galeria].sort((a, b) => a.orden - b.orden)))
       .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar la galería."))

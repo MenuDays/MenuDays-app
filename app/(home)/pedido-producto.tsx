@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -22,7 +22,24 @@ export default function PedidoProductoScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Esta pantalla vive dentro del stack de tabs "(home)", cuya tab bar
+  // flota con position "absolute" (ver styles.tabBar en _layout.tsx:
+  // height 74 + bottom 18+insets.bottom). Al ser absoluta, no reserva
+  // espacio real en el layout, así que el footer con el CTA "Realizar
+  // pedido" queda tapado por la barra si no le sumamos ese alto a mano.
+  const insets = useSafeAreaInsets();
+  const tabBarSpace = 74 + 18 + insets.bottom;
+
   useEffect(() => {
+    // Reseteo antes de cada fetch: si el intento anterior falló (ej.
+    // "el menú ya no está disponible") y el usuario vuelve y entra a
+    // otro menú válido, sin este reset el "error" viejo seguía
+    // marcado y la pantalla mostraba ese error aunque el nuevo fetch
+    // trajera el menú bien (el chequeo de abajo es `error || !menu`).
+    setLoading(true);
+    setError(null);
+    setMenu(null);
+
     if (!params.menuId) {
       setError("No se especificó qué menú mostrar.");
       setLoading(false);
@@ -99,7 +116,7 @@ export default function PedidoProductoScreen() {
         {menu.descripcion ? <Text style={styles.descripcion}>{menu.descripcion}</Text> : null}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
         <TouchableOpacity style={styles.cta} onPress={handleRealizarPedido}>
           <Text style={styles.ctaText}>Realizar pedido</Text>
         </TouchableOpacity>

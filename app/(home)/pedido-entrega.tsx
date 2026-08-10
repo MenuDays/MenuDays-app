@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -25,6 +25,14 @@ export default function PedidoEntregaScreen() {
   const params = useLocalSearchParams<{ productoId: string; tipo: string }>();
   const [selected, setSelected] = useState<DeliveryMethod>("delivery");
 
+  // Misma razón que en pedido-producto.tsx: esta pantalla está dentro
+  // del stack de tabs "(home)", cuya tab bar flota con position
+  // "absolute" (height 74 + bottom 18+insets.bottom en _layout.tsx) y
+  // no reserva espacio real, así que el footer con "Continuar" queda
+  // tapado si no le sumamos ese alto a mano.
+  const insets = useSafeAreaInsets();
+  const tabBarSpace = 74 + 18 + insets.bottom;
+
   function handleContinuar() {
     router.push({
       pathname: "/(home)/pedido-confirmar",
@@ -45,6 +53,12 @@ export default function PedidoEntregaScreen() {
       </View>
 
       <View style={styles.content}>
+        <Image
+          source={require("../../assets/images/delivery-nene.png")}
+          style={styles.mascot}
+          resizeMode="contain"
+        />
+
         <Text style={styles.title}>Seleccionar medio de entrega:</Text>
 
         <View style={styles.optionsList}>
@@ -72,7 +86,7 @@ export default function PedidoEntregaScreen() {
         </View>
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
         <TouchableOpacity style={styles.cta} onPress={handleContinuar}>
           <Text style={styles.ctaText}>Continuar</Text>
         </TouchableOpacity>
@@ -93,6 +107,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   content: { flex: 1, padding: 20 },
+  mascot: { width: "100%", height: 160, alignSelf: "center", marginBottom: 12 },
   title: { fontSize: 18, fontWeight: "800", color: "#1A1A1A", marginTop: 8, marginBottom: 24 },
   optionsList: { gap: 12 },
   optionCard: {

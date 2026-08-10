@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { View, Text, StyleSheet } from "react-native";
 import { Shadow } from "react-native-shadow-2";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ClocheIcon from "../components/home/ClocheIcon";
 
@@ -27,11 +28,18 @@ function TabIcon({
 }
 
 export default function TabLayout() {
+  // "bottom: 18" solo (ver styles.tabBar) no alcanza en dispositivos con
+  // barra de navegación de Android (botones físicos/virtuales) -- ahí el
+  // inset real es mucho más alto que 18 y la tab bar queda tapada. Con
+  // gestos (barra fina) el inset es chico y casi no se nota, por eso en
+  // algunos celulares se ve bien y en otros no.
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { bottom: 18 + insets.bottom }],
         tabBarActiveTintColor: "#FFA726",
         tabBarInactiveTintColor: "#3E2723",
         tabBarLabelStyle: styles.tabLabel,
@@ -152,7 +160,6 @@ export default function TabLayout() {
 
       {/* Se accede desde los botones "Ver histórico" / "Ver todas" /
           "Ver las N reseñas" del detalle de restaurante, no son tabs. */}
-      <Tabs.Screen name="restaurant-menu-history" options={{ href: null }} />
       <Tabs.Screen name="restaurant-gallery" options={{ href: null }} />
       <Tabs.Screen name="restaurant-reviews" options={{ href: null }} />
 

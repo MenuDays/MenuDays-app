@@ -32,6 +32,7 @@ export default function RestauranteDetalleScreen() {
   const [restaurant, setRestaurant] = useState<RestaurantPublicDetail | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   // Distancia calculada en el cliente a partir de la última ubicación
@@ -41,7 +42,20 @@ export default function RestauranteDetalleScreen() {
 
   useEffect(() => {
     if (!id) return;
+    // Reseteo todo antes de cada fetch: esta pantalla está montada de
+    // forma persistente (Tabs.Screen con href: null), así que sin esto,
+    // al entrar al detalle de otro restaurante después de que uno
+    // falló (o incluso de uno que cargó bien), se seguía mostrando el
+    // restaurante/reseñas/favorito/distancia del anterior -- el guard
+    // de abajo era `loading || !restaurant`, y "restaurant" nunca se
+    // limpiaba, así que un fetch fallido dejaba la pantalla mostrando
+    // los datos viejos como si fueran los del restaurante nuevo.
     setLoading(true);
+    setError(null);
+    setRestaurant(null);
+    setReviews([]);
+    setIsFavorite(false);
+    setDistanceKm(null);
     Promise.all([
       RestaurantService.getPublicDetail(id),
       ReviewService.getRestaurantReviews(id),
@@ -62,7 +76,11 @@ export default function RestauranteDetalleScreen() {
           );
         }
       })
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar el restaurante."))
+      .catch((e: any) => {
+        const msg = e.message || "No se pudo cargar el restaurante.";
+        setError(msg);
+        AppAlert.alert("Error", msg);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -145,10 +163,27 @@ export default function RestauranteDetalleScreen() {
     Linking.openURL(url);
   }
 
-  if (loading || !restaurant) {
+  if (loading) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#FB8C00" />
+      </View>
+    );
+  }
+
+  if (error || !restaurant) {
+    return (
+      <View style={styles.loaderContainer}>
+        <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+        <Text style={{ marginTop: 10, textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
+          {error || "No se pudo cargar el restaurante."}
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 14, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Volver</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -253,11 +288,6 @@ export default function RestauranteDetalleScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>Menú del día</Text>
-                {/* TODO: navegar a un histórico real de menús cuando exista
-                    esa pantalla del lado comensal. */}
-                <TouchableOpacity onPress={() => AppAlert.alert("Próximamente", "El histórico de menús todavía no está disponible.")}>
-                  <Text style={styles.linkText}>Ver histórico</Text>
-                </TouchableOpacity>
               </View>
 
               {restaurant.menus.map((menu) => (

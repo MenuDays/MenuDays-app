@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
+
 import {
   ActivityIndicator,
   ScrollView,
@@ -45,10 +46,12 @@ export default function PerfilScreen() {
   const [editName, setEditName] = useState("");
   const [editLastName, setEditLastName] = useState("");
 
-  useEffect(() => {
-    loadUser();
-    checkRequestStatus();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+      checkRequestStatus();
+    }, [])
+  );
 
   async function loadUser() {
     try {
@@ -313,7 +316,7 @@ function getRestaurantCardConfig(requestStatus: RestaurantRequestStatus | null) 
         iconColor: "#F5A800",
         title: "Solicitud en revisión",
         subtitle: "Estado: pendiente",
-        body: `Tu solicitud para "${requestStatus.restaurantName}" está siendo revisada por nuestro equipo. Te notificaremos cuando haya una respuesta.`,
+        body: `Tu solicitud para "${requestStatus.restaurantName}" está siendo revisada por nuestro equipo.`,
         buttonText: "Ver estado",
         buttonColors: ["#FFB640", "#F58A07"] as const,
       };

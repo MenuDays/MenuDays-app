@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Animated,
+  PanResponder,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,8 +19,6 @@ import {
   MOCK_PLATOS,
   MOCK_MENUS,
   MOCK_PROMOCIONES,
-  PROVINCES,
-  CITIES_BY_PROVINCE,
 } from "./mockRestaurants";
 
 // ==========================================================================
@@ -61,18 +61,12 @@ export default function ExplorarResultadosScreen() {
 
   const [tab, setTab] = useState<Tab>("platos");
   const [search, setSearch] = useState("");
-  const [province, setProvince] = useState("Todas");
-  const [city, setCity] = useState("Todas");
   const [maxDistance, setMaxDistance] = useState(0); // 0 = sin límite
   const [estado, setEstado] = useState<Estado>("todos");
   const [sortBy, setSortBy] = useState<SortBy>("cercania");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const cityOptions = CITIES_BY_PROVINCE[province] ?? ["Todas"];
-
   const activeFilterCount =
-    (province !== "Todas" ? 1 : 0) +
-    (city !== "Todas" ? 1 : 0) +
     (maxDistance !== 0 ? 1 : 0) +
     (estado !== "todos" ? 1 : 0);
 
@@ -85,8 +79,6 @@ export default function ExplorarResultadosScreen() {
       ) {
         return false;
       }
-      if (province !== "Todas" && item.provincia !== province) return false;
-      if (city !== "Todas" && item.ciudad !== city) return false;
       if (maxDistance !== 0 && item.distanciaKm > maxDistance) return false;
       if (estado === "abierto" && !item.abierto) return false;
       return true;
@@ -98,19 +90,49 @@ export default function ExplorarResultadosScreen() {
     });
 
     return data;
-  }, [tab, category, search, province, city, maxDistance, estado, sortBy]);
-
-  function handleSelectProvince(p: string) {
-    setProvince(p);
-    setCity("Todas");
-  }
+  }, [tab, category, search, maxDistance, estado, sortBy]);
 
   function handleClearFilters() {
-    setProvince("Todas");
-    setCity("Todas");
     setMaxDistance(0);
     setEstado("todos");
   }
+
+  // Bottom sheet arrastrable: se puede deslizar hacia abajo para
+  // cerrarlo, además del botón/tap fuera que ya existían. Uso
+  // PanResponder + Animated (ambos de react-native core) para no
+  // sumar una dependencia nueva solo para esto.
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (filtersOpen) sheetTranslateY.setValue(0);
+  }, [filtersOpen]);
+
+  const closeThreshold = 120;
+
+  const sheetPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dy > 0) sheetTranslateY.setValue(gesture.dy);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > closeThreshold || gesture.vy > 1.2) {
+          Animated.timing(sheetTranslateY, {
+            toValue: 800,
+            duration: 180,
+            useNativeDriver: true,
+          }).start(() => setFiltersOpen(false));
+        } else {
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 4,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -273,54 +295,26 @@ export default function ExplorarResultadosScreen() {
         onRequestClose={() => setFiltersOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setFiltersOpen(false)}
+          />
+          <Animated.View
+            style={[styles.modalSheet, { transform: [{ translateY: sheetTranslateY }] }]}
+          >
+            <View {...sheetPanResponder.panHandlers}>
+              <View style={styles.modalHandle} />
 
-            <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.modalHeaderRow}>
                 <Text style={styles.modalTitle}>Filtros</Text>
                 <TouchableOpacity onPress={handleClearFilters}>
                   <Text style={styles.modalClearText}>Limpiar</Text>
                 </TouchableOpacity>
               </View>
+            </View>
 
-              <Text style={styles.modalSectionTitle}>Provincia</Text>
-              <View style={styles.optionsWrap}>
-                {PROVINCES.map((p) => (
-                  <TouchableOpacity
-                    key={p}
-                    style={[styles.optionChip, province === p && styles.optionChipActive]}
-                    onPress={() => handleSelectProvince(p)}
-                  >
-                    <Text
-                      style={[
-                        styles.optionChipText,
-                        province === p && styles.optionChipTextActive,
-                      ]}
-                    >
-                      {p}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.modalSectionTitle}>Ciudad</Text>
-              <View style={styles.optionsWrap}>
-                {cityOptions.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.optionChip, city === c && styles.optionChipActive]}
-                    onPress={() => setCity(c)}
-                  >
-                    <Text
-                      style={[styles.optionChipText, city === c && styles.optionChipTextActive]}
-                    >
-                      {c}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
+            <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalSectionTitle}>Distancia máxima</Text>
               <View style={styles.optionsWrap}>
                 {DISTANCE_OPTIONS.map((d) => (
@@ -377,7 +371,7 @@ export default function ExplorarResultadosScreen() {
                 Ver {results.length} resultado{results.length === 1 ? "" : "s"}
               </Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>

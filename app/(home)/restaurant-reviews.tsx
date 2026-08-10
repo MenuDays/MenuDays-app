@@ -40,6 +40,15 @@ export default function RestaurantReviewsScreen() {
 
   useEffect(() => {
     if (!id) return;
+    // Reseteo antes de cada fetch: sin esto, al entrar a las reseñas
+    // de otro restaurante se seguían viendo las reseñas (y el filtro
+    // de estrellas / paginado) del restaurante anterior mientras
+    // cargaba, y si el fetch nuevo fallaba quedaban ahí para siempre,
+    // atribuidas al restaurante equivocado.
+    setLoading(true);
+    setReviews([]);
+    setVisibleCount(PAGE_SIZE);
+    setStarFilter(0);
     ReviewService.getRestaurantReviews(id)
       .then(setReviews)
       .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudieron cargar las reseñas."))

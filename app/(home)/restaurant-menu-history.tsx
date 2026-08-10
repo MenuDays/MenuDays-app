@@ -22,6 +22,13 @@ export default function RestaurantMenuHistoryScreen() {
 
   useEffect(() => {
     if (!id) return;
+    // Reseteo antes de cada fetch: sin esto, si un restaurante da 404
+    // (histórico no disponible todavía en el back) "unavailable" queda
+    // en true para siempre, y al entrar al histórico de otro
+    // restaurante que sí tiene datos se seguía mostrando "Próximamente"
+    // en vez de la lista real.
+    setLoading(true);
+    setUnavailable(false);
     RestaurantService.getMenuHistory(id)
       .then((data) =>
         setMenus([...data].sort((a, b) => (a.fechaInicio < b.fechaInicio ? 1 : -1)))
