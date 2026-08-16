@@ -1,97 +1,47 @@
-import { Tabs, router } from "expo-router";
+import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, Text, StyleSheet } from "react-native";
 import { Shadow } from "react-native-shadow-2";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ClocheIcon from "../components/home/ClocheIcon";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
-import { usePreviewMode } from "../../contexts/PreviewModeContext";
 
 function TabIcon({
   name,
   color,
   focused,
-  dotColor,
 }: {
   name: any;
   color: string;
   focused: boolean;
-  dotColor: string;
 }) {
   return (
-    <View style={iconWrapperStyle}>
+    <View style={styles.iconWrapper}>
       <Ionicons
         name={name}
         size={24}
         color={color}
       />
-      {focused && (
-        <View
-          style={{
-            width: 4,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: dotColor,
-          }}
-        />
-      )}
+      {focused && <View style={styles.dot} />}
     </View>
   );
 }
 
-const iconWrapperStyle = { alignItems: "center" as const, gap: 4 };
-
 export default function TabLayout() {
+  // "bottom: 18" solo (ver styles.tabBar) no alcanza en dispositivos con
+  // barra de navegación de Android (botones físicos/virtuales) -- ahí el
+  // inset real es mucho más alto que 18 y la tab bar queda tapada. Con
+  // gestos (barra fina) el inset es chico y casi no se nota, por eso en
+  // algunos celulares se ve bien y en otros no.
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { previewOrigin, exitPreview } = usePreviewMode();
-
-  // Margen lateral responsive: chico en celulares angostos, con más aire
-  // en celulares grandes, tope en tablets para que no quede flotando
-  // demasiado lejos de los bordes.
-  const sideMargin = Math.max(12, Math.min(28, width * 0.045));
-
-  function handleExitPreview() {
-    exitPreview();
-    router.replace(previewOrigin === "administrador" ? "/(admin)/dashboard" : "/(restaurant)/dashboard");
-  }
 
   return (
-    <View style={{ flex: 1 }}>
-      {previewOrigin && (
-        <TouchableOpacity
-          style={[styles.previewBanner, { top: insets.top + 8 }]}
-          onPress={handleExitPreview}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="eye-outline" size={14} color="#FFFFFF" />
-          <Text style={styles.previewBannerText}>Viendo como comensal</Text>
-          <View style={styles.previewBannerDivider} />
-          <Text style={styles.previewBannerLink}>
-            Volver a {previewOrigin === "administrador" ? "administrador" : "restaurante"}
-          </Text>
-          <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
-
-      <Tabs
+    <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: [
-          styles.tabBar,
-          {
-            left: sideMargin + insets.left,
-            right: sideMargin + insets.right,
-            bottom: Math.max(18, insets.bottom + 8),
-          },
-        ],
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: [styles.tabBar, { bottom: 18 + insets.bottom }],
+        tabBarActiveTintColor: "#FFA726",
+        tabBarInactiveTintColor: "#3E2723",
         tabBarLabelStyle: styles.tabLabel,
       }}
     >
@@ -104,7 +54,6 @@ export default function TabLayout() {
               name={focused ? "home" : "home-outline"}
               color={color}
               focused={focused}
-              dotColor={colors.primary}
             />
           ),
         }}
@@ -119,7 +68,6 @@ export default function TabLayout() {
               name={focused ? "search" : "search-outline"}
               color={color}
               focused={focused}
-              dotColor={colors.primary}
             />
           ),
         }}
@@ -149,7 +97,6 @@ export default function TabLayout() {
 
           tabBarLabel: ({ color }) => (
             <Text
-              numberOfLines={1}
               style={[
                 styles.tabLabel,
                 { color, marginTop: 4 },
@@ -170,7 +117,6 @@ export default function TabLayout() {
               name={focused ? "receipt" : "receipt-outline"}
               color={color}
               focused={focused}
-              dotColor={colors.primary}
             />
           ),
         }}
@@ -214,9 +160,9 @@ export default function TabLayout() {
 
       {/* Se accede desde los botones "Ver histórico" / "Ver todas" /
           "Ver las N reseñas" del detalle de restaurante, no son tabs. */}
-      <Tabs.Screen name="restaurant-menu-history" options={{ href: null }} />
       <Tabs.Screen name="restaurant-gallery" options={{ href: null }} />
       <Tabs.Screen name="restaurant-reviews" options={{ href: null }} />
+      <Tabs.Screen name="restaurant-menu-history" options={{ href: null }} />
 
       {/* Flujo de pedido (mockeado, ver TODOs en cada pantalla y en
           services/order.service.ts). Se accede desde el detalle de un
@@ -235,6 +181,10 @@ export default function TabLayout() {
         }}
       />
 
+      {/* Se accede desde el botón "Dejar reseña" de pedido-detalle.tsx
+          (solo visible con estado "entregado"), no es un tab. */}
+      <Tabs.Screen name="crear-resena" options={{ href: null }} />
+
       <Tabs.Screen
         name="perfil"
         options={{
@@ -244,93 +194,72 @@ export default function TabLayout() {
               name={focused ? "person" : "person-outline"}
               color={color}
               focused={focused}
-              dotColor={colors.primary}
             />
           ),
         }}
       />
-      </Tabs>
-    </View>
+    </Tabs>
   );
 }
 
-const createStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    previewBanner: {
-      position: "absolute",
-      alignSelf: "center",
-      zIndex: 50,
-      elevation: 12,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: "#FB8C00",
-      borderRadius: 20,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      shadowColor: "#000",
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 3 },
+const styles = StyleSheet.create({
+  tabBar: {
+    position: "absolute",
+
+    left: 16,
+    right: 16,
+    bottom: 18,
+
+    height: 74,
+
+    backgroundColor: "#FFFFFF",
+
+    borderRadius: 38,
+    borderTopWidth: 0,
+
+    elevation: 12,
+
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 5,
     },
-    previewBannerText: {
-      fontSize: 11.5,
-      fontWeight: "700",
-      color: "#FFFFFF",
-    },
-    previewBannerDivider: {
-      width: 1,
-      height: 12,
-      backgroundColor: "rgba(255,255,255,0.4)",
-      marginHorizontal: 2,
-    },
-    previewBannerLink: {
-      fontSize: 11.5,
-      fontWeight: "800",
-      color: "#FFFFFF",
-    },
-    tabBar: {
-      position: "absolute",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
 
-      minHeight: 74,
+    paddingTop: 8,
+  },
 
-      backgroundColor: colors.navbarBackground,
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
 
-      borderRadius: 38,
-      borderTopWidth: 0,
+  iconWrapper: {
+    alignItems: "center",
+    gap: 4,
+  },
 
-      elevation: 12,
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#FFA726",
+  },
 
-      shadowColor: colors.shadow,
-      shadowOffset: {
-        width: 0,
-        height: 5,
-      },
-      shadowOpacity: 0.12,
-      shadowRadius: 10,
+  centerButton: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
 
-      paddingTop: 8,
-      paddingBottom: 6,
-    },
+    backgroundColor: "#FFA726",
 
-    tabLabel: {
-      fontSize: 11,
-      fontWeight: "600",
-    },
+    justifyContent: "center",
+    alignItems: "center",
 
-    centerButton: {
-      width: 62,
-      height: 62,
-      borderRadius: 31,
+    marginTop: -22,
 
-      backgroundColor: colors.primary,
-
-      justifyContent: "center",
-      alignItems: "center",
-
-      marginTop: -22,
-
-      borderWidth: 4,
-      borderColor: colors.navbarBackground,
-    },
-  });
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+  },
+});

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
-  TextInput,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -21,18 +20,13 @@ import OrderService, {
   BackendDeliveryMethod,
 } from "../../services/order.service";
 import RestaurantService from "../../services/restaurant.service";
-import ReviewService from "../../services/review.service";
 import { AppAlert } from "../components/common/AppAlert";
 import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
 
-// Vista de SOLO LECTURA para el comensal en cuanto al ESTADO del pedido:
-// acá no hay ningún control para cambiarlo (eso es exclusivo del lado
-// restaurante, ver GET/PATCH /orders/restaurant/:id en el backend). Sí
-// permite, una vez "entregado", dejar la reseña del pedido (POST /reviews
-// -- antes no existía ningún punto de entrada a ese endpoint en la app).
+// Vista de SOLO LECTURA para el comensal: acá no hay ningún control para
+// cambiar el estado del pedido (eso es exclusivo del lado restaurante,
+// ver GET/PATCH /orders/restaurant/:id en el backend).
 
 const ESTADO_LABEL: Record<OrderStatus, string> = {
   pendiente: "Pendiente de confirmación",
@@ -70,29 +64,44 @@ const ENTREGA_ICON: Record<BackendDeliveryMethod, keyof typeof Ionicons.glyphMap
   RETIRO_EN_LOCAL: "storefront-outline",
 };
 
+// El mensaje de WhatsApp acá es DISTINTO al de pedido-confirmar.tsx: ese
+// usa GET /orders/:id/whatsapp-summary, que arma un texto tipo "Quisiera
+// realizar el siguiente pedido..." pensado para cuando el pedido recién
+// se está armando. Acá el pedido YA existe (puede estar entregado,
+// rechazado, en preparación, etc.), así que reusar ese mismo endpoint
+// generaría un mensaje confuso ("quiero pedir" sobre algo que ya se
+// pidió). Por eso este mensaje se arma local, de consulta, sin pegarle
+// a ese endpoint.
+function buildConsultaMessage(order: OrderDetail): string {
+  const referencia = order.codigoUnico ? `código ${order.codigoUnico}` : `pedido #${order.id}`;
+  return [
+    `Hola, soy ${order.usuario.nombre}.`,
+    "",
+    `Tengo una consulta sobre mi ${referencia} (${order.producto.nombre}).`,
+  ].join("\n");
+}
+
 export default function PedidoDetalleScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [restaurantPhone, setRestaurantPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [contactLoading, setContactLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Reseña del pedido (solo aplica una vez "entregado"). No hay forma de
-  // saber de antemano si ya se dejó una -- GET /orders/:id no lo informa
-  // -- así que se intenta directo y, si el back responde que ya existe,
-  // se lo toma como "ya reseñado" en vez de mostrar un error genérico.
-  const [reviewStars, setReviewStars] = useState(0);
-  const [reviewComment, setReviewComment] = useState("");
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewDone, setReviewDone] = useState(false);
+  // Igual que en pedido-producto.tsx: la tab bar de "(home)" es
+  // position:"absolute" (height 74 + bottom 18+insets.bottom), así que
+  // no reserva espacio real en el layout. Sin sumar esto acá, el footer
+  // (bottom:0) queda debajo de la tab bar y el CTA se ve tapado.
+  const insets = useSafeAreaInsets();
+  const tabBarSpace = 74 + 18 + insets.bottom;
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
+    setError(null);
+    setOrder(null);
+    setRestaurantPhone(null);
     OrderService.getById(id)
       .then((data) => {
         setOrder(data);
@@ -103,7 +112,11 @@ export default function PedidoDetalleScreen() {
           .then((r) => setRestaurantPhone(r.telefonos[0]?.telefono ?? null))
           .catch(() => setRestaurantPhone(null));
       })
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar el pedido."))
+      .catch((e: any) => {
+        const msg = e.message || "No se pudo cargar el pedido.";
+        setError(msg);
+        AppAlert.alert("Error", msg);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -113,15 +126,7 @@ export default function PedidoDetalleScreen() {
       AppAlert.alert("Sin contacto", "Este restaurante todavía no cargó un teléfono de contacto.");
       return;
     }
-    setContactLoading(true);
-    try {
-      const { mensajeWhatsapp } = await OrderService.getWhatsAppSummary(order.id);
-      Linking.openURL(buildWhatsAppUrl(restaurantPhone, mensajeWhatsapp));
-    } catch (e: any) {
-      AppAlert.alert("Error", e.message || "No se pudo generar el mensaje.");
-    } finally {
-      setContactLoading(false);
-    }
+    Linking.openURL(buildWhatsAppUrl(restaurantPhone, buildConsultaMessage(order)));
   }
 
   function handleVerRestaurante() {
@@ -129,51 +134,58 @@ export default function PedidoDetalleScreen() {
     router.push(`/(home)/restaurante-detalle?id=${order.restaurante.id}`);
   }
 
-  async function handleEnviarResena() {
+  function handleDejarResena() {
     if (!order) return;
-    if (reviewStars === 0) {
-      AppAlert.alert("Elegí una calificación", "Tocá las estrellas para calificar tu pedido.");
-      return;
-    }
-    setReviewSubmitting(true);
-    try {
-      await ReviewService.create({
-        pedidoId: Number(order.id),
-        calificacion: reviewStars,
-        comentario: reviewComment.trim() || undefined,
-      });
-      setReviewDone(true);
-    } catch (e: any) {
-      const message: string = e.message || "No se pudo enviar la reseña.";
-      if (message.toLowerCase().includes("ya posee")) {
-        // Ya existía una reseña para este pedido -- se trata igual que
-        // "enviada", no como un error.
-        setReviewDone(true);
-      } else {
-        AppAlert.alert("Error", message);
-      }
-    } finally {
-      setReviewSubmitting(false);
-    }
+    router.push({
+      pathname: "/(home)/crear-resena",
+      params: {
+        pedidoId: order.id,
+        restauranteNombre: order.restaurante.nombre,
+        productoNombre: order.producto.nombre,
+      },
+    });
   }
 
-  if (loading || !order) {
+  if (loading) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={colors.primaryDark} />
+        <ActivityIndicator size="large" color="#FB8C00" />
       </View>
     );
   }
 
+  if (error || !order) {
+    return (
+      <View style={styles.loaderContainer}>
+        <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+        <Text style={{ marginTop: 10, textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
+          {error || "No se pudo cargar el pedido."}
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 14, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Volver</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Alto aproximado del footer (que es absolute) para que el contenido del
+  // ScrollView no quede tapado atrás: paddingTop del footer + 1 o 2 CTAs
+  // de ~50px con su gap + la tab bar de abajo.
+  const footerButtons = order.pedido.estado === "entregado" ? 2 : 1;
+  const scrollBottomPadding = tabBarSpace + 34 + footerButtons * 58;
+
   return (
     <View style={styles.container}>
-      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: scrollBottomPadding }}>
         <View style={styles.coverWrap}>
           {order.restaurante.portada ? (
             <Image source={{ uri: order.restaurante.portada }} style={styles.cover} />
           ) : (
             <View style={[styles.cover, styles.coverPlaceholder]}>
-              <Ionicons name="receipt-outline" size={32} color={colors.placeholder} />
+              <Ionicons name="receipt-outline" size={32} color="#C9C9C9" />
             </View>
           )}
 
@@ -190,7 +202,7 @@ export default function PedidoDetalleScreen() {
               <Image source={{ uri: order.producto.imagen }} style={styles.productImage} />
             ) : (
               <View style={[styles.productImage, styles.productImagePlaceholder]}>
-                <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
+                <Ionicons name="restaurant-outline" size={20} color="#BDBDBD" />
               </View>
             )}
 
@@ -248,74 +260,19 @@ export default function PedidoDetalleScreen() {
               <Text style={styles.paragraph}>{order.pedido.observaciones}</Text>
             </View>
           ) : null}
-
-          {order.pedido.estado === "entregado" && (
-            <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="star-outline" size={18} color="#FB8C00" />
-                <Text style={styles.sectionTitle}>Tu reseña</Text>
-              </View>
-
-              {reviewDone ? (
-                <View style={styles.reviewDoneWrap}>
-                  <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-                  <Text style={styles.reviewDoneText}>¡Gracias por tu reseña!</Text>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.paragraph}>¿Cómo estuvo tu pedido de {order.restaurante.nombre}?</Text>
-                  <View style={styles.starsRow}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <TouchableOpacity key={star} onPress={() => setReviewStars(star)} hitSlop={6}>
-                        <Ionicons
-                          name={star <= reviewStars ? "star" : "star-outline"}
-                          size={30}
-                          color="#F5A800"
-                        />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <TextInput
-                    style={styles.reviewInput}
-                    placeholder="Contanos tu experiencia (opcional)"
-                    placeholderTextColor={colors.placeholder}
-                    value={reviewComment}
-                    onChangeText={setReviewComment}
-                    multiline
-                    maxLength={1000}
-                  />
-                  <TouchableOpacity
-                    style={[styles.reviewSubmitButton, reviewSubmitting && { opacity: 0.7 }]}
-                    onPress={handleEnviarResena}
-                    disabled={reviewSubmitting}
-                  >
-                    {reviewSubmitting ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.reviewSubmitText}>Enviar reseña</Text>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          )}
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(20, insets.bottom + 12) }]}>
-        <TouchableOpacity
-          style={[styles.cta, contactLoading && { opacity: 0.7 }]}
-          onPress={handleContactar}
-          disabled={contactLoading}
-        >
-          {contactLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
-              <Text style={styles.ctaText}>Contactar al restaurante</Text>
-            </>
-          )}
+      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
+        {order.pedido.estado === "entregado" && (
+          <TouchableOpacity style={styles.ctaSecondary} onPress={handleDejarResena}>
+            <Ionicons name="star-outline" size={18} color="#FB8C00" />
+            <Text style={styles.ctaSecondaryText}>Dejar reseña</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.cta} onPress={handleContactar}>
+          <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+          <Text style={styles.ctaText}>Contactar al restaurante</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -333,13 +290,10 @@ function InfoRow({
   value: string;
   valueStyle?: object;
 }) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLabelWrap}>
-        <Ionicons name={icon} size={15} color={colors.textSecondary} />
+        <Ionicons name={icon} size={15} color="#9E9E9E" />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
       <Text style={[styles.infoValue, valueStyle]}>{value}</Text>
@@ -361,11 +315,11 @@ function formatDateTime(iso: string): string {
   return `${datePart} · ${timePart}`;
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
 
-  coverWrap: { height: 160, backgroundColor: colors.surfaceSecondary },
+  coverWrap: { height: 160, backgroundColor: "#F5F5F5" },
   cover: { width: "100%", height: "100%" },
   coverPlaceholder: { alignItems: "center", justifyContent: "center" },
   coverOverlay: {
@@ -394,42 +348,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: 64,
     borderRadius: 16,
     borderWidth: 3,
-    borderColor: colors.background,
-    backgroundColor: colors.card,
+    borderColor: "#FFFFFF",
+    backgroundColor: "#FFFFFF",
   },
   productImagePlaceholder: { alignItems: "center", justifyContent: "center" },
-  productName: { fontSize: 17, fontWeight: "900", color: colors.text },
-  restaurantLink: { fontSize: 13, fontWeight: "700", color: colors.primaryDark, marginTop: 2 },
+  productName: { fontSize: 17, fontWeight: "900", color: "#1A1A1A" },
+  restaurantLink: { fontSize: 13, fontWeight: "700", color: "#FB8C00", marginTop: 2 },
 
   statusRow: { marginTop: 18 },
 
   section: { marginTop: 24 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
-  paragraph: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
-
-  starsRow: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 14 },
-  reviewInput: {
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    backgroundColor: colors.inputBackground,
-    borderRadius: 14,
-    padding: 12,
-    minHeight: 70,
-    textAlignVertical: "top",
-    fontSize: 13,
-    color: colors.text,
-  },
-  reviewSubmitButton: {
-    marginTop: 14,
-    backgroundColor: colors.primary,
-    borderRadius: 24,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  reviewSubmitText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
-  reviewDoneWrap: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
-  reviewDoneText: { fontSize: 14, fontWeight: "700", color: colors.text },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
+  paragraph: { fontSize: 13, color: "#5C5C5C", lineHeight: 20 },
 
   infoRow: {
     flexDirection: "row",
@@ -437,22 +368,24 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    borderBottomColor: "#F0F0F0",
   },
   infoLabelWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
-  infoLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
-  infoValue: { fontSize: 13, color: colors.text, fontWeight: "700" },
-  totalValue: { fontSize: 15, color: colors.primaryDark, fontWeight: "900" },
+  infoLabel: { fontSize: 13, color: "#9E9E9E", fontWeight: "600" },
+  infoValue: { fontSize: 13, color: "#1A1A1A", fontWeight: "700" },
+  totalValue: { fontSize: 15, color: "#FB8C00", fontWeight: "900" },
 
   footer: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 20,
-    backgroundColor: colors.background,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    gap: 10,
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: colors.divider,
+    borderTopColor: "#F0F0F0",
   },
   cta: {
     flexDirection: "row",
@@ -464,4 +397,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: "center",
   },
   ctaText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  ctaSecondary: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "#FFF3E0",
+    borderRadius: 24,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaSecondaryText: { color: "#FB8C00", fontWeight: "800", fontSize: 14 },
 });

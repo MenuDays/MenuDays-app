@@ -25,6 +25,8 @@ export interface RestaurantSchedule {
   cerrado: boolean;
 }
 
+export type EstadoOperativo = "abierto" | "cerrado" | "cerrado_temporal" | "vacaciones";
+
 export interface Restaurant {
   id: number;
   nombre_comercial: string;
@@ -39,6 +41,7 @@ export interface Restaurant {
   nombre_delivery: string | null;
   calificacion_promedio: number;
   cantidad_resenas: number;
+  estado_operativo: EstadoOperativo;
   ciudad: {
     id: number;
     nombre: string;
@@ -51,10 +54,9 @@ export interface Restaurant {
 
 /**
  * Forma que espera UpdateRestaurantDto en el backend.
- * OJO: no incluye teléfonos, redes sociales ni horarios -- esas
- * relaciones no están en el DTO que compartiste, así que asumo que
- * tienen (o van a tener) sus propios endpoints de create/update/delete
- * por fila. Ajustar cuando estén definidos.
+ * telefonos/redesSociales/horarios están en el DTO pero el service del
+ * backend no los persiste todavía (confirmado). Se mandan igual porque
+ * no rompe nada, pero no asumas que quedan guardados.
  */
 export interface UpdateRestaurantPayload {
   nombreComercial?: string;
@@ -67,6 +69,14 @@ export interface UpdateRestaurantPayload {
   portadaUrl?: string;
   ofreceDelivery?: boolean;
   nombreDelivery?: string | null;
+  telefonos?: { telefono: string; tipo: "llamadas" | "whatsapp" | "ambos" }[];
+  redesSociales?: { plataforma: RedSocial; url: string }[];
+  horarios?: {
+    diaSemana: number;
+    horaApertura?: string;
+    horaCierre?: string;
+    cerrado: boolean;
+  }[];
 }
 
 // ==========================================================================
@@ -144,17 +154,35 @@ export interface RestaurantPublicDetail {
   platos: PublicDish[];
   promociones: PublicPromotion[];
 }
+// ==========================================================================
+// GET /restaurants/dashboard -- shape tal cual RestaurantService.getDashboard()
+// en el backend: objeto anidado en camelCase (NO snake_case plano como se
+// esperaba antes acá). "menuPublicadoHoy" ya viene calculado por el back
+// (fecha_inicio/fecha_fin vigentes + estado "publicado"), así que no hace
+// falta pedir GET /menus aparte para saber si el menú de hoy está publicado.
+// ==========================================================================
+
 export interface RestaurantDashboard {
-  nombre_comercial: string;
-  logo_url: string | null;
-  portada_url: string | null;
-
-  calificacion_promedio: number;
-  cantidad_resenas: number;
-
-  platos_registrados: number;
-  promociones_activas: number;
-  pedidos_pendientes: number;
+  restaurante: {
+    id: number;
+    nombreComercial: string;
+    logoUrl: string | null;
+    portadaUrl: string | null;
+    estadoOperativo: EstadoOperativo;
+  };
+  resumen: {
+    calificacionPromedio: number;
+    cantidadResenas: number;
+    platosRegistrados: number;
+    promocionesActivas: number;
+    pedidosPendientes: number;
+    menuPublicadoHoy: boolean;
+  };
+  estadisticas: {
+    resenas: number;
+    promocionesActivas: number;
+    platosRegistrados: number;
+  };
 }
 export interface RestaurantReview {
   id: number;

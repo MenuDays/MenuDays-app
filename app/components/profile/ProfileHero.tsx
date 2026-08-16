@@ -52,9 +52,6 @@ export default function ProfileHero(props: ProfileHeroProps) {
               <Text style={styles.avatarInitials}>{initials}</Text>
             </View>
           )}
-          <TouchableOpacity style={styles.cameraButton} onPress={onPressCamera}>
-            <Ionicons name="camera" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
         </View>
 
         <Text style={styles.userName}>{title}</Text>

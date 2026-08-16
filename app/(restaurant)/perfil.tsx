@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AuthService from "../../services/auth.service";
+import CategoryService, { Category } from "../../services/category.service";
 import LocationService, { City } from "../../services/location.service";
 import ProvinceService, { Province } from "../../services/province.service";
 import RestaurantService, {
@@ -69,17 +70,34 @@ export default function RestaurantProfileScreen() {
   const [socialLinks, setSocialLinks] = useState<RestaurantSocialLink[]>([]);
   const [schedule, setSchedule] = useState<RestaurantSchedule[]>([]);
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   useEffect(() => {
     loadRestaurant();
     ProvinceService.getAll().then(setProvinces);
+    loadCategories();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       const picked = RestaurantLocationPickerBridge.consume();
       if (picked) setEditLocation(picked);
+      // Por si venimos de vuelta de "Elegir categorías" con cambios.
+      loadCategories();
     }, [])
   );
+
+  async function loadCategories() {
+    try {
+      const data = await CategoryService.getMyCategories();
+      setCategories(data);
+    } catch (e) {
+      console.log("Error cargando categorías:", e);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }
 
   async function loadRestaurant() {
     try {
@@ -180,11 +198,11 @@ export default function RestaurantProfileScreen() {
       return;
     }
     if (!editCity) {
-      AppAlert.alert("Falta la ciudad", "Elegí la provincia y ciudad de tu restaurante.");
+      AppAlert.alert("Falta la ciudad", "Elige la provincia y ciudad de tu restaurante.");
       return;
     }
     if (!editLocation) {
-      AppAlert.alert("Falta la ubicación", "Seleccioná la ubicación de tu restaurante en el mapa.");
+      AppAlert.alert("Falta la ubicación", "Selecciona la ubicación de tu restaurante en el mapa.");
       return;
     }
 
@@ -197,6 +215,20 @@ export default function RestaurantProfileScreen() {
         ciudadId: editCity.id,
         ubicacionLat: editLocation.latitude,
         ubicacionLng: editLocation.longitude,
+        telefonos: phones.map((p) => ({
+          telefono: p.telefono,
+          tipo: "ambos" as const,
+        })),
+        redesSociales: socialLinks.map((s) => ({
+          plataforma: s.plataforma,
+          url: s.url,
+        })),
+        horarios: schedule.map((d) => ({
+          diaSemana: d.dia_semana,
+          horaApertura: d.cerrado ? undefined : d.hora_apertura ?? undefined,
+          horaCierre: d.cerrado ? undefined : d.hora_cierre ?? undefined,
+          cerrado: d.cerrado,
+        })),
       });
       setRestaurant(updated);
       setIsEditing(false);
@@ -322,7 +354,7 @@ async function handleUploadCover() {
   }
 
   function handleLogout() {
-    AppAlert.alert("Cerrar sesión", "¿Seguro que querés cerrar tu sesión?", [
+    AppAlert.alert("Cerrar sesión", "¿Seguro que quieres cerrar tu sesión?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Cerrar sesión",
@@ -385,7 +417,7 @@ async function handleUploadCover() {
               logoUrl={restaurant.logo_url}
               coverUrl={restaurant.portada_url}
               onPressEditLogo={handleUploadLogo}
-onPressEditCover={handleUploadCover}
+              onPressEditCover={handleUploadCover}
             />
           </View>
 
@@ -426,7 +458,7 @@ onPressEditCover={handleUploadCover}
                 ]}
               >
                 {isEditing
-                  ? editCityProvinceLabel ?? "Elegí provincia y ciudad"
+                  ? editCityProvinceLabel ?? "Elige provincia y ciudad"
                   : cityProvinceLabel ?? "Sin ciudad"}
               </Text>
               {isEditing && <Ionicons name="chevron-down" size={16} color="#3E2723" />}
@@ -469,10 +501,45 @@ onPressEditCover={handleUploadCover}
               </View>
             )}
 
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Categorías</Text>
+              <TouchableOpacity
+                style={styles.editTrigger}
+                onPress={() => router.push("/(restaurant)/elegir-categorias?from=perfil")}
+              >
+                <Ionicons name="create-outline" size={16} color="#F5A800" />
+                <Text style={styles.editTriggerText}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {categoriesLoading ? (
+              <ActivityIndicator size="small" color="#F5A800" style={{ marginBottom: 10 }} />
+            ) : categories.length === 0 ? (
+              <TouchableOpacity
+                style={styles.categoriesEmptyBox}
+                onPress={() => router.push("/(restaurant)/elegir-categorias?from=perfil")}
+              >
+                <Ionicons name="pricetags-outline" size={18} color="#F5A800" />
+                <Text style={styles.categoriesEmptyText}>
+                  Todavía no elegiste categorías. Toca acá para elegirlas.
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.categoriesWrap}>
+                {categories.map((category) => (
+                  <View key={category.id} style={styles.categoryChip}>
+                    <Text style={styles.categoryChipText}>{category.nombre}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Teléfonos</Text>
+            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
             <PhoneListEditor phones={phones} onAdd={handleAddPhone} onRemove={handleRemovePhone} />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Redes Sociales</Text>
+            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
             <SocialLinksEditor
               links={socialLinks}
               onAdd={handleAddSocialLink}
@@ -480,6 +547,7 @@ onPressEditCover={handleUploadCover}
             />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Horarios de atención</Text>
+            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
             <ScheduleEditor schedule={schedule} onChange={handleScheduleChange} />
 
             <TouchableOpacity style={styles.previewButton} onPress={handleViewAsComensal}>
@@ -507,7 +575,7 @@ onPressEditCover={handleUploadCover}
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Elegí la provincia</Text>
+              <Text style={styles.modalTitle}>Elige la provincia</Text>
               <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
               </TouchableOpacity>
@@ -550,7 +618,7 @@ onPressEditCover={handleUploadCover}
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Elegí la ciudad{editProvince ? ` (${editProvince.nombre})` : ""}
+                Elige la ciudad{editProvince ? ` (${editProvince.nombre})` : ""}
               </Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
@@ -625,6 +693,48 @@ const styles = StyleSheet.create({
   sectionTitleSpaced: {
     marginTop: 24,
     marginBottom: 10,
+  },
+  disclaimerText: {
+    fontSize: 11,
+    color: "#9E9E9E",
+    marginTop: -6,
+    marginBottom: 10,
+  },
+  categoriesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 4,
+  },
+  categoryChip: {
+    backgroundColor: "#FFF6E2",
+    borderWidth: 1,
+    borderColor: "#FFE0A3",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  categoryChipText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#B87A00",
+  },
+  categoriesEmptyBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF8EE",
+    borderWidth: 1,
+    borderColor: "#FFE0A3",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 4,
+  },
+  categoriesEmptyText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: "#B87A00",
+    fontWeight: "500",
   },
   editTrigger: {
     flexDirection: "row",

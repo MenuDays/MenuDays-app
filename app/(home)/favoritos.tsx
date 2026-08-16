@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -13,9 +13,8 @@ import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FavoriteService, { FavoriteItem } from "../../services/favorite.service";
+import { EmptyState } from "../components/common/EmptyState";
 import { AppAlert } from "../components/common/AppAlert";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
 
 const OPEN_LABEL: Record<string, { text: string; color: string }> = {
   abierto: { text: "Abierto", color: "#43A047" },
@@ -25,8 +24,6 @@ const OPEN_LABEL: Record<string, { text: string; color: string }> = {
 };
 
 export default function FavoritosScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +55,7 @@ export default function FavoritosScreen() {
   function handleRemove(item: FavoriteItem) {
     AppAlert.alert(
       "Quitar de favoritos",
-      `¿Seguro que querés quitar "${item.restaurant.nombreComercial}" de tus favoritos?`,
+      `¿Seguro que quieres quitar "${item.restaurant.nombreComercial}" de tus favoritos?`,
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -86,7 +83,7 @@ export default function FavoritosScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <Text style={styles.title}>Favoritos</Text>
-        <ActivityIndicator size="large" color={colors.primaryDark} style={styles.loader} />
+        <ActivityIndicator size="large" color="#FB8C00" style={styles.loader} />
       </SafeAreaView>
     );
   }
@@ -101,15 +98,13 @@ export default function FavoritosScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primaryDark} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />
         }
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Ionicons name="heart-outline" size={36} color={colors.placeholder} />
-            <Text style={styles.emptyText}>
-              Todavía no tenés restaurantes favoritos. Explorá y tocá el corazón en el que te guste.
-            </Text>
-          </View>
+          <EmptyState
+            mascot={require("../../assets/images/favoritos-nene.png")}
+            text="Todavía no tienes restaurantes favoritos. Explora y toca el corazón en el que te guste."
+          />
         }
         renderItem={({ item }) => {
           const status = OPEN_LABEL[item.restaurant.estadoOperativo] ?? OPEN_LABEL.cerrado;
@@ -136,9 +131,9 @@ export default function FavoritosScreen() {
                 disabled={isRemoving}
               >
                 {isRemoving ? (
-                  <ActivityIndicator size="small" color={colors.primaryDark} />
+                  <ActivityIndicator size="small" color="#FB8C00" />
                 ) : (
-                  <Ionicons name="heart" size={18} color={colors.primaryDark} />
+                  <Ionicons name="heart" size={18} color="#FB8C00" />
                 )}
               </TouchableOpacity>
 
@@ -148,7 +143,7 @@ export default function FavoritosScreen() {
                     <Image source={{ uri: item.restaurant.logoUrl }} style={styles.logo} />
                   ) : (
                     <View style={[styles.logo, styles.logoPlaceholder]}>
-                      <Ionicons name="storefront-outline" size={16} color={colors.placeholder} />
+                      <Ionicons name="storefront-outline" size={16} color="#BDBDBD" />
                     </View>
                   )}
 
@@ -194,29 +189,18 @@ export default function FavoritosScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: "bold", color: colors.text, marginBottom: 12 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FAFAFA", paddingHorizontal: 16, paddingTop: 8 },
+  title: { fontSize: 24, fontWeight: "bold", color: "#3E2723", marginBottom: 12 },
   loader: { marginTop: 40 },
   list: { paddingBottom: 120 },
-  emptyWrap: {
-    alignItems: "center",
-    marginTop: 60,
-    paddingHorizontal: 30,
-    gap: 10,
-  },
-  emptyText: {
-    textAlign: "center",
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 19,
-  },
+
   card: {
-    backgroundColor: colors.card,
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     marginBottom: 16,
     overflow: "hidden",
-    shadowColor: colors.shadow,
+    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -225,7 +209,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cover: {
     width: "100%",
     height: 120,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "#F0F0F0",
   },
   coverPlaceholder: {
     alignItems: "center",
@@ -238,10 +222,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.card,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.shadow,
+    shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
@@ -259,7 +243,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "#F0F0F0",
   },
   logoPlaceholder: {
     alignItems: "center",
@@ -271,11 +255,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   name: {
     fontSize: 15,
     fontWeight: "700",
-    color: colors.text,
+    color: "#1A1A1A",
   },
   city: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: "#9E9E9E",
     marginTop: 2,
   },
   metaRow: {
@@ -292,11 +276,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   ratingText: {
     fontSize: 13,
     fontWeight: "700",
-    color: colors.text,
+    color: "#1A1A1A",
   },
   reviewsText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: "#9E9E9E",
   },
   statusText: {
     fontSize: 12,
@@ -304,7 +288,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   categoriesText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: "#9E9E9E",
     marginTop: 6,
   },
 });

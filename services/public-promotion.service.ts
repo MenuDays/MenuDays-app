@@ -1,17 +1,14 @@
 import { api } from "./api";
 
 // ==========================================================================
-// GET /public/promotions -- promociones activas y vigentes, de restaurantes
-// activos, dentro del mismo radio/filtros que Explore (PublicPromotionController
-// / PublicPromotionService en el back). Mismo criterio que PublicMenuService
-// y PublicDishService.
-// Ver src/modules/public-promotions en el back.
+// GET /public/promotions -- promociones activas y vigentes de restaurantes
+// cercanos activos, dentro del mismo radio/filtros que Explore
+// (PublicPromotionController / PublicPromotionService en el back). Pensado
+// para la pestaña "Promociones" del comensal en explorar-resultados.tsx: a
+// diferencia de /promotions (CRUD del restaurante dueño), este es de solo
+// lectura y ya viene con el restaurante embebido. Ver
+// src/modules/public-promotions en el back.
 // ==========================================================================
-
-export interface PublicPromotionCategory {
-  id: string;
-  nombre: string;
-}
 
 export interface PublicPromotionRestaurant {
   id: string;
@@ -22,24 +19,33 @@ export interface PublicPromotionRestaurant {
   cantidad_resenas: number;
 }
 
+export interface PublicPromotionCategory {
+  id: string;
+  nombre: string;
+  icono_id: string | null;
+  iconos?: { url: string } | null;
+}
+
 export interface PublicPromotion {
   id: string;
   restaurante_id: string;
-  categoria_id: string | null;
   titulo: string;
+  categoria_id: string | null;
   descripcion: string | null;
   imagen_url: string | null;
   precio: number;
   fecha_inicio: string;
   fecha_fin: string;
-  activa: boolean;
+  activa: boolean; // findAvailable solo devuelve activas y vigentes
   created_at: string;
   updated_at: string;
-  categorias: PublicPromotionCategory | null;
   restaurante: PublicPromotionRestaurant;
+  categorias: PublicPromotionCategory | null; // el back ya incluye esta relación
   distancia?: number; // solo viene si se mandó latitude + longitude
 }
 
+// Detalle: el back manda más datos del restaurante (dirección, ciudad,
+// horarios, etc.) que el listado. Ver PublicPromotionService.findOne.
 export interface PublicPromotionDetail extends Omit<PublicPromotion, "restaurante"> {
   restaurante: PublicPromotionRestaurant & {
     descripcion: string | null;
@@ -56,12 +62,11 @@ export interface PublicPromotionDetail extends Omit<PublicPromotion, "restaurant
   };
 }
 
-// Mismos filtros que ExploreService.findRestaurants, más categoriaId
-// (FindPublicPromotionsDto extiende FindRestaurantsDto en el back).
-// OJO: acá no hay "search" por nombre de promoción en el back -- si se
-// necesita, agregar primero FindPublicPromotionsDto.search en el back.
+// Mismos filtros que ExploreService.findRestaurants (FindPublicPromotionsDto
+// extiende FindRestaurantsDto en el back para que ambos listados usen el
+// mismo radio).
 export interface FindPublicPromotionsFilters {
-  categoriaId?: number | string;
+  search?: string;
   provinceId?: number | string;
   cityId?: number | string;
   radius?: number;
@@ -70,10 +75,12 @@ export interface FindPublicPromotionsFilters {
 }
 
 class PublicPromotionService {
-  async findAvailable(filters: FindPublicPromotionsFilters = {}): Promise<PublicPromotion[]> {
+  async findAvailable(
+    filters: FindPublicPromotionsFilters = {}
+  ): Promise<PublicPromotion[]> {
     const params = new URLSearchParams();
 
-    if (filters.categoriaId != null) params.append("categoriaId", String(filters.categoriaId));
+    if (filters.search) params.append("search", filters.search);
     if (filters.provinceId != null) params.append("provinceId", String(filters.provinceId));
     if (filters.cityId != null) params.append("cityId", String(filters.cityId));
     if (filters.radius != null) params.append("radius", String(filters.radius));

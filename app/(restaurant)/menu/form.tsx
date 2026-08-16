@@ -2,9 +2,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import CategoryService, { Category } from "../../../services/category.service";
 import MenuService, { Menu } from "../../../services/menu.service";
 import { AppAlert } from "../../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
 import FormDateField from "../../components/restaurant/FormDateField";
 import FormImagePicker from "../../components/restaurant/FormImagePicker";
 import FormTextField from "../../components/restaurant/FormTextField";
@@ -22,10 +24,29 @@ export default function MenuFormScreen() {
   const [price, setPrice] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [publishOnSave, setPublishOnSave] = useState(true);
   const [currentEstado, setCurrentEstado] = useState<Menu["estado"] | null>(null);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  useEffect(() => {
+    CategoryService.getMyCategories()
+      .then((cats) => {
+        setCategories(cats);
+        if (cats.length === 0) {
+          AppAlert.alert(
+            "Sin categorías",
+            "Todavía no elegiste las categorías de tu restaurante. Andá a Mi perfil > Categorías para elegirlas antes de crear un menú."
+          );
+        }
+      })
+      .catch((e) => AppAlert.alert("Error", e.message || "No se pudieron cargar las categorías."))
+      .finally(() => setCategoriesLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -36,6 +57,7 @@ export default function MenuFormScreen() {
         setPrice(String(menu.precio));
         setStartDate(menu.fecha_inicio.slice(0, 10));
         setEndDate(menu.fecha_fin.slice(0, 10));
+        setCategoryId(menu.categoria_id);
         setImageUri(menu.foto_url);
         setCurrentEstado(menu.estado);
         setPublishOnSave(menu.estado === "publicado");
@@ -46,15 +68,19 @@ export default function MenuFormScreen() {
 
   function validate() {
     if (!name.trim()) {
-      AppAlert.alert("Falta el nombre", "Ingresá el nombre del menú.");
+      AppAlert.alert("Falta el nombre", "Ingresa el nombre del menú.");
       return false;
     }
     if (!price.trim() || isNaN(Number(price))) {
-      AppAlert.alert("Precio inválido", "Ingresá un precio válido.");
+      AppAlert.alert("Precio inválido", "Ingresa un precio válido.");
       return false;
     }
     if (!startDate.trim() || !endDate.trim()) {
-      AppAlert.alert("Faltan fechas", "Ingresá la fecha de inicio y fin del menú.");
+      AppAlert.alert("Faltan fechas", "Ingresa la fecha de inicio y fin del menú.");
+      return false;
+    }
+    if (!categoryId) {
+      AppAlert.alert("Falta la categoría", "Elige una categoría para el menú.");
       return false;
     }
     if (!isEditing && !imageUri) {
@@ -74,6 +100,7 @@ export default function MenuFormScreen() {
         precio: Number(price),
         fechaInicio: startDate.trim(),
         fechaFin: endDate.trim(),
+        categoriaId: categoryId!,
         imageUri,
       };
 
@@ -124,7 +151,7 @@ export default function MenuFormScreen() {
 
           <FormTextField
             label="Nombre del menú"
-            placeholder="Ingresá el nombre del menú"
+            placeholder="Ingresa el nombre del menú"
             value={name}
             onChangeText={setName}
             icon="restaurant-outline"
@@ -141,11 +168,19 @@ export default function MenuFormScreen() {
 
           <FormTextField
             label="Precio"
-            placeholder="Ingresá el precio del menú"
+            placeholder="Ingresa el precio del menú"
             value={price}
             onChangeText={setPrice}
             icon="pricetag-outline"
             keyboardType="decimal-pad"
+          />
+
+          <FormCategoryPicker
+            label="Categoría"
+            categories={categories}
+            value={categoryId}
+            onChange={setCategoryId}
+            loading={categoriesLoading}
           />
 
           <Text style={styles.label}>Programar fechas</Text>
@@ -164,8 +199,6 @@ export default function MenuFormScreen() {
   value={endDate}
   onChangeText={setEndDate}
 />
-          <Text style={styles.dateHint}>Dejá vacío si es solo para hoy</Text>
-
           {/* El create/update no acepta "estado" directamente -- después
               de guardar, handleSave compara este valor contra el estado
               real del menú y llama a MenuService.toggle() si hace falta

@@ -45,7 +45,7 @@ const SLIDES: Slide[] = [
   {
     key: 'slide3',
     title: 'Elije, explora\ny disfruta',
-    subtitle: 'Explorá los mejores restaurantes\nde todo Ecuador.',
+    subtitle: 'Explora los mejores restaurantes\nde todo Ecuador.',
     image: require('../../assets/images/onboarding-3.png'),
     buttonLabel: 'Comenzar',
   },

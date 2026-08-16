@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,17 +8,12 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
-  ScrollView,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppAlert } from "../common/AppAlert";
-import { showLocationError } from "../../utils/locationErrors";
-import { useTheme } from "../../../contexts/ThemeContext";
-import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 // Coordenadas por defecto de Ecuador
 const ECUADOR_DEFAULT: Region = {
@@ -66,9 +61,6 @@ export default function MapLocationPicker({
   cityCoords,
 }: MapLocationPickerProps) {
   const mapRef = useRef<MapView>(null);
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const startingPoint = initialLocation ?? cityCoords ?? ECUADOR_DEFAULT;
   const startingDelta = initialLocation
     ? { latitudeDelta: 0.005, longitudeDelta: 0.005 }
@@ -111,8 +103,8 @@ export default function MapLocationPicker({
 
   function promptLocationChoice() {
     AppAlert.alert(
-      "¿Cómo querés fijar tu ubicación?",
-      "Podés usar tu ubicación actual o elegirla manualmente en el mapa.",
+      "¿Cómo quieres fijar tu ubicación?",
+      "Puedes usar tu ubicación actual o elegirla manualmente en el mapa.",
       [
         {
           text: "Elegir en el mapa",
@@ -134,13 +126,34 @@ export default function MapLocationPicker({
       });
       if (results.length > 0) {
         const r = results[0];
-        const parts = [r.street, r.streetNumber, r.district]
+        // Orden de prioridad: calle+numero > calle sola > barrio/sector > ciudad.
+        // Antes esto quedaba en "" apenas faltaba street/streetNumber/district,
+        // que es lo mas comun fuera de zonas urbanas bien mapeadas.
+        const streetLine = [r.street, r.streetNumber].filter(Boolean).join(" ");
+        const fallback = [r.district, r.subregion, r.city, r.region]
           .filter(Boolean)
           .join(", ");
-        setAddress(parts || "");
+        const resolved = streetLine || fallback;
+        if (resolved) {
+          setAddress(resolved);
+        } else {
+          AppAlert.alert(
+            "No se pudo detectar la dirección",
+            "Escribe la dirección manualmente para este punto."
+          );
+        }
+      } else {
+        AppAlert.alert(
+          "No se pudo detectar la dirección",
+          "Escribe la dirección manualmente para este punto."
+        );
       }
     } catch (e) {
       console.log("Error en geocoding:", e);
+      AppAlert.alert(
+        "No se pudo obtener la dirección",
+        "Revisa tu conexión o escribe la dirección manualmente."
+      );
     }
   }
 
@@ -155,13 +168,10 @@ export default function MapLocationPicker({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        showLocationError("permissionDenied");
-        return;
-      }
-
-      const servicesEnabled = await Location.hasServicesEnabledAsync();
-      if (!servicesEnabled) {
-        showLocationError("locationServicesDisabled");
+        AppAlert.alert(
+          "Permiso denegado",
+          "No se pudo acceder a tu ubicación. Puedes elegirla manualmente tocando el mapa."
+        );
         return;
       }
 
@@ -180,18 +190,14 @@ export default function MapLocationPicker({
       mapRef.current?.animateToRegion(newRegion, 600);
       await reverseGeocode(latitude, longitude);
     } catch (e) {
-      console.log("Error obteniendo ubicación:", e);
-      showLocationError("locationUnavailable", handleMyLocation);
+      console.log("Error:", e);
     } finally {
       setLocating(false);
     }
   }
 
   async function handleConfirm() {
-    if (!address.trim()) {
-      showLocationError("incompleteManualAddress");
-      return;
-    }
+    if (!address.trim()) return;
     setConfirming(true);
     try {
       await onConfirm({
@@ -205,14 +211,11 @@ export default function MapLocationPicker({
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>{title}</Text>
@@ -226,7 +229,7 @@ export default function MapLocationPicker({
       <View style={styles.mapContainer}>
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <ActivityIndicator size="large" color="#F5A800" />
             <Text style={styles.loadingText}>Cargando mapa...</Text>
           </View>
         ) : (
@@ -248,9 +251,9 @@ export default function MapLocationPicker({
           disabled={locating}
         >
           {locating ? (
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color="#F5A800" />
           ) : (
-            <Ionicons name="locate" size={22} color={colors.primary} />
+            <Ionicons name="locate" size={22} color="#F5A800" />
           )}
         </TouchableOpacity>
 
@@ -258,59 +261,53 @@ export default function MapLocationPicker({
           <Ionicons
             name="information-circle-outline"
             size={14}
-            color={colors.textSecondary}
+            color="#757575"
           />
           <Text style={styles.hintText}>
-            Tocá el mapa para ajustar tu ubicación
+            Toca el mapa para ajustar tu ubicación
           </Text>
         </View>
       </View>
 
-      {/* Panel inferior: contenido de altura fija y acotada (label + input +
-          hint + botón), nunca crece con el teclado. El que se achica es el
-          mapa de arriba (flex: 1), así este panel queda siempre visible
-          completo por encima del teclado -- ver KeyboardAvoidingView que
-          envuelve toda la pantalla, más abajo. */}
-      <ScrollView
+      {/* Panel inferior */}
+      <KeyboardAvoidingView
+        // En Android, con android:windowSoftInputMode en "resize" (el default de
+        // Expo), el sistema ya achica la ventana cuando aparece el teclado.
+        // Si acá además usamos behavior="height", se descuenta el alto del
+        // teclado dos veces y el panel queda mal calculado (tapa el input).
+        // Por eso en Android no aplicamos ningún behavior extra.
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.bottomPanel}
-        contentContainerStyle={{
-          paddingHorizontal: 18,
-          paddingTop: 20,
-          paddingBottom: Math.max(28, insets.bottom),
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        bounces={false}
       >
         <Text style={styles.addressLabel}>Dirección aproximada</Text>
         <View style={styles.addressInput}>
           <Ionicons
             name="location-outline"
             size={20}
-            color={colors.primary}
+            color="#F5A800"
             style={styles.addressIcon}
           />
           <TextInput
             value={address}
             onChangeText={setAddress}
             placeholder="Ej: Av. Amazonas N34-183"
-            placeholderTextColor={colors.placeholder}
+            placeholderTextColor="#B7B7B7"
             style={styles.input}
             returnKeyType="done"
-            selectionColor={colors.primary}
+            selectionColor="#F5A800"
           />
           {address.length > 0 && (
             <TouchableOpacity onPress={() => setAddress("")}>
-              <Ionicons name="close-circle" size={18} color={colors.placeholder} />
+              <Ionicons name="close-circle" size={18} color="#BDBDBD" />
             </TouchableOpacity>
           )}
         </View>
         <Text style={styles.addressHint}>
-          Podés editar la dirección si no es exacta
+          Puedes editar la dirección si no es exacta
         </Text>
 
         <TouchableOpacity
-          disabled={confirming}
+          disabled={!address.trim() || confirming}
           onPress={handleConfirm}
           style={styles.confirmTouchable}
         >
@@ -332,15 +329,15 @@ export default function MapLocationPicker({
             )}
           </LinearGradient>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
@@ -348,13 +345,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    borderBottomColor: "#F0F0F0",
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -365,11 +362,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: colors.text,
+    color: "#1A1A1A",
   },
   headerSubtitle: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: "#757575",
     marginTop: 2,
   },
   mapContainer: {
@@ -387,7 +384,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: "#757575",
   },
   myLocationButton: {
     position: "absolute",
@@ -396,10 +393,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.card,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.shadow,
+    shadowColor: "#000",
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -411,7 +408,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.card,
+    backgroundColor: "rgba(255,255,255,0.9)",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -419,13 +416,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   hintText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: "#757575",
   },
   bottomPanel: {
-    backgroundColor: colors.background,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 28,
     borderTopWidth: 1,
-    borderTopColor: colors.divider,
-    shadowColor: colors.shadow,
+    borderTopColor: "#F0F0F0",
+    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: -3 },
@@ -434,18 +434,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   addressLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: colors.text,
+    color: "#1A1A1A",
     marginBottom: 10,
   },
   addressInput: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: colors.inputBorder,
+    borderColor: "#E7E7E7",
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 52,
-    backgroundColor: colors.inputBackground,
+    backgroundColor: "#FAFAFA",
     marginBottom: 6,
   },
   addressIcon: {
@@ -454,12 +454,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: colors.text,
+    color: "#1A1A1A",
     paddingVertical: 0,
   },
   addressHint: {
     fontSize: 12,
-    color: colors.placeholder,
+    color: "#A8A8A8",
     marginBottom: 20,
     paddingLeft: 4,
   },

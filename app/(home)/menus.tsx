@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -16,8 +16,7 @@ import { router } from "expo-router";
 
 import PublicMenuService, { PublicMenu } from "../../services/public-menu.service";
 import UserService from "../../services/user.service";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
+import { EmptyState } from "../components/common/EmptyState";
 
 // Pestaña "Menús": todos los menús del día vigentes/publicados cerca del
 // comensal, entre restaurantes (a diferencia de "Menú del día" dentro de
@@ -47,8 +46,6 @@ const OPEN_LABEL: Record<string, { text: string; color: string }> = {
 const DISTANCE_OPTIONS = [1, 3, 5, 10, 0]; // 0 = "cualquiera"
 
 export default function MenusScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState("");
   const [maxDistance, setMaxDistance] = useState(0);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -112,17 +109,17 @@ export default function MenusScreen() {
       <Text style={styles.title}>Menús</Text>
 
       <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color={colors.placeholder} />
+        <Ionicons name="search" size={18} color="#9E9E9E" />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar en menús del día..."
-          placeholderTextColor={colors.placeholder}
+          placeholderTextColor="#B0B0B0"
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={18} color={colors.placeholder} />
+            <Ionicons name="close-circle" size={18} color="#B0B0B0" />
           </TouchableOpacity>
         )}
       </View>
@@ -148,7 +145,7 @@ export default function MenusScreen() {
                 <Ionicons
                   name="navigate-outline"
                   size={13}
-                  color={active ? "#FFFFFF" : colors.text}
+                  color={active ? "#FFFFFF" : "#3E2723"}
                 />
               )}
               <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
@@ -165,7 +162,7 @@ export default function MenusScreen() {
         </View>
       ) : error ? (
         <View style={styles.centerWrap}>
-          <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
+          <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
           <Text style={styles.emptyText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={fetchMenus}>
             <Text style={styles.retryButtonText}>Reintentar</Text>
@@ -181,12 +178,10 @@ export default function MenusScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />
           }
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="restaurant-outline" size={36} color={colors.placeholder} />
-              <Text style={styles.emptyText}>
-                No hay menús del día publicados cerca tuyo por ahora. Probá ampliar la distancia o volvé más tarde.
-              </Text>
-            </View>
+            <EmptyState
+              mascot={require("../../assets/images/nene-brazos-cruzados.png")}
+              text="No hay menús del día publicados cerca tuyo por ahora. Probá ampliar la distancia o vuelve más tarde."
+            />
           }
           renderItem={({ item }) => {
             const status = OPEN_LABEL[item.restaurante.estado_operativo] ?? OPEN_LABEL.cerrado;
@@ -199,13 +194,10 @@ export default function MenusScreen() {
               >
                 <View style={styles.imageWrap}>
                   {item.foto_url ? (
-                    <Image
-                      source={{ uri: item.foto_url }}
-                      style={styles.image}
-                    />
+                    <Image source={{ uri: item.foto_url }} style={styles.image} />
                   ) : (
                     <View style={[styles.image, styles.imagePlaceholder]}>
-                      <Ionicons name="restaurant-outline" size={24} color={colors.placeholder} />
+                      <Ionicons name="restaurant-outline" size={24} color="#BDBDBD" />
                     </View>
                   )}
                   <View style={styles.priceBadge}>
@@ -216,13 +208,10 @@ export default function MenusScreen() {
                 <View style={styles.info}>
                   <View style={styles.restaurantRow}>
                     {item.restaurante.logo_url ? (
-                      <Image
-                        source={{ uri: item.restaurante.logo_url }}
-                        style={styles.logo}
-                      />
+                      <Image source={{ uri: item.restaurante.logo_url }} style={styles.logo} />
                     ) : (
                       <View style={[styles.logo, styles.logoPlaceholder]}>
-                        <Ionicons name="storefront-outline" size={12} color={colors.placeholder} />
+                        <Ionicons name="storefront-outline" size={12} color="#BDBDBD" />
                       </View>
                     )}
                     <Text style={styles.restaurantName} numberOfLines={1}>
@@ -249,7 +238,7 @@ export default function MenusScreen() {
 
                     {item.distancia != null && (
                       <View style={styles.metaItem}>
-                        <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
+                        <Ionicons name="location-outline" size={12} color="#9E9E9E" />
                         <Text style={styles.metaText}>{item.distancia.toFixed(1)} km</Text>
                       </View>
                     )}
@@ -268,29 +257,26 @@ export default function MenusScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16 },
-  title: { fontSize: 22, fontWeight: "bold", color: colors.text, marginTop: 8, marginBottom: 12 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FAFAFA", paddingHorizontal: 16 },
+  title: { fontSize: 22, fontWeight: "bold", color: "#3E2723", marginTop: 8, marginBottom: 12 },
 
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: colors.inputBackground,
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 46,
     borderWidth: 1,
-    borderColor: colors.inputBorder,
+    borderColor: "#EFEFEF",
     marginBottom: 14,
   },
-  searchInput: { flex: 1, fontSize: 14, color: colors.text },
+  searchInput: { flex: 1, fontSize: 14, color: "#1A1A1A" },
 
   distanceListWrapper: { flexGrow: 0, marginBottom: 14 },
-  // paddingRight: sin esto el último chip ("Cualquier distancia") queda
-  // pegado/cortado justo en el borde de la pantalla (mismo fix que ya
-  // tiene restaurantes.tsx).
-  distanceList: { gap: 8, paddingRight: 16 },
+  distanceList: { gap: 8 },
   sortChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -298,19 +284,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#EFEFEF",
   },
-  sortChipActive: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
+  sortChipActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
   sortChipDisabled: { opacity: 0.4 },
-  sortChipText: { fontSize: 12, fontWeight: "700", color: colors.text },
+  sortChipText: { fontSize: 12, fontWeight: "700", color: "#3E2723" },
   sortChipTextActive: { color: "#FFFFFF" },
 
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
   retryButton: {
     marginTop: 4,
-    backgroundColor: colors.primaryDark,
+    backgroundColor: "#FB8C00",
     borderRadius: 12,
     paddingHorizontal: 18,
     paddingVertical: 9,
@@ -319,15 +305,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   list: { paddingBottom: 120 },
   emptyWrap: { alignItems: "center", marginTop: 60, paddingHorizontal: 30, gap: 10 },
-  emptyText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  emptyText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
 
   card: {
     flexDirection: "row",
-    backgroundColor: colors.card,
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     marginBottom: 14,
     overflow: "hidden",
-    shadowColor: colors.shadow,
+    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -335,7 +321,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   imageWrap: { width: 100, height: 100, position: "relative" },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  imagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
   priceBadge: {
     position: "absolute",
     bottom: 6,
@@ -350,14 +336,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   info: { flex: 1, padding: 10, justifyContent: "center", gap: 2 },
   restaurantRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
   logo: { width: 18, height: 18, borderRadius: 9 },
-  logoPlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
-  restaurantName: { flex: 1, fontSize: 11, fontWeight: "700", color: colors.textSecondary },
+  logoPlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
+  restaurantName: { flex: 1, fontSize: 11, fontWeight: "700", color: "#9E9E9E" },
 
-  dishName: { fontSize: 15, fontWeight: "800", color: colors.text },
-  dishDescription: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  dishName: { fontSize: 15, fontWeight: "800", color: "#1A1A1A" },
+  dishDescription: { fontSize: 12, color: "#9E9E9E", marginTop: 1 },
 
   metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 6 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 3 },
-  metaText: { fontSize: 11, fontWeight: "700", color: colors.text },
+  metaText: { fontSize: 11, fontWeight: "700", color: "#3E2723" },
   statusText: { fontSize: 11, fontWeight: "700" },
 });

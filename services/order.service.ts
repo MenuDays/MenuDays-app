@@ -2,8 +2,6 @@ import { api } from "./api";
 import RestaurantService from "./restaurant.service";
 
 // ==========================================================================
-// Conectado a los endpoints reales del back (antes esto estaba mockeado).
-//
 // - POST /orders          -- ya soporta menuId/dishId/promotionId +
 //   metodoEntrega (DELIVERY | RETIRO_EN_LOCAL). Responde solo un resumen
 //   (id, estado, tipo, metodoEntrega, fechaPedido, total), no el pedido
@@ -15,16 +13,6 @@ import RestaurantService from "./restaurant.service";
 //   no hace falta el mock ni el fallback local salvo que falle el fetch.
 // - Teléfono/WhatsApp del restaurante: no viene en ningún endpoint de
 //   /orders, se pide aparte con RestaurantService.getPublicDetail().
-//
-// PENDIENTE (pedirle a Belén, no es urgente):
-// - La tabla "pedidos" ya tiene columna "codigo_unico" (autogenerada en
-//   la base), pero ningún endpoint de OrderService (back) la devuelve
-//   todavía -- ni create(), ni findOne()/serializeOrder(), ni
-//   getHistory()/serializeListOrder(). Acá ya está todo listo para
-//   cuando la agregue: OrderDetail.codigoUnico es opcional y
-//   buildFullOrder() ya lo lee de la respuesta si existe. Hasta que
-//   eso pase, codigoUnico queda en null y pedido-confirmar.tsx usa un
-//   fallback (ver ese archivo).
 // ==========================================================================
 
 export type OrderItemType = "plato" | "menu_dia" | "promocion";
@@ -102,15 +90,36 @@ export interface Order {
 //   portada); para contactarlo hay que pedir aparte
 //   RestaurantService.getPublicDetail(restauranteId) y usar
 //   telefonos[0], igual que en restaurante-detalle.tsx.
-// - codigoUnico es opcional porque el back todavía no lo devuelve (ver
-//   nota arriba); queda listo para cuando lo agregue.
+// - codigoUnico: el back lo manda como codigo_unico (snake_case); getById()
+//   ya lo normaliza a camelCase acá abajo, así que en el resto de la app
+//   siempre se usa codigoUnico.
 // - No incluye "historial" acá tampoco (eso solo se arma para el lado
 //   restaurante, vía GET /orders/restaurant/:id).
 // ==========================================================================
 
+// Shape TAL CUAL lo manda el back en GET /orders/:id (serializeOrder()):
+// codigo_unico en snake_case, sin transformar. No se expone fuera de este
+// archivo -- getById() lo normaliza a OrderDetail (camelCase) antes de
+// devolverlo, para no mezclar las dos convenciones en el resto de la app.
+interface OrderDetailRaw {
+  id: string;
+  codigo_unico: string | null;
+  usuario: { id: string; nombre: string; foto: string | null };
+  restaurante: { id: string; nombre: string; portada: string | null };
+  pedido: {
+    tipo: OrderItemType;
+    estado: OrderStatus;
+    total: number;
+    observaciones: string | null;
+    metodoEntrega: BackendDeliveryMethod;
+    fecha: string;
+  };
+  producto: OrderProduct;
+}
+
 export interface OrderDetail {
   id: string;
-  codigoUnico?: string | null;
+  codigoUnico: string | null;
   usuario: { id: string; nombre: string; foto: string | null };
   restaurante: { id: string; nombre: string; portada: string | null };
   pedido: {
@@ -126,6 +135,29 @@ export interface OrderDetail {
 
 export interface WhatsAppSummary {
   mensajeWhatsapp: string;
+}
+
+// ==========================================================================
+// Historial del comensal -- GET /orders/history. A diferencia de
+// OrderDetail (GET /orders/:id), este endpoint devuelve un shape PLANO
+// (mismo que serializeListOrder() del lado restaurante): nombre/imagen/
+// estado/total sueltos en el objeto, no anidados en "producto"/"pedido".
+// codigo_unico llega en snake_case tal cual la columna de la base (api.ts
+// no transforma keys).
+// ==========================================================================
+
+export interface OrderHistoryItem {
+  id: string;
+  codigo_unico: string | null;
+  usuario: { id: string; nombre: string; foto: string | null };
+  restaurante: { id: string; nombre: string };
+  tipo: OrderItemType;
+  nombre: string | null;
+  imagen: string | null;
+  estado: OrderStatus;
+  metodoEntrega: BackendDeliveryMethod;
+  total: number;
+  fecha: string;
 }
 
 // ==========================================================================
@@ -209,13 +241,17 @@ class OrderService {
   }
 
   // Historial de pedidos del comensal autenticado -- GET /orders/history.
-  async getHistory(): Promise<OrderDetail[]> {
-    return await api<OrderDetail[]>("/orders/history");
+  // Shape plano, ver OrderHistoryItem arriba (no confundir con
+  // OrderDetail, que es GET /orders/:id).
+  async getHistory(): Promise<OrderHistoryItem[]> {
+    return await api<OrderHistoryItem[]>("/orders/history");
   }
 
   // Detalle de un pedido puntual, vista comensal -- GET /orders/:id.
   async getById(id: string | number): Promise<OrderDetail> {
-    return await api<OrderDetail>(`/orders/${id}`);
+    const raw = await api<OrderDetailRaw>(`/orders/${id}`);
+    const { codigo_unico, ...rest } = raw;
+    return { ...rest, codigoUnico: codigo_unico ?? null };
   }
 
   // Texto armado por el back para mandar por WhatsApp -- GET

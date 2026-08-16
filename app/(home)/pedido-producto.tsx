@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -8,20 +8,23 @@ import PublicMenuService from "../../services/public-menu.service";
 import PublicDishService from "../../services/public-dish.service";
 import PublicPromotionService from "../../services/public-promotion.service";
 import { OrderItemType } from "../../services/order.service";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
 
-// Conectado a GET /public/menus/:id, /public/dishes/:id y
-// /public/promotions/:id según el `tipo` que llega por params (mismo
-// valor que después viaja a pedido-entrega.tsx -> pedido-confirmar.tsx
-// -> OrderService.create, que ya soporta los 3 tipos). El botón "Pedir"
-// que llega acá vive en restaurante-detalle.tsx, en las 3 secciones
-// (Menú del día / Platos / Promociones).
+// Conectado a GET /public/menus/:id, GET /public/dishes/:id y
+// GET /public/promotions/:id (PublicMenuService / PublicDishService /
+// PublicPromotionService), según el "tipo" que llegue por params.
+//
+// Se llega acá desde:
+// - restaurante-detalle.tsx: botón "Pedir" de Menú del día / Platos /
+//   Promociones, con params { id, tipo }.
+// - explorar-resultados.tsx: tap en una card de Platos/Menús/
+//   Promociones, con params { id, tipo }.
+//
+// Los tres endpoints devuelven shapes distintos (nombre vs. titulo,
+// foto_url vs. imagen_url vs. plato_imagenes[]), así que acá se
+// normalizan a un único "producto" para que el JSX no tenga que
+// ramificar en todos lados.
 
-// Forma común a la que se normalizan los 3 tipos de producto, para
-// compartir una sola UI (igual criterio que explorar-resultados.tsx).
-interface ProductoDetalle {
-  id: string;
+interface ProductoNormalizado {
   nombre: string;
   descripcion: string | null;
   precio: number;
@@ -29,68 +32,88 @@ interface ProductoDetalle {
   restauranteNombre: string;
 }
 
-async function fetchProducto(tipo: OrderItemType, id: string): Promise<ProductoDetalle> {
-  if (tipo === "menu_dia") {
-    const m = await PublicMenuService.findOne(id);
-    return {
-      id: m.id,
-      nombre: m.nombre,
-      descripcion: m.descripcion,
-      precio: m.precio,
-      imagenUrl: m.foto_url,
-      restauranteNombre: m.restaurante.nombre_comercial,
-    };
-  }
-  if (tipo === "plato") {
-    const d = await PublicDishService.findOne(id);
-    return {
-      id: d.id,
-      nombre: d.nombre,
-      descripcion: d.descripcion,
-      precio: d.precio,
-      imagenUrl: d.plato_imagenes?.[0]?.url ?? null,
-      restauranteNombre: d.restaurante.nombre_comercial,
-    };
-  }
-  const p = await PublicPromotionService.findOne(id);
-  return {
-    id: p.id,
-    nombre: p.titulo,
-    descripcion: p.descripcion,
-    precio: p.precio,
-    imagenUrl: p.imagen_url,
-    restauranteNombre: p.restaurante.nombre_comercial,
-  };
-}
-
 export default function PedidoProductoScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const params = useLocalSearchParams<{ productoId: string; tipo: OrderItemType }>();
+  const params = useLocalSearchParams<{
+    id: string;
+    tipo: OrderItemType;
+    // Compatibilidad con el link viejo de menús del día
+    // (menuId/restauranteId), por si queda algún router.push sin
+    // actualizar en el proyecto.
+    menuId?: string;
+  }>();
 
-  const [producto, setProducto] = useState<ProductoDetalle | null>(null);
+  const productId = params.id ?? params.menuId;
+  const tipo: OrderItemType = params.tipo ?? "menu_dia";
+
+  const [producto, setProducto] = useState<ProductoNormalizado | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Esta pantalla vive dentro del stack de tabs "(home)", cuya tab bar
+  // flota con position "absolute" (ver styles.tabBar en _layout.tsx:
+  // height 74 + bottom 18+insets.bottom). Al ser absoluta, no reserva
+  // espacio real en el layout, así que el footer con el CTA "Realizar
+  // pedido" queda tapado por la barra si no le sumamos ese alto a mano.
+  const insets = useSafeAreaInsets();
+  const tabBarSpace = 74 + 18 + insets.bottom;
+
   useEffect(() => {
-    if (!params.productoId || !params.tipo) {
+    // Reseteo antes de cada fetch: si el intento anterior falló (ej.
+    // "el producto ya no está disponible") y el usuario vuelve y entra
+    // a otro producto válido, sin este reset el "error" viejo seguía
+    // marcado y la pantalla mostraba ese error aunque el nuevo fetch
+    // trajera el producto bien (el chequeo de abajo es `error || !producto`).
+    setLoading(true);
+    setError(null);
+    setProducto(null);
+
+    if (!productId) {
       setError("No se especificó qué producto mostrar.");
       setLoading(false);
       return;
     }
-    fetchProducto(params.tipo, params.productoId)
+
+    let request: Promise<ProductoNormalizado>;
+
+    if (tipo === "plato") {
+      request = PublicDishService.findOne(productId).then((dish) => ({
+        nombre: dish.nombre,
+        descripcion: dish.descripcion,
+        precio: dish.precio,
+        imagenUrl: dish.plato_imagenes[0]?.url ?? null,
+        restauranteNombre: dish.restaurante.nombre_comercial,
+      }));
+    } else if (tipo === "promocion") {
+      request = PublicPromotionService.findOne(productId).then((promo) => ({
+        nombre: promo.titulo,
+        descripcion: promo.descripcion,
+        precio: promo.precio,
+        imagenUrl: promo.imagen_url,
+        restauranteNombre: promo.restaurante.nombre_comercial,
+      }));
+    } else {
+      request = PublicMenuService.findOne(productId).then((menu) => ({
+        nombre: menu.nombre,
+        descripcion: menu.descripcion,
+        precio: menu.precio,
+        imagenUrl: menu.foto_url,
+        restauranteNombre: menu.restaurante.nombre_comercial,
+      }));
+    }
+
+    request
       .then(setProducto)
       .catch((e: any) => setError(e.message || "No se pudo cargar el producto."))
       .finally(() => setLoading(false));
-  }, [params.tipo, params.productoId]);
+  }, [productId, tipo]);
 
   function handleRealizarPedido() {
-    if (!producto) return;
+    if (!producto || !productId) return;
     router.push({
       pathname: "/(home)/pedido-entrega",
       params: {
-        productoId: producto.id,
-        tipo: params.tipo,
+        productoId: productId,
+        tipo,
       },
     });
   }
@@ -98,21 +121,21 @@ export default function PedidoProductoScreen() {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={colors.primaryDark} />
+        <ActivityIndicator size="large" color="#FB8C00" />
       </View>
     );
   }
 
   if (error || !producto) {
     return (
-      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
+            <Ionicons name="chevron-back" size={22} color="#3E2723" />
           </TouchableOpacity>
         </View>
         <View style={styles.centerContainer}>
-          <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
+          <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
           <Text style={styles.errorText}>{error || "No se pudo cargar el producto."}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
             <Text style={styles.retryButtonText}>Volver</Text>
@@ -123,10 +146,10 @@ export default function PedidoProductoScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
+          <Ionicons name="chevron-back" size={22} color="#3E2723" />
         </TouchableOpacity>
       </View>
 
@@ -136,7 +159,7 @@ export default function PedidoProductoScreen() {
             <Image source={{ uri: producto.imagenUrl }} style={styles.image} />
           ) : (
             <View style={[styles.image, styles.imagePlaceholder]}>
-              <Ionicons name="restaurant-outline" size={32} color={colors.placeholder} />
+              <Ionicons name="restaurant-outline" size={32} color="#BDBDBD" />
             </View>
           )}
         </View>
@@ -149,7 +172,7 @@ export default function PedidoProductoScreen() {
         {producto.descripcion ? <Text style={styles.descripcion}>{producto.descripcion}</Text> : null}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
         <TouchableOpacity style={styles.cta} onPress={handleRealizarPedido}>
           <Text style={styles.ctaText}>Realizar pedido</Text>
         </TouchableOpacity>
@@ -158,37 +181,37 @@ export default function PedidoProductoScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  centerContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30, backgroundColor: colors.background },
-  errorText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
-  retryButton: { marginTop: 4, backgroundColor: colors.primaryDark, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  centerContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30, backgroundColor: "#FFFFFF" },
+  errorText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
+  retryButton: { marginTop: 4, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 },
   retryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   header: { paddingHorizontal: 16, paddingTop: 4 },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
   },
   content: { padding: 20, paddingBottom: 24 },
   imageWrap: { height: 220, borderRadius: 20, overflow: "hidden", marginBottom: 18 },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
-  restaurante: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, marginBottom: 4 },
+  imagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
+  restaurante: { fontSize: 13, fontWeight: "700", color: "#9E9E9E", marginBottom: 4 },
   topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
-  nombre: { flex: 1, fontSize: 22, fontWeight: "900", color: colors.text },
-  precio: { fontSize: 18, fontWeight: "800", color: colors.primaryDark },
-  descripcion: { fontSize: 14, color: colors.textSecondary, marginTop: 10, lineHeight: 20 },
+  nombre: { flex: 1, fontSize: 22, fontWeight: "900", color: "#1A1A1A" },
+  precio: { fontSize: 18, fontWeight: "800", color: "#FB8C00" },
+  descripcion: { fontSize: 14, color: "#6B6B6B", marginTop: 10, lineHeight: 20 },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: colors.divider,
+    borderTopColor: "#F0F0F0",
   },
   cta: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#FFA726",
     borderRadius: 24,
     paddingVertical: 15,
     alignItems: "center",

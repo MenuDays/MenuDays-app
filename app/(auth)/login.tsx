@@ -4,9 +4,10 @@ import { Link, router } from "expo-router";
 import LottieView from 'lottie-react-native';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Dimensions,
+  Image,
   ImageBackground,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -15,8 +16,8 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthService from "../../services/auth.service";
+import CategoryService from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
-import { useTheme } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get('window');
 
@@ -54,33 +55,41 @@ const CATEGORIES = [
 ];
 
 export default function LoginScreen() {
-  const { refreshRole } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [loggingIn, setLoggingIn] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
-    if (loggingIn) return; // evita doble submit (doble tap mientras ya está en curso)
-    setLoggingIn(true);
+    if (loading) return;
+    setLoading(true);
     try {
       const response = await AuthService.login({
         email,
         password,
       });
 
-      // Dark Mode es solo para el rol comensal -- esto actualiza el lock
-      // de ThemeContext con el rol recién logueado antes de navegar al
-      // dashboard correspondiente.
-      refreshRole();
-
       const rol = response.user?.rol;
 
       if (rol === "administrador") {
         router.replace("/(admin)/dashboard");
       } else if (rol === "restaurante") {
-        router.replace("/(restaurant)/dashboard");
+        // Si el restaurante todavía no eligió sus categorías, lo
+        // mandamos primero a esa pantalla (obligatoria) antes del
+        // dashboard. Si la llamada falla por lo que sea, no bloqueamos
+        // el login: lo dejamos entrar igual y ya podrá elegirlas desde
+        // "Mi perfil" más tarde.
+        try {
+          const myCategories = await CategoryService.getRestaurantCategories();
+          if (myCategories.length === 0) {
+            router.replace("/(restaurant)/elegir-categorias");
+          } else {
+            router.replace("/(restaurant)/dashboard");
+          }
+        } catch {
+          router.replace("/(restaurant)/dashboard");
+        }
       } else {
         // comensal (o cualquier otro caso no contemplado)
         router.replace("/(province)");
@@ -90,11 +99,11 @@ export default function LoginScreen() {
         "Error",
         error.message || "No se pudo iniciar sesión."
       );
-      // Solo se reactiva el botón si falló -- si tuvo éxito, la pantalla
-      // ya está navegando afuera y no hace falta (evita un flash del
-      // botón "habilitado" antes de que la navegación termine).
-      setLoggingIn(false);
+      setLoading(false);
     }
+    // No hago setLoading(false) en el caso de éxito a propósito: la
+    // pantalla se desmonta por el router.replace, y dejar loading=true
+    // evita un parpadeo del botón/mascota mientras navega.
   }
 
   // Auto carrusel
@@ -154,7 +163,7 @@ export default function LoginScreen() {
       {/* Card blanca */}
       <View style={styles.card}>
         <Text style={styles.welcome}>¡Bienvenido!</Text>
-        <Text style={styles.subtitle}>Iniciá sesión para continuar</Text>
+        <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
         {/* Campo Email */}
         <Text style={styles.label}>Email o Teléfono</Text>
@@ -196,37 +205,40 @@ export default function LoginScreen() {
 
         {/* Botón iniciar sesión */}
         <TouchableOpacity
-            style={[styles.button, loggingIn && styles.buttonDisabled]}
+            style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleLogin}
-              disabled={loggingIn}
+              disabled={loading}
         >
           <LinearGradient
               colors={['#FFB74D', '#FB8C00']}
               style={styles.buttonGradient}
           >
-            {loggingIn ? (
-              <>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={[styles.buttonText, styles.buttonTextLoading]}>
-                  Ingresando...
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.buttonText}>
-                Iniciar sesión
-              </Text>
-            )}
+            <Text style={styles.buttonText}>
+              {loading ? "Iniciando sesión..." : "Iniciar sesión"}
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
 
         {/* Link registro */}
         <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>¿No tenés cuenta? </Text>
+          <Text style={styles.registerText}>¿No tienes cuenta? </Text>
           <Link href="/(auth)/register">
             <Text style={styles.registerLink}>Registrate</Text>
           </Link>
         </View>
       </View>
+
+      {/* Overlay con la mascota mientras se espera la respuesta del login */}
+      <Modal visible={loading} transparent animationType="fade">
+        <View style={styles.loadingOverlay}>
+          <Image
+            source={require('../../assets/images/login-nene.png')}
+            style={styles.loadingMascot}
+            resizeMode="contain"
+          />
+          <Text style={styles.loadingText}>Iniciando sesión...</Text>
+        </View>
+      </Modal>
     </KeyboardAwareScrollView>
   );
 }
@@ -341,23 +353,34 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 20,
   },
-  buttonDisabled: {
-    opacity: 0.85,
-  },
   buttonGradient: {
     height: 52,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  buttonTextLoading: {
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingMascot: {
+    width: 200,
+    height: 200,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#FFFFFF',
     fontSize: 15,
+    fontWeight: '600',
   },
   separator: {
     flexDirection: 'row',

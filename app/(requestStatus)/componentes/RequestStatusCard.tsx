@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
+  Image,
   StyleSheet,
   Text,
   View,
@@ -24,20 +25,28 @@ export default function RequestStatusCard({
 
   return (
     <View style={styles.card}>
-      <View
-        style={[
-          styles.iconContainer,
-          {
-            backgroundColor: config.background,
-          },
-        ]}
-      >
-        <Ionicons
-          name={config.icon}
-          size={46}
-          color={config.color}
+      {status === "pendiente" ? (
+        <Image
+          source={require("../../../assets/images/nene-pensando.png")}
+          style={styles.mascotImage}
+          resizeMode="contain"
         />
-      </View>
+      ) : (
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor: config.background,
+            },
+          ]}
+        >
+          <Ionicons
+            name={config.icon}
+            size={46}
+            color={config.color}
+          />
+        </View>
+      )}
 
       <Text
         style={[
@@ -131,6 +140,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
 
     marginBottom: 20,
+  },
+
+  mascotImage: {
+    width: 130,
+    height: 130,
+    marginBottom: 12,
   },
 
   status: {

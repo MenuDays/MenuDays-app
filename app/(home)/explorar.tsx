@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,8 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
 import CategoryService, { Category } from "../../services/category.service";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
+import { EmptyState } from "../components/common/EmptyState";
 
 // Tab "Explorar": grilla de categorías. Al tocar una, se navega a
 // explorar-resultados.tsx (buscador + filtros completos), precargada
@@ -27,8 +26,6 @@ import type { ThemeColors } from "../../contexts/ThemeContext";
 // fallback.
 
 export default function ExplorarCategoriasScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,10 +47,10 @@ export default function ExplorarCategoriasScreen() {
     }
   }
 
-  function handleSelectCategory(category: Category) {
+  function handleSelectCategory(category: string) {
     router.push({
       pathname: "/(home)/explorar-resultados",
-      params: { categoria: category.nombre, categoriaId: String(category.id) },
+      params: { categoria: category },
     });
   }
 
@@ -87,24 +84,25 @@ export default function ExplorarCategoriasScreen() {
             contentContainerStyle={styles.grid}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <View style={styles.centerWrap}>
-                <Text style={styles.errorText}>Todavía no hay categorías cargadas.</Text>
+              <View style={styles.emptyCard}>
+                <EmptyState
+                  mascot={require("../../assets/images/nene-brazos-cruzados.png")}
+                  text="Todavía no hay categorías cargadas."
+                  size={120}
+                />
               </View>
             }
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.item}
                 activeOpacity={0.85}
-                onPress={() => handleSelectCategory(item)}
+                onPress={() => handleSelectCategory(item.nombre)}
               >
                 <View style={styles.iconCircle}>
                   {item.iconos?.url ? (
-                    <Image
-                      source={{ uri: item.iconos.url }}
-                      style={styles.iconImage}
-                    />
+                    <Image source={{ uri: item.iconos.url }} style={styles.iconImage} />
                   ) : (
-                    <Ionicons name="restaurant-outline" size={26} color={colors.primaryDark} />
+                    <Ionicons name="restaurant-outline" size={26} color="#FB8C00" />
                   )}
                 </View>
                 <View style={styles.labelPill}>
@@ -121,11 +119,9 @@ export default function ExplorarCategoriasScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   gradient: { flex: 1 },
   container: { flex: 1, paddingHorizontal: 16 },
-  // Título/error/retry viven directo sobre la foto de fondo (fija, no
-  // cambia con el tema), así que se quedan en blanco en los dos modos.
   title: {
     fontSize: 18,
     fontWeight: "bold",
@@ -135,6 +131,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: 14,
   },
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
+  emptyCard: {
+    marginTop: 40,
+    marginHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingBottom: 24,
+  },
   errorText: { textAlign: "center", color: "#FFFFFF", fontSize: 13, lineHeight: 19 },
   retryButton: {
     marginTop: 4,
@@ -147,13 +151,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   grid: { paddingBottom: 110 },
   row: { justifyContent: "space-between", marginBottom: 22 },
   item: { width: "31%", alignItems: "center" },
-  // Estos sí siguen el tema: son "cards" flotando sobre la foto, deben
-  // sentirse en sintonía con el resto de la app en Dark Mode.
   iconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.card,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -166,7 +168,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   iconImage: { width: "100%", height: "100%", resizeMode: "cover" },
   labelPill: {
     marginTop: -10,
-    backgroundColor: colors.card,
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -177,5 +179,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 2,
   },
-  labelText: { fontSize: 11, fontWeight: "700", color: colors.text, textAlign: "center" },
+  labelText: { fontSize: 11, fontWeight: "700", color: "#3E2723", textAlign: "center" },
 });

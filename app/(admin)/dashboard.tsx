@@ -110,7 +110,7 @@ export default function AdminDashboard() {
       setDashboard(data);
     } catch (e) {
       console.log("Error cargando el dashboard:", e);
-      setError("No se pudieron cargar las estadísticas. Intentá de nuevo.");
+      setError("No se pudieron cargar las estadísticas. Intenta de nuevo.");
     } finally {
       setLoading(false);
       setRefreshing(false);

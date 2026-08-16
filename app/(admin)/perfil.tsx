@@ -71,7 +71,7 @@ export default function AdminPerfilScreen() {
     if (!user) return;
 
     if (!editName.trim() || !editLastName.trim()) {
-      AppAlert.alert("Datos incompletos", "Completá nombre y apellido.");
+      AppAlert.alert("Datos incompletos", "Completa nombre y apellido.");
       return;
     }
 
@@ -87,7 +87,7 @@ export default function AdminPerfilScreen() {
       setIsEditing(false);
     } catch (e) {
       console.log("Error guardando perfil:", e);
-      AppAlert.alert("Error", "No se pudo guardar el perfil. Intentá de nuevo.");
+      AppAlert.alert("Error", "No se pudo guardar el perfil. Intenta de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -126,7 +126,7 @@ export default function AdminPerfilScreen() {
   function handleLogout() {
     AppAlert.alert(
       "Cerrar sesión",
-      "¿Seguro que querés salir del panel de administración?",
+      "¿Seguro que quieres salir del panel de administración?",
       [
         { text: "Cancelar", style: "cancel" },
         {

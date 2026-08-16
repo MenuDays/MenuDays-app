@@ -5,12 +5,10 @@ import {
   ActivityIndicator,
   Image,
   Linking,
-  Modal,
   ScrollView,
   Share,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -24,10 +22,7 @@ import FavoriteService from "../../services/favorite.service";
 import LocationService from "../../services/location.service";
 import RestaurantService, { RestaurantPublicDetail } from "../../services/restaurant.service";
 import ReviewService, { Review } from "../../services/review.service";
-import ReportService, { ReportReason } from "../../services/report.service";
 import { AppAlert } from "../components/common/AppAlert";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
 
 const DAY_NAMES = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
@@ -40,8 +35,6 @@ export default function RestauranteDetalleScreen({
   previewRestaurantId,
   ownerPreview = false,
 }: Props) {
-const { colors } = useTheme();
-const styles = useMemo(() => createStyles(colors), [colors]);
 const { id: routeId } = useLocalSearchParams<{ id: string }>();
 
 const restaurantId = previewRestaurantId ?? routeId;
@@ -49,6 +42,7 @@ const restaurantId = previewRestaurantId ?? routeId;
   const [restaurant, setRestaurant] = useState<RestaurantPublicDetail | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   // Distancia calculada en el cliente a partir de la última ubicación
@@ -56,19 +50,17 @@ const restaurantId = previewRestaurantId ?? routeId;
   // No hay endpoint que la devuelva calculada desde el back.
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
-  const [reportModalVisible, setReportModalVisible] = useState(false);
-  const [reportReasons, setReportReasons] = useState<ReportReason[]>([]);
-  const [reportReasonsLoading, setReportReasonsLoading] = useState(false);
-  const [selectedReasonId, setSelectedReasonId] = useState<number | null>(null);
-  const [reportDescription, setReportDescription] = useState("");
-  const [submittingReport, setSubmittingReport] = useState(false);
-
-  useEffect(() => {
+   useEffect(() => {
     if (!restaurantId) {
-  setLoading(false);
-  return;
-}
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setError(null);
+    setRestaurant(null);
+    setReviews([]);
+    setIsFavorite(false);
+    setDistanceKm(null);
     Promise.all([
       RestaurantService.getPublicDetail(restaurantId),
       ReviewService.getRestaurantReviews(restaurantId),
@@ -89,7 +81,11 @@ const restaurantId = previewRestaurantId ?? routeId;
           );
         }
       })
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar el restaurante."))
+      .catch((e: any) => {
+        const msg = e.message || "No se pudo cargar el restaurante.";
+        setError(msg);
+        AppAlert.alert("Error", msg);
+      })
       .finally(() => setLoading(false));
   }, [restaurantId]);
 
@@ -152,42 +148,8 @@ const restaurantId = previewRestaurantId ?? routeId;
   function handleCompartir() {
     if (!restaurant) return;
     Share.share({
-      message: `Mirá ${restaurant.nombreComercial} en MenuDays${restaurant.direccion ? ` — ${restaurant.direccion}` : ""}`,
+      message: `Mira ${restaurant.nombreComercial} en MenuDays${restaurant.direccion ? ` — ${restaurant.direccion}` : ""}`,
     });
-  }
-
-  function handleOpenReport() {
-    setReportModalVisible(true);
-    if (reportReasons.length === 0) {
-      setReportReasonsLoading(true);
-      ReportService.getReasons()
-        .then(setReportReasons)
-        .catch(() => AppAlert.alert("Error", "No se pudieron cargar los motivos de reporte."))
-        .finally(() => setReportReasonsLoading(false));
-    }
-  }
-
-  function handleCloseReport() {
-    if (submittingReport) return;
-    setReportModalVisible(false);
-    setSelectedReasonId(null);
-    setReportDescription("");
-  }
-
-  async function handleSubmitReport() {
-    if (!restaurant || !selectedReasonId || submittingReport) return;
-    setSubmittingReport(true);
-    try {
-      await ReportService.create(restaurant.id, selectedReasonId, reportDescription);
-      setReportModalVisible(false);
-      setSelectedReasonId(null);
-      setReportDescription("");
-      AppAlert.alert("Reporte enviado", "Gracias. Nuestro equipo revisará el caso.");
-    } catch (e: any) {
-      AppAlert.alert("No se pudo enviar el reporte", e.message || "Ocurrió un error. Intentá de nuevo.");
-    } finally {
-      setSubmittingReport(false);
-    }
   }
 
   function handleCopiarDireccion() {
@@ -206,10 +168,27 @@ const restaurantId = previewRestaurantId ?? routeId;
     Linking.openURL(url);
   }
 
-  if (loading || !restaurant) {
+  if (loading) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={colors.primaryDark} />
+        <ActivityIndicator size="large" color="#FB8C00" />
+      </View>
+    );
+  }
+
+  if (error || !restaurant) {
+    return (
+      <View style={styles.loaderContainer}>
+        <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+        <Text style={{ marginTop: 10, textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
+          {error || "No se pudo cargar el restaurante."}
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 14, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Volver</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -224,7 +203,7 @@ const restaurantId = previewRestaurantId ?? routeId;
             <Image source={{ uri: restaurant.portadaUrl }} style={styles.cover} />
           ) : (
             <View style={[styles.cover, styles.coverPlaceholder]}>
-              <Ionicons name="image-outline" size={32} color={colors.placeholder} />
+              <Ionicons name="image-outline" size={32} color="#C9C9C9" />
             </View>
           )}
 
@@ -233,23 +212,17 @@ const restaurantId = previewRestaurantId ?? routeId;
               <Ionicons name="chevron-back" size={20} color="#3E2723" />
             </TouchableOpacity>
 
-            <View style={styles.coverOverlayRight}>
-              <TouchableOpacity style={styles.roundButton} onPress={handleOpenReport}>
-                <Ionicons name="flag-outline" size={18} color="#3E2723" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.roundButton}
-                onPress={handleToggleFavorite}
-                disabled={favoriteLoading}
-              >
-                <Ionicons
-                  name={isFavorite ? "heart" : "heart-outline"}
-                  size={20}
-                  color={isFavorite ? "#E53935" : "#3E2723"}
-                />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.roundButton}
+              onPress={handleToggleFavorite}
+              disabled={favoriteLoading}
+            >
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={20}
+                color={isFavorite ? "#E53935" : "#3E2723"}
+              />
+            </TouchableOpacity>
           </SafeAreaView>
         </View>
 
@@ -259,7 +232,7 @@ const restaurantId = previewRestaurantId ?? routeId;
               <Image source={{ uri: restaurant.logoUrl }} style={styles.logo} />
             ) : (
               <View style={[styles.logo, styles.logoPlaceholder]}>
-                <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
+                <Ionicons name="restaurant-outline" size={20} color="#BDBDBD" />
               </View>
             )}
 
@@ -310,7 +283,7 @@ const restaurantId = previewRestaurantId ?? routeId;
           {restaurant.descripcion ? (
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
-                <Ionicons name="information-circle" size={18} color={colors.primaryDark} />
+                <Ionicons name="information-circle" size={18} color="#FB8C00" />
                 <Text style={styles.sectionTitle}>Sobre nosotros</Text>
               </View>
               <Text style={styles.paragraph}>{restaurant.descripcion}</Text>
@@ -321,11 +294,6 @@ const restaurantId = previewRestaurantId ?? routeId;
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>Menú del día</Text>
-                {/* TODO: navegar a un histórico real de menús cuando exista
-                    esa pantalla del lado comensal. */}
-                <TouchableOpacity onPress={() => AppAlert.alert("Próximamente", "El histórico de menús todavía no está disponible.")}>
-                  <Text style={styles.linkText}>Ver histórico</Text>
-                </TouchableOpacity>
               </View>
 
               {restaurant.menus.map((menu) => (
@@ -334,7 +302,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                     <Image source={{ uri: menu.foto_url }} style={styles.menuImage} />
                   ) : (
                     <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                      <Ionicons name="restaurant-outline" size={18} color={colors.placeholder} />
+                      <Ionicons name="restaurant-outline" size={18} color="#BDBDBD" />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -353,21 +321,20 @@ const restaurantId = previewRestaurantId ?? routeId;
                     ) : null}
                     {/* Va al detalle de producto (pedido-producto.tsx), no
                         arma el pedido acá directo. Esa pantalla es la que
-                        tiene el botón real "Realizar pedido", que sigue a
-                        pedido-entrega.tsx (medio de entrega) y
-                        pedido-confirmar.tsx (contacto por WhatsApp con el
-                        mensaje que arma el back). */}
-                    <TouchableOpacity
-                      style={styles.pedirButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/(home)/pedido-producto",
-                          params: { productoId: menu.id, tipo: "menu_dia" },
-                        })
-                      }
-                    >
-                      <Text style={styles.pedirButtonText}>Pedir</Text>
-                    </TouchableOpacity>
+                        tiene el botón real "Realizar pedido". */}
+                    {!ownerPreview && (
+                      <TouchableOpacity
+                        style={styles.pedirButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/(home)/pedido-producto",
+                            params: { id: menu.id, tipo: "menu_dia" },
+                          })
+                        }
+                      >
+                        <Text style={styles.pedirButtonText}>Pedir</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))}
@@ -376,18 +343,17 @@ const restaurantId = previewRestaurantId ?? routeId;
 
           {restaurant.platos.length > 0 && (
             <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="fast-food" size={18} color={colors.primaryDark} />
+              <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>Platos</Text>
               </View>
 
               {restaurant.platos.map((plato) => (
                 <View key={plato.id} style={styles.menuCard}>
-                  {plato.plato_imagenes?.[0]?.url ? (
+                  {plato.plato_imagenes[0]?.url ? (
                     <Image source={{ uri: plato.plato_imagenes[0].url }} style={styles.menuImage} />
                   ) : (
                     <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                      <Ionicons name="fast-food-outline" size={18} color={colors.placeholder} />
+                      <Ionicons name="fast-food-outline" size={18} color="#BDBDBD" />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -399,25 +365,24 @@ const restaurantId = previewRestaurantId ?? routeId;
                         <Text style={styles.priceBadgeText}>${plato.precio.toFixed(2)}</Text>
                       </View>
                     </View>
-                    {plato.categorias?.nombre ? (
-                      <Text style={styles.dishCategoryText}>{plato.categorias.nombre}</Text>
-                    ) : null}
                     {plato.descripcion ? (
                       <Text style={styles.menuDescription} numberOfLines={2}>
                         {plato.descripcion}
                       </Text>
                     ) : null}
-                    <TouchableOpacity
-                      style={styles.pedirButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/(home)/pedido-producto",
-                          params: { productoId: plato.id, tipo: "plato" },
-                        })
-                      }
-                    >
-                      <Text style={styles.pedirButtonText}>Pedir</Text>
-                    </TouchableOpacity>
+                    {!ownerPreview && (
+                      <TouchableOpacity
+                        style={styles.pedirButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/(home)/pedido-producto",
+                            params: { id: plato.id, tipo: "plato" },
+                          })
+                        }
+                      >
+                        <Text style={styles.pedirButtonText}>Pedir</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))}
@@ -426,8 +391,7 @@ const restaurantId = previewRestaurantId ?? routeId;
 
           {restaurant.promociones.length > 0 && (
             <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="pricetag" size={18} color={colors.primaryDark} />
+              <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>Promociones</Text>
               </View>
 
@@ -437,7 +401,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                     <Image source={{ uri: promo.imagen_url }} style={styles.menuImage} />
                   ) : (
                     <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                      <Ionicons name="pricetag-outline" size={18} color={colors.placeholder} />
+                      <Ionicons name="pricetag-outline" size={18} color="#BDBDBD" />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -454,17 +418,19 @@ const restaurantId = previewRestaurantId ?? routeId;
                         {promo.descripcion}
                       </Text>
                     ) : null}
-                    <TouchableOpacity
-                      style={styles.pedirButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/(home)/pedido-producto",
-                          params: { productoId: promo.id, tipo: "promocion" },
-                        })
-                      }
-                    >
-                      <Text style={styles.pedirButtonText}>Pedir</Text>
-                    </TouchableOpacity>
+                    {!ownerPreview && (
+                      <TouchableOpacity
+                        style={styles.pedirButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/(home)/pedido-producto",
+                            params: { id: promo.id, tipo: "promocion" },
+                          })
+                        }
+                      >
+                        <Text style={styles.pedirButtonText}>Pedir</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))}
@@ -496,7 +462,7 @@ const restaurantId = previewRestaurantId ?? routeId;
 
             {restaurant.direccion ? (
               <View style={styles.addressRow}>
-                <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+                <Ionicons name="location-outline" size={16} color="#9E9E9E" />
                 <Text style={styles.addressText}>
                   {restaurant.direccion}
                   {restaurant.ciudad ? `, ${restaurant.ciudad.nombre}, ${restaurant.ciudad.provincia.nombre}` : ""}
@@ -506,7 +472,7 @@ const restaurantId = previewRestaurantId ?? routeId;
 
             <View style={styles.addressButtonsRow}>
               <TouchableOpacity style={styles.outlineButton} onPress={handleCopiarDireccion}>
-                <Ionicons name="copy-outline" size={15} color={colors.text} />
+                <Ionicons name="copy-outline" size={15} color="#3E2723" />
                 <Text style={styles.outlineButtonText}>Copiar dirección</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.filledButton} onPress={handleComoLlegar}>
@@ -519,7 +485,7 @@ const restaurantId = previewRestaurantId ?? routeId;
           {scheduleGroups.length > 0 && (
             <View style={styles.scheduleCard}>
               <View style={styles.sectionTitleRow}>
-                <Ionicons name="time-outline" size={18} color={colors.primaryDark} />
+                <Ionicons name="time-outline" size={18} color="#FB8C00" />
                 <Text style={styles.sectionTitle}>Horarios de atención</Text>
               </View>
               {scheduleGroups.map((group, i) => (
@@ -543,7 +509,17 @@ const restaurantId = previewRestaurantId ?? routeId;
                 <Text style={styles.sectionTitle}>Galería de Fotos</Text>
                 {/* TODO: navegar a una pantalla de galería completa (grid)
                     cuando exista; por ahora solo se ve el scroll horizontal. */}
-                <TouchableOpacity onPress={() => AppAlert.alert("Próximamente", "La galería completa todavía no está disponible.")}>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(home)/restaurant-gallery",
+                      params: {
+                        id: String(restaurant.id),
+                        nombre: restaurant.nombreComercial,
+                      },
+                    })
+                  }
+                >
                   <Text style={styles.linkText}>Ver todas</Text>
                 </TouchableOpacity>
               </View>
@@ -588,7 +564,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                     <Image source={{ uri: review.usuarios.foto_perfil_url }} style={styles.reviewAvatar} />
                   ) : (
                     <View style={[styles.reviewAvatar, styles.reviewAvatarPlaceholder]}>
-                      <Ionicons name="person" size={14} color={colors.placeholder} />
+                      <Ionicons name="person" size={14} color="#BDBDBD" />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -603,7 +579,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                         key={i}
                         name="star"
                         size={12}
-                        color={i < review.calificacion ? "#F5A800" : colors.border}
+                        color={i < review.calificacion ? "#F5A800" : "#E0E0E0"}
                       />
                     ))}
                   </View>
@@ -612,109 +588,23 @@ const restaurantId = previewRestaurantId ?? routeId;
               </View>
             ))}
 
+            {/* TODO: navegar a una pantalla con el listado completo de
+                reseñas (con paginación) cuando exista. */}
             <TouchableOpacity
               style={styles.reviewsButton}
               onPress={() =>
                 router.push({
-                  pathname: "/(home)/restaurant-reviews",
-                  params: {
-                    id: String(restaurant.id),
-                    nombre: restaurant.nombreComercial,
-                    promedio: String(restaurant.calificacionPromedio),
-                    cantidad: String(restaurant.cantidadResenas),
-                  },
+                  pathname: "/restaurant-reviews",
+                  params: { id: restaurantId },
                 })
               }
             >
-              <Ionicons name="chatbubble-outline" size={15} color={colors.primaryDark} />
+              <Ionicons name="chatbubble-outline" size={15} color="#FB8C00" />
               <Text style={styles.reviewsButtonText}>Ver las {restaurant.cantidadResenas} reseñas</Text>
             </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
-
-      <Modal
-        visible={reportModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={handleCloseReport}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reportar restaurante</Text>
-              <TouchableOpacity onPress={handleCloseReport} disabled={submittingReport} hitSlop={10}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalSubtitle}>
-                Contanos qué ocurrió para que podamos revisarlo.
-              </Text>
-
-              {reportReasonsLoading ? (
-                <ActivityIndicator size="small" color={colors.primaryDark} style={{ marginVertical: 20 }} />
-              ) : (
-                <View style={styles.reasonsList}>
-                  {reportReasons.map((reason) => {
-                    const selected = selectedReasonId === reason.id;
-                    return (
-                      <TouchableOpacity
-                        key={reason.id}
-                        style={[styles.reasonRow, selected && styles.reasonRowSelected]}
-                        onPress={() => setSelectedReasonId(reason.id)}
-                        activeOpacity={0.8}
-                      >
-                        <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
-                          {selected && <View style={styles.radioInner} />}
-                        </View>
-                        <Text style={styles.reasonText}>{reason.nombre}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
-              <Text style={styles.modalFieldLabel}>Descripción adicional (opcional)</Text>
-              <TextInput
-                style={styles.modalTextarea}
-                placeholder="Contanos más detalles..."
-                placeholderTextColor={colors.placeholder}
-                value={reportDescription}
-                onChangeText={setReportDescription}
-                multiline
-                maxLength={1000}
-              />
-            </ScrollView>
-
-            <View style={styles.modalActionsRow}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={handleCloseReport}
-                disabled={submittingReport}
-              >
-                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.modalSubmitButton,
-                  (!selectedReasonId || submittingReport) && styles.modalSubmitButtonDisabled,
-                ]}
-                onPress={handleSubmitReport}
-                disabled={!selectedReasonId || submittingReport}
-              >
-                {submittingReport ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalSubmitButtonText}>Enviar reporte</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -728,13 +618,10 @@ function ActionButton({
   label: string;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
   return (
     <TouchableOpacity style={styles.actionButton} onPress={onPress}>
       <View style={styles.actionIconWrap}>
-        <Ionicons name={icon} size={18} color={colors.primaryDark} />
+        <Ionicons name={icon} size={18} color="#FB8C00" />
       </View>
       <Text style={styles.actionLabel}>{label}</Text>
     </TouchableOpacity>
@@ -858,11 +745,11 @@ function relativeTime(iso: string): string {
   return `Hace ${months} mes${months > 1 ? "es" : ""}`;
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
 
-  coverWrap: { height: 220, backgroundColor: colors.surfaceSecondary },
+  coverWrap: { height: 220, backgroundColor: "#F5F5F5" },
   cover: { width: "100%", height: "100%" },
   coverPlaceholder: { alignItems: "center", justifyContent: "center" },
   coverOverlay: {
@@ -874,10 +761,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 4,
-  },
-  coverOverlayRight: {
-    flexDirection: "row",
-    gap: 10,
   },
   roundButton: {
     width: 36,
@@ -895,13 +778,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: 64,
     borderRadius: 32,
     borderWidth: 3,
-    borderColor: colors.background,
-    backgroundColor: colors.card,
+    borderColor: "#FFFFFF",
+    backgroundColor: "#FFFFFF",
   },
   logoPlaceholder: { alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 19, fontWeight: "900", color: colors.text },
+  name: { fontSize: 19, fontWeight: "900", color: "#1A1A1A" },
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
-  metaText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
+  metaText: { fontSize: 12, color: "#757575", fontWeight: "600" },
 
   actionsRow: {
   flexDirection: "row",
@@ -915,40 +798,39 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "#FFF3E0",
     alignItems: "center",
     justifyContent: "center",
   },
-  actionLabel: { fontSize: 11, fontWeight: "600", color: colors.text },
+  actionLabel: { fontSize: 11, fontWeight: "600", color: "#3E2723" },
 
   section: { marginTop: 26 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
-  linkText: { fontSize: 13, fontWeight: "700", color: colors.primaryDark },
-  paragraph: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
+  linkText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
+  paragraph: { fontSize: 13, color: "#5C5C5C", lineHeight: 20 },
 
   menuCard: {
     flexDirection: "row",
     gap: 12,
     borderWidth: 1,
-    borderColor: colors.divider,
+    borderColor: "#F0F0F0",
     borderRadius: 16,
     padding: 10,
     marginBottom: 10,
   },
   menuImage: { width: 64, height: 64, borderRadius: 12 },
-  menuImagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  menuImagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
   menuTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
-  menuName: { flex: 1, fontSize: 14, fontWeight: "800", color: colors.text },
-  menuDescription: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
-  dishCategoryText: { fontSize: 11, fontWeight: "700", color: colors.primaryDark, marginTop: 2 },
-  priceBadge: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  menuName: { flex: 1, fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
+  menuDescription: { fontSize: 12, color: "#9E9E9E", marginTop: 4 },
+  priceBadge: { backgroundColor: "#FFA726", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   priceBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
   pedirButton: {
     marginTop: 8,
     alignSelf: "flex-start",
-    backgroundColor: colors.primaryDark,
+    backgroundColor: "#FB8C00",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -957,7 +839,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   mapWrap: { height: 130, borderRadius: 16, overflow: "hidden", marginBottom: 12 },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  addressText: { flex: 1, fontSize: 13, color: colors.textSecondary },
+  addressText: { flex: 1, fontSize: 13, color: "#5C5C5C" },
   addressButtonsRow: { flexDirection: "row", gap: 10, marginTop: 14 },
   outlineButton: {
     flex: 1,
@@ -966,18 +848,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: "#E0E0E0",
     borderRadius: 20,
     paddingVertical: 11,
   },
-  outlineButtonText: { fontSize: 13, fontWeight: "700", color: colors.text },
+  outlineButtonText: { fontSize: 13, fontWeight: "700", color: "#3E2723" },
   filledButton: {
     flex: 1,
     flexDirection: "row",
     gap: 6,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: "#FFA726",
     borderRadius: 20,
     paddingVertical: 11,
   },
@@ -985,7 +867,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   scheduleCard: {
     marginTop: 26,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "#FAFAFA",
     borderRadius: 16,
     padding: 16,
   },
@@ -994,29 +876,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 6,
   },
-  scheduleDay: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
-  scheduleHours: { fontSize: 13, color: colors.text, fontWeight: "700" },
-  scheduleClosed: { fontSize: 13, color: colors.error, fontWeight: "700" },
+  scheduleDay: { fontSize: 13, color: "#5C5C5C", fontWeight: "600" },
+  scheduleHours: { fontSize: 13, color: "#1A1A1A", fontWeight: "700" },
+  scheduleClosed: { fontSize: 13, color: "#E53935", fontWeight: "700" },
 
   galleryThumb: { width: 84, height: 84, borderRadius: 12 },
 
   reviewsSummaryRow: { flexDirection: "row", gap: 20, alignItems: "center", marginBottom: 18 },
   reviewsAvgWrap: { alignItems: "center" },
-  reviewsAvgNumber: { fontSize: 30, fontWeight: "900", color: colors.text },
-  reviewsAvgLabel: { fontSize: 10, color: colors.textSecondary, fontWeight: "700" },
+  reviewsAvgNumber: { fontSize: 30, fontWeight: "900", color: "#1A1A1A" },
+  reviewsAvgLabel: { fontSize: 10, color: "#9E9E9E", fontWeight: "700" },
   distributionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  distributionStar: { fontSize: 11, color: colors.textSecondary, width: 10 },
-  distributionTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.divider, overflow: "hidden" },
-  distributionFill: { height: "100%", backgroundColor: colors.primary },
+  distributionStar: { fontSize: 11, color: "#9E9E9E", width: 10 },
+  distributionTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: "#F0F0F0", overflow: "hidden" },
+  distributionFill: { height: "100%", backgroundColor: "#FFA726" },
 
-  reviewCard: { borderTopWidth: 1, borderTopColor: colors.divider, paddingVertical: 14 },
+  reviewCard: { borderTopWidth: 1, borderTopColor: "#F0F0F0", paddingVertical: 14 },
   reviewHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   reviewAvatar: { width: 34, height: 34, borderRadius: 17 },
-  reviewAvatarPlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
-  reviewName: { fontSize: 13, fontWeight: "700", color: colors.text },
-  reviewDate: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+  reviewAvatarPlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
+  reviewName: { fontSize: 13, fontWeight: "700", color: "#1A1A1A" },
+  reviewDate: { fontSize: 11, color: "#9E9E9E", marginTop: 1 },
   reviewStarsRow: { flexDirection: "row", gap: 1 },
-  reviewComment: { fontSize: 12, color: colors.textSecondary, marginTop: 8, lineHeight: 18, fontStyle: "italic" },
+  reviewComment: { fontSize: 12, color: "#5C5C5C", marginTop: 8, lineHeight: 18, fontStyle: "italic" },
 
   reviewsButton: {
     flexDirection: "row",
@@ -1024,97 +906,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: "#FFA726",
     borderRadius: 22,
     paddingVertical: 13,
     marginTop: 8,
   },
-  reviewsButtonText: { fontSize: 13, fontWeight: "700", color: colors.primaryDark },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: colors.overlay,
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: colors.modalBackground,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
-  modalSubtitle: { fontSize: 13, color: colors.textSecondary, marginBottom: 16, lineHeight: 19 },
-
-  reasonsList: { gap: 10, marginBottom: 18 },
-  reasonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  reasonRowSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceSecondary,
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioOuterSelected: { borderColor: colors.primary },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
-  reasonText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: "600" },
-
-  modalFieldLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 8 },
-  modalTextarea: {
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: colors.text,
-    height: 90,
-    textAlignVertical: "top",
-    marginBottom: 8,
-  },
-
-  modalActionsRow: { flexDirection: "row", gap: 10, marginTop: 14 },
-  modalCancelButton: {
-    flex: 1,
-    height: 50,
-    borderRadius: 25,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  modalCancelButtonText: { fontSize: 15, fontWeight: "700", color: colors.textSecondary },
-  modalSubmitButton: {
-    flex: 1,
-    height: 50,
-    borderRadius: 25,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-  },
-  modalSubmitButtonDisabled: { opacity: 0.5 },
-  modalSubmitButtonText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
+  reviewsButtonText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
 });

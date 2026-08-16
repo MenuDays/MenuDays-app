@@ -1,14 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Image } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import OrderService, { DeliveryMethod, Order } from "../../services/order.service";
 import { AppAlert } from "../components/common/AppAlert";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
+import { EmptyState } from "../components/common/EmptyState";
 
 const MEDIO_LABEL: Record<DeliveryMethod, string> = {
   delivery: "Delivery",
@@ -26,8 +25,6 @@ const ESTADO_LABEL: Record<Order["pedido"]["estado"], string> = {
 };
 
 export default function PedidoConfirmarScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{
     productoId: string;
     tipo: string;
@@ -36,8 +33,29 @@ export default function PedidoConfirmarScreen() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Misma razón que en pedido-producto.tsx y pedido-entrega.tsx: esta
+  // pantalla está dentro del stack de tabs "(home)", cuya tab bar
+  // flota con position "absolute" y no reserva espacio real, así que
+  // el footer con "Finalizar contactando a WSP" queda tapado si no le
+  // sumamos ese alto a mano.
+  const insets = useSafeAreaInsets();
+  const tabBarSpace = 74 + 18 + insets.bottom;
 
   useEffect(() => {
+    // Reseteo el estado antes de cada intento: esta pantalla es parte
+    // del Tabs navigator de (home) (con href: null), así que React
+    // Navigation la mantiene montada -- si el usuario vuelve atrás y
+    // reintenta con otro medioEntrega (ej. después de un error de
+    // "el restaurante no tiene delivery"), este efecto se re-ejecuta
+    // por el cambio de params, pero sin este reset se seguía viendo
+    // el error/loading de la request anterior hasta que la nueva
+    // resolviera.
+    setLoading(true);
+    setErrorMsg(null);
+    setOrder(null);
+
     const input = {
       ...(params.tipo === "plato" && { dishId: params.productoId }),
       ...(params.tipo === "menu_dia" && { menuId: params.productoId }),
@@ -47,10 +65,13 @@ export default function PedidoConfirmarScreen() {
 
     OrderService.create(input)
       .then(setOrder)
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo generar el pedido."))
+      .catch((e: any) => {
+        const msg = e.message || "No se pudo generar el pedido.";
+        setErrorMsg(msg);
+        AppAlert.alert("Error", msg);
+      })
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [params.productoId, params.tipo, params.medioEntrega]);
 
   function handleFinalizar() {
     if (!order) return;
@@ -64,23 +85,57 @@ export default function PedidoConfirmarScreen() {
     Linking.openURL(buildWhatsAppUrl(order.restaurante.whatsapp, mensaje));
   }
 
+  if (errorMsg) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={22} color="#3E2723" />
+          </TouchableOpacity>
+        </View>
+        <EmptyState
+          mascot={require("../../assets/images/error-nene.png")}
+          text={errorMsg}
+          tone="error"
+          actionLabel="Volver"
+          onAction={() => router.back()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   if (loading || !order) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={colors.primaryDark} />
+        <Image
+          source={require("../../assets/images/nene-pensando.png")}
+          style={styles.loaderMascot}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color="#FB8C00" style={{ marginTop: 12 }} />
+        <Text style={styles.loaderText}>Estamos armando tu pedido...</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
+          <Ionicons name="chevron-back" size={22} color="#3E2723" />
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
+        <View style={styles.mascotWrap}>
+          <Image
+            source={require("../../assets/images/nene-thumbsup.png")}
+            style={styles.mascotImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.mascotText}>¡Tu pedido fue generado con éxito!</Text>
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Info del pedido</Text>
 
@@ -98,7 +153,7 @@ export default function PedidoConfirmarScreen() {
         </View>
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
         <TouchableOpacity style={styles.cta} onPress={handleFinalizar}>
           <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
           <Text style={styles.ctaText}>Finalizar contactando a WSP</Text>
@@ -109,9 +164,6 @@ export default function PedidoConfirmarScreen() {
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -134,40 +186,45 @@ function buildFallbackMessage(order: Order): string {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+  loaderMascot: { width: 140, height: 140 },
+  loaderText: { marginTop: 10, fontSize: 13, fontWeight: "600", color: "#9E9E9E" },
+  mascotWrap: { alignItems: "center", marginBottom: 12 },
+  mascotImage: { width: 130, height: 130 },
+  mascotText: { fontSize: 14, fontWeight: "800", color: "#1A1A1A", marginTop: 4, textAlign: "center" },
   header: { paddingHorizontal: 16, paddingTop: 4 },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
   },
   content: { flex: 1, padding: 20 },
   card: {
     borderWidth: 1.5,
-    borderColor: colors.primaryLight,
-    backgroundColor: colors.surfaceSecondary,
+    borderColor: "#FFD180",
+    backgroundColor: "#FFF8EE",
     borderRadius: 18,
     padding: 18,
   },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: colors.text, marginBottom: 14 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: "#1A1A1A", marginBottom: 14 },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    borderBottomColor: "#FFE7C2",
   },
-  infoLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
-  infoValue: { fontSize: 13, color: colors.text, fontWeight: "700" },
+  infoLabel: { fontSize: 13, color: "#9E9E9E", fontWeight: "600" },
+  infoValue: { fontSize: 13, color: "#1A1A1A", fontWeight: "700" },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: colors.divider,
+    borderTopColor: "#F0F0F0",
   },
   cta: {
     flexDirection: "row",

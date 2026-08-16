@@ -20,7 +20,7 @@ export default function RequestStatusMessage({
       background: "#FFF8E8",
       title: "Solicitud en revisión",
       message:
-        "Estamos revisando la información de tu restaurante. Este proceso suele tardar entre 24 y 72 horas hábiles. Te notificaremos cuando exista una actualización.",
+        "Estamos revisando la información de tu restaurante. Este proceso suele tardar entre 24 y 72 horas hábiles.",
     },
 
     aprobada: {

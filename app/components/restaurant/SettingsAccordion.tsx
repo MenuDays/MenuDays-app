@@ -48,7 +48,7 @@ export default function SettingsAccordion({
           </Text>
 
           <Text style={styles.headerSubtitle}>
-            Administrá las opciones de tu restaurante
+            Administra las opciones de tu restaurante
           </Text>
         </View>
 

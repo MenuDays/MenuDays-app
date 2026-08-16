@@ -29,8 +29,8 @@ export default function ConfigurarDeliveryScreen() {
   async function handleContinue() {
     if (!option) {
       AppAlert.alert(
-        "Elegí una opción",
-        "Indicá si tu restaurante ofrece delivery o solo retiro presencial."
+        "Elige una opción",
+        "Indica si tu restaurante ofrece delivery o solo retiro presencial."
       );
       return;
     }
@@ -38,7 +38,7 @@ export default function ConfigurarDeliveryScreen() {
     if (option === "delivery" && !deliveryName.trim()) {
       AppAlert.alert(
         "Falta el nombre",
-        "Escribí el nombre de tu servicio de delivery."
+        "Escribe el nombre de tu servicio de delivery."
       );
       return;
     }
@@ -110,7 +110,7 @@ export default function ConfigurarDeliveryScreen() {
               ? "¡Genial! 🚚"
               : option === "retiro"
               ? "¡Perfecto! 🏠"
-              : "¿Ofrecés delivery?"}
+              : "¿Ofreces delivery?"}
           </Text>
 
           {/* Subtítulo */}
@@ -119,7 +119,7 @@ export default function ConfigurarDeliveryScreen() {
               ? "¿Cómo se llama tu servicio de delivery?"
               : option === "retiro"
               ? "Tus clientes podrán retirar sus pedidos directamente en el restaurante."
-              : "Elegí cómo querés entregar tus pedidos"}
+              : "Elige cómo quieres entregar tus pedidos"}
           </Text>
 
           {/* Paso 1 */}

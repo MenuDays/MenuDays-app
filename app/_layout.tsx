@@ -1,9 +1,8 @@
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
-
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppAlertProvider } from "./components/common/AppAlert";
-import { ThemeProvider } from "../contexts/ThemeContext";
-import { PreviewModeProvider } from "../contexts/PreviewModeContext";
 import IPhonePreview from "./preview/IPhonePreview";
 
 // PANTALLAS PARA PREVIEW
@@ -18,39 +17,7 @@ export default function RootLayout() {
   // 📱 Expo Go / Android / iOS
   if (Platform.OS !== "web") {
     return (
-      <ThemeProvider>
-        <PreviewModeProvider>
-          <AppAlertProvider>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-              }}
-            />
-          </AppAlertProvider>
-        </PreviewModeProvider>
-      </ThemeProvider>
-    );
-  }
-
-  // 💻 Web Preview
-  if (WEB_PREVIEW) {
-    return (
-      <ThemeProvider>
-        <PreviewModeProvider>
-          <AppAlertProvider>
-            <IPhonePreview>
-              <RestaurantDashboard />
-            </IPhonePreview>
-          </AppAlertProvider>
-        </PreviewModeProvider>
-      </ThemeProvider>
-    );
-  }
-
-  // Web normal (si algún día querés usar Expo Router en web)
-  return (
-    <ThemeProvider>
-      <PreviewModeProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <AppAlertProvider>
           <Stack
             screenOptions={{
@@ -58,7 +25,35 @@ export default function RootLayout() {
             }}
           />
         </AppAlertProvider>
-      </PreviewModeProvider>
-    </ThemeProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // 💻 Web Preview
+  if (WEB_PREVIEW) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppAlertProvider>
+          <IPhonePreview>
+            <RestaurantDashboard />
+          </IPhonePreview>
+        </AppAlertProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // Web normal (si algún día querés usar Expo Router en web)
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppAlertProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          />
+        </AppAlertProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

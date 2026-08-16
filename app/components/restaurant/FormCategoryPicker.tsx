@@ -32,7 +32,7 @@ export default function FormCategoryPicker({
       >
         <Ionicons name="pricetags-outline" size={18} color="#FFA726" style={styles.icon} />
         <Text style={[styles.inputText, !selected && styles.placeholder]} numberOfLines={1}>
-          {loading ? "Cargando categorías..." : selected ? selected.nombre : "Elegí una categoría"}
+          {loading ? "Cargando categorías..." : selected ? selected.nombre : "Elige una categoría"}
         </Text>
         <Ionicons name="chevron-down" size={18} color="#9E9E9E" />
       </TouchableOpacity>
@@ -41,7 +41,7 @@ export default function FormCategoryPicker({
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setVisible(false)}>
           <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Elegí una categoría</Text>
+            <Text style={styles.sheetTitle}>Elige una categoría</Text>
 
             <FlatList
               data={categories}
