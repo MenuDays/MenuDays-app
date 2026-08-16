@@ -17,10 +17,12 @@ import { ImageSourcePropType } from "react-native";
 // ==========================================================================
 
 export const CATEGORY_ICONS: Record<string, ImageSourcePropType> = {
+  "Almuerzos": require("../assets/images/categorias/almuerzo.png"),
   "Bares": require("../assets/images/categorias/Bares.png"),
   "Bebidas": require("../assets/images/categorias/Bebidas.png"),
   "Bolones": require("../assets/images/categorias/Bolones.png"),
   "Cafetería": require("../assets/images/categorias/Cafetería.png"),
+  "Cenas": require("../assets/images/categorias/cena.png"),
   "Cevicherías": require("../assets/images/categorias/Cevicherías.png"),
   "Comida China": require("../assets/images/categorias/Comida China.png"),
   "Comida Rápida": require("../assets/images/categorias/Comida Rápida.png"),
@@ -32,6 +34,7 @@ export const CATEGORY_ICONS: Record<string, ImageSourcePropType> = {
   "Hamburguesas": require("../assets/images/categorias/Hamburguesas.png"),
   "Heladeria": require("../assets/images/categorias/Heladeria.png"),
   "Mariscos": require("../assets/images/categorias/Mariscos.png"),
+  "Meriendas": require("../assets/images/categorias/merienda.png"),
   "Mexicana": require("../assets/images/categorias/Mexicana.png"),
   "Panadería": require("../assets/images/categorias/Panadería.png"),
   "Parrillas": require("../assets/images/categorias/Parrillas.png"),

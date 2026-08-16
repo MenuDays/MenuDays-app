@@ -1,13 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
+import CategoryService from "../../../services/category.service";
 
 type Status = "pendiente" | "aprobada" | "rechazada";
 
@@ -24,12 +27,27 @@ interface ButtonConfig {
 export default function RequestStatusActions({
   status,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const button = getButton(status);
 
-  function handlePrimaryAction() {
+  // Mismo criterio que login.tsx: si el restaurante recién aprobado
+  // todavía no eligió categorías, lo mandamos primero a esa pantalla
+  // obligatoria (que a su vez encadena a "Configurar delivery") antes
+  // del dashboard. Si la llamada falla, no lo bloqueamos.
+  async function handlePrimaryAction() {
     switch (status) {
       case "aprobada":
-        router.replace("/(restaurant)/dashboard");
+        try {
+          const myCategories = await CategoryService.getRestaurantCategories();
+          if (myCategories.length === 0) {
+            router.replace("/(restaurant)/elegir-categorias");
+          } else {
+            router.replace("/(restaurant)/dashboard");
+          }
+        } catch {
+          router.replace("/(restaurant)/dashboard");
+        }
         break;
 
       case "rechazada":
@@ -75,7 +93,7 @@ export default function RequestStatusActions({
         <Ionicons
           name="person-circle-outline"
           size={20}
-          color="#757575"
+          color={colors.textSecondary}
         />
 
         <Text style={styles.secondaryText}>
@@ -112,7 +130,7 @@ function getButton(status: Status): ButtonConfig {
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     marginHorizontal: 20,
     marginTop: 28,
@@ -127,7 +145,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
 
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: {
@@ -150,16 +168,16 @@ const styles = StyleSheet.create({
 
     borderRadius: 16,
 
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
 
     borderWidth: 1,
-    borderColor: "#ECECEC",
+    borderColor: colors.border,
 
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
 
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 5,
     shadowOffset: {
@@ -173,6 +191,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 15,
     fontWeight: "600",
-    color: "#757575",
+    color: colors.textSecondary,
   },
 });

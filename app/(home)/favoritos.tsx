@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FavoriteService, { FavoriteItem } from "../../services/favorite.service";
 import { EmptyState } from "../components/common/EmptyState";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 const OPEN_LABEL: Record<string, { text: string; color: string }> = {
   abierto: { text: "Abierto", color: "#43A047" },
@@ -24,6 +26,9 @@ const OPEN_LABEL: Record<string, { text: string; color: string }> = {
 };
 
 export default function FavoritosScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,6 +55,13 @@ export default function FavoritosScreen() {
   function handleRefresh() {
     setRefreshing(true);
     loadFavorites();
+  }
+
+  function goToRestaurant(item: FavoriteItem) {
+    router.push({
+      pathname: "/(home)/restaurante-detalle",
+      params: { id: item.restaurant.id },
+    });
   }
 
   function handleRemove(item: FavoriteItem) {
@@ -111,11 +123,7 @@ export default function FavoritosScreen() {
           const isRemoving = removingId === item.restaurant.id;
 
           return (
-            // NOTA: todavía no existe una pantalla de detalle de
-            // restaurante del lado cliente (solo hay placeholder en
-            // explorar.tsx). Cuando la armes, hay que envolver esto en un
-            // TouchableOpacity que navegue a esa ruta con el id.
-            <View style={styles.card}>
+            <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => goToRestaurant(item)}>
               <Image
                 source={
                   item.restaurant.portadaUrl
@@ -143,7 +151,7 @@ export default function FavoritosScreen() {
                     <Image source={{ uri: item.restaurant.logoUrl }} style={styles.logo} />
                   ) : (
                     <View style={[styles.logo, styles.logoPlaceholder]}>
-                      <Ionicons name="storefront-outline" size={16} color="#BDBDBD" />
+                      <Ionicons name="storefront-outline" size={16} color={colors.placeholder} />
                     </View>
                   )}
 
@@ -181,7 +189,7 @@ export default function FavoritosScreen() {
                   </Text>
                 ) : null}
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
@@ -189,18 +197,18 @@ export default function FavoritosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAFAFA", paddingHorizontal: 16, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#3E2723", marginBottom: 12 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 8 },
+  title: { fontSize: 24, fontWeight: "bold", color: colors.text, marginBottom: 12 },
   loader: { marginTop: 40 },
   list: { paddingBottom: 120 },
 
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 18,
     marginBottom: 16,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -209,7 +217,7 @@ const styles = StyleSheet.create({
   cover: {
     width: "100%",
     height: 120,
-    backgroundColor: "#F0F0F0",
+    backgroundColor: colors.surfaceSecondary,
   },
   coverPlaceholder: {
     alignItems: "center",
@@ -222,10 +230,10 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.15,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
@@ -243,7 +251,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: "#F0F0F0",
+    backgroundColor: colors.surfaceSecondary,
   },
   logoPlaceholder: {
     alignItems: "center",
@@ -255,11 +263,11 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   city: {
     fontSize: 12,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     marginTop: 2,
   },
   metaRow: {
@@ -276,11 +284,11 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   reviewsText: {
     fontSize: 12,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
   },
   statusText: {
     fontSize: 12,
@@ -288,7 +296,7 @@ const styles = StyleSheet.create({
   },
   categoriesText: {
     fontSize: 12,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     marginTop: 6,
   },
 });

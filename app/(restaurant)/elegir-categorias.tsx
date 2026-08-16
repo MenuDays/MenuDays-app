@@ -68,6 +68,12 @@ export default function ChooseCategoriesScreen() {
     });
   }
 
+  function toggleSelectAll() {
+    setSelectedIds((prev) =>
+      prev.size === categories.length ? new Set() : new Set(categories.map((c) => c.id))
+    );
+  }
+
   async function handleSave() {
     if (selectedIds.size === 0) {
       AppAlert.alert("Elige al menos una categoría", "Selecciona las categorías que ofrece tu restaurante.");
@@ -79,7 +85,9 @@ export default function ChooseCategoriesScreen() {
       if (cameFromProfile) {
         router.back();
       } else {
-        router.replace("/(restaurant)/dashboard");
+        // Primera vez (recién aprobado / recién logueado sin categorías):
+        // encadena a "Configurar delivery" antes de entrar al dashboard.
+        router.replace("/(restaurant)/configurar-delivery");
       }
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudieron guardar las categorías.");
@@ -127,6 +135,19 @@ export default function ChooseCategoriesScreen() {
             </Text>
           </View>
         </View>
+
+        {!loading && categories.length > 0 && (
+          <TouchableOpacity style={styles.selectAllButton} onPress={toggleSelectAll} activeOpacity={0.85}>
+            <Ionicons
+              name={selectedIds.size === categories.length ? "close-circle-outline" : "checkmark-done-outline"}
+              size={16}
+              color="#FFA726"
+            />
+            <Text style={styles.selectAllText}>
+              {selectedIds.size === categories.length ? "Deseleccionar todo" : "Seleccionar todo"}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {loading ? (
           <ActivityIndicator size="large" color="#FB8C00" style={styles.loader} />
@@ -258,6 +279,23 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: 40,
+  },
+  selectAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: "#232323",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  selectAllText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#FFA726",
   },
   grid: {
     paddingHorizontal: 16,

@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -22,6 +22,8 @@ import LocationService, { City } from '../../services/location.service';
 import ProvinceService, { Province } from '../../services/province.service';
 import RestaurantLocationPickerBridge from '../../services/restaurantLocationPicker.bridge';
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 interface CountryCode {
   code: string; // ISO
@@ -91,6 +93,8 @@ function normalizeSocialUrl(platform: 'instagram' | 'facebook' | 'tiktok', value
 
 export default function RegisterRestaurantScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [logo, setLogo] = useState<string | null>(null);
   const [restaurantName, setRestaurantName] = useState('');
   const [province, setProvince] = useState<Province | null>(null);
@@ -371,7 +375,7 @@ export default function RegisterRestaurantScreen() {
             {logo ? (
               <Image source={{ uri: logo }} style={styles.logoImage} />
             ) : (
-              <Ionicons name="camera-outline" size={26} color="#BDBDBD" />
+              <Ionicons name="camera-outline" size={26} color={colors.placeholder} />
             )}
           </TouchableOpacity>
           <Text style={styles.logoLabel}>Subir logo</Text>
@@ -380,11 +384,11 @@ export default function RegisterRestaurantScreen() {
         {/* Nombre del restaurante */}
         <Text style={styles.label}>Nombre del restaurante</Text>
         <View style={styles.inputContainer}>
-          <Ionicons name="storefront-outline" size={20} color="#FFA726" style={styles.inputIcon} />
+          <Ionicons name="storefront-outline" size={20} color={colors.primary} style={styles.inputIcon} />
           <TextInput
             style={styles.input}
             placeholder="Ingresa el nombre del restaurante"
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={colors.placeholder}
             value={restaurantName}
             onChangeText={setRestaurantName}
           />
@@ -396,11 +400,11 @@ export default function RegisterRestaurantScreen() {
           style={styles.inputContainer}
           onPress={() => setProvincePickerVisible(true)}
         >
-          <Ionicons name="location-outline" size={20} color="#FFA726" style={styles.inputIcon} />
+          <Ionicons name="location-outline" size={20} color={colors.primary} style={styles.inputIcon} />
           <Text style={[styles.input, !province && styles.placeholderText]}>
             {province ? province.nombre : 'Elige la provincia'}
           </Text>
-          <Ionicons name="chevron-down" size={18} color="#3E2723" />
+          <Ionicons name="chevron-down" size={18} color={colors.text} />
         </TouchableOpacity>
 
         {/* Ciudad */}
@@ -410,21 +414,21 @@ export default function RegisterRestaurantScreen() {
           onPress={openCityPicker}
           disabled={!province}
         >
-          <Ionicons name="location-outline" size={20} color="#FFA726" style={styles.inputIcon} />
+          <Ionicons name="location-outline" size={20} color={colors.primary} style={styles.inputIcon} />
           <Text style={[styles.input, !city && styles.placeholderText]}>
             {city ? city.nombre : province ? 'Elige la  ciudad' : 'Elige primero la provincia'}
           </Text>
-          <Ionicons name="chevron-down" size={18} color="#3E2723" />
+          <Ionicons name="chevron-down" size={18} color={colors.text} />
         </TouchableOpacity>
 
         {/* Ubicación en el mapa */}
         <Text style={styles.label}>Ubicacion del restaurante</Text>
         <TouchableOpacity style={styles.locationButton} onPress={pickLocationOnMap}>
-          <Ionicons name="pin" size={18} color="#FB8C00" style={styles.inputIcon} />
+          <Ionicons name="pin" size={18} color={colors.primaryDark} style={styles.inputIcon} />
           <Text style={styles.locationButtonText} numberOfLines={1}>
             {location ? location.address : 'Seleccionar ubicación en el mapa'}
           </Text>
-          <Ionicons name="chevron-down" size={18} color="#FB8C00" />
+          <Ionicons name="chevron-down" size={18} color={colors.primaryDark} />
         </TouchableOpacity>
 
         {/* Teléfono */}
@@ -436,13 +440,13 @@ export default function RegisterRestaurantScreen() {
           >
             <Text style={styles.flag}>{selectedCountry.flag}</Text>
             <Text style={styles.countryCodeText}>{selectedCountry.dialCode}</Text>
-            <Ionicons name="chevron-down" size={14} color="#3E2723" />
+            <Ionicons name="chevron-down" size={14} color={colors.text} />
           </TouchableOpacity>
           <View style={[styles.inputContainer, styles.phoneInputContainer]}>
             <TextInput
               style={styles.input}
               placeholder="Ingresa el número de teléfono"
-              placeholderTextColor="#9E9E9E"
+              placeholderTextColor={colors.placeholder}
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
@@ -456,7 +460,7 @@ export default function RegisterRestaurantScreen() {
           <TextInput
             style={styles.textarea}
             placeholder="Contanos sobre tu restaurante, especialidades, ambiente..."
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={colors.placeholder}
             value={description}
             onChangeText={(text) => setDescription(text.slice(0, DESCRIPTION_MAX))}
             multiline
@@ -477,7 +481,7 @@ export default function RegisterRestaurantScreen() {
           <TextInput
             style={styles.input}
             placeholder="@tu_restaurante"
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={colors.placeholder}
             value={instagram}
             onChangeText={setInstagram}
             autoCapitalize="none"
@@ -489,7 +493,7 @@ export default function RegisterRestaurantScreen() {
           <TextInput
             style={styles.input}
             placeholder="Tu Restaurante EC"
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={colors.placeholder}
             value={facebook}
             onChangeText={setFacebook}
           />
@@ -500,7 +504,7 @@ export default function RegisterRestaurantScreen() {
           <TextInput
             style={styles.input}
             placeholder="@tu_restaurante"
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={colors.placeholder}
             value={tiktok}
             onChangeText={setTiktok}
             autoCapitalize="none"
@@ -537,7 +541,7 @@ export default function RegisterRestaurantScreen() {
                   <TextInput
                     style={styles.scheduleHourInput}
                     placeholder="08:00"
-                    placeholderTextColor="#9E9E9E"
+                    placeholderTextColor={colors.placeholder}
                     value={s.openingHour}
                     onChangeText={(v) => setDayHour(s.day, 'openingHour', v)}
                     keyboardType="numbers-and-punctuation"
@@ -547,7 +551,7 @@ export default function RegisterRestaurantScreen() {
                   <TextInput
                     style={styles.scheduleHourInput}
                     placeholder="18:00"
-                    placeholderTextColor="#9E9E9E"
+                    placeholderTextColor={colors.placeholder}
                     value={s.closingHour}
                     onChangeText={(v) => setDayHour(s.day, 'closingHour', v)}
                     keyboardType="numbers-and-punctuation"
@@ -569,7 +573,7 @@ export default function RegisterRestaurantScreen() {
               <Image source={{ uri: idFront }} style={styles.documentImage} />
             ) : (
               <>
-                <Ionicons name="camera-outline" size={22} color="#9E9E9E" />
+                <Ionicons name="camera-outline" size={22} color={colors.placeholder} />
                 <Text style={styles.documentLabel}>Frontal</Text>
               </>
             )}
@@ -580,7 +584,7 @@ export default function RegisterRestaurantScreen() {
               <Image source={{ uri: idBack }} style={styles.documentImage} />
             ) : (
               <>
-                <Ionicons name="camera-outline" size={22} color="#9E9E9E" />
+                <Ionicons name="camera-outline" size={22} color={colors.placeholder} />
                 <Text style={styles.documentLabel}>Posterior</Text>
               </>
             )}
@@ -618,16 +622,16 @@ export default function RegisterRestaurantScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige la provincia</Text>
               <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
-                <Ionicons name="close" size={24} color="#3E2723" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalSearchContainer}>
-              <Ionicons name="search-outline" size={18} color="#9E9E9E" style={styles.inputIcon} />
+              <Ionicons name="search-outline" size={18} color={colors.placeholder} style={styles.inputIcon} />
               <TextInput
                 style={styles.modalSearchInput}
                 placeholder="Buscar provincia"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.placeholder}
                 value={provinceSearch}
                 onChangeText={setProvinceSearch}
               />
@@ -665,16 +669,16 @@ export default function RegisterRestaurantScreen() {
                 Elige la ciudad{province ? ` (${province.nombre})` : ''}
               </Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
-                <Ionicons name="close" size={24} color="#3E2723" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalSearchContainer}>
-              <Ionicons name="search-outline" size={18} color="#9E9E9E" style={styles.inputIcon} />
+              <Ionicons name="search-outline" size={18} color={colors.placeholder} style={styles.inputIcon} />
               <TextInput
                 style={styles.modalSearchInput}
                 placeholder="Buscar ciudad"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.placeholder}
                 value={citySearch}
                 onChangeText={setCitySearch}
               />
@@ -713,16 +717,16 @@ export default function RegisterRestaurantScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige el país</Text>
               <TouchableOpacity onPress={() => setCountryPickerVisible(false)}>
-                <Ionicons name="close" size={24} color="#3E2723" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalSearchContainer}>
-              <Ionicons name="search-outline" size={18} color="#9E9E9E" style={styles.inputIcon} />
+              <Ionicons name="search-outline" size={18} color={colors.placeholder} style={styles.inputIcon} />
               <TextInput
                 style={styles.modalSearchInput}
                 placeholder="Buscar país o código"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.placeholder}
                 value={countrySearch}
                 onChangeText={setCountrySearch}
               />
@@ -755,10 +759,10 @@ export default function RegisterRestaurantScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
   },
   header: {
     height: 280,
@@ -792,7 +796,7 @@ const styles = StyleSheet.create({
     lineHeight: 48,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     marginTop: -24,
@@ -803,7 +807,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: '#3E2723',
+    color: colors.text,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -815,7 +819,7 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -828,17 +832,17 @@ const styles = StyleSheet.create({
   },
   logoLabel: {
     fontSize: 13,
-    color: '#9E9E9E',
+    color: colors.placeholder,
   },
   label: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#3E2723',
+    color: colors.text,
     marginBottom: 8,
   },
   optionalLabel: {
     fontSize: 12,
-    color: '#9E9E9E',
+    color: colors.placeholder,
     marginBottom: 8,
     marginTop: -6,
   },
@@ -846,7 +850,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     height: 52,
     paddingHorizontal: 16,
@@ -858,18 +862,18 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 14,
-    color: '#3E2723',
+    color: colors.text,
   },
   placeholderText: {
-    color: '#9E9E9E',
+    color: colors.placeholder,
   },
   inputDisabled: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     opacity: 0.7,
   },
   emptyListText: {
     textAlign: 'center',
-    color: '#9E9E9E',
+    color: colors.placeholder,
     fontSize: 14,
     paddingVertical: 24,
   },
@@ -877,8 +881,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#FFA726',
-    backgroundColor: '#FFF8EE',
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 12,
     height: 52,
     paddingHorizontal: 16,
@@ -888,7 +892,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: '#FB8C00',
+    color: colors.primaryDark,
   },
   phoneRow: {
     flexDirection: 'row',
@@ -898,7 +902,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     height: 52,
     paddingHorizontal: 12,
@@ -909,7 +913,7 @@ const styles = StyleSheet.create({
   },
   countryCodeText: {
     fontSize: 14,
-    color: '#3E2723',
+    color: colors.text,
     fontWeight: '500',
   },
   phoneInputContainer: {
@@ -918,7 +922,7 @@ const styles = StyleSheet.create({
   },
   textareaContainer: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingTop: 14,
@@ -927,18 +931,18 @@ const styles = StyleSheet.create({
   },
   textarea: {
     fontSize: 14,
-    color: '#3E2723',
+    color: colors.text,
     height: 90,
   },
   charCount: {
     fontSize: 12,
-    color: '#9E9E9E',
+    color: colors.placeholder,
     textAlign: 'right',
     marginTop: 4,
   },
   scheduleRow: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -952,24 +956,26 @@ const styles = StyleSheet.create({
   scheduleDayLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3E2723',
+    color: colors.text,
   },
   scheduleToggle: {
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 6,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.surfaceSecondary,
   },
   scheduleToggleActive: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
   scheduleToggleText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#9E9E9E',
+    color: colors.placeholder,
   },
   scheduleToggleTextActive: {
-    color: '#FB8C00',
+    color: colors.primaryDark,
   },
   scheduleHoursRow: {
     flexDirection: 'row',
@@ -981,16 +987,16 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 42,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.inputBorder,
     borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 14,
-    color: '#3E2723',
-    backgroundColor: '#FAFAFA',
+    color: colors.text,
+    backgroundColor: colors.inputBackground,
   },
   scheduleHourSeparator: {
     fontSize: 13,
-    color: '#9E9E9E',
+    color: colors.placeholder,
   },
   documentsRow: {
     flexDirection: 'row',
@@ -1002,9 +1008,9 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.inputBorder,
     borderStyle: 'dashed',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -1016,7 +1022,7 @@ const styles = StyleSheet.create({
   },
   documentLabel: {
     fontSize: 12,
-    color: '#9E9E9E',
+    color: colors.placeholder,
   },
   button: {
     borderRadius: 26,
@@ -1035,11 +1041,11 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.modalBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 20,
@@ -1056,13 +1062,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#3E2723',
+    color: colors.text,
   },
   modalSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     height: 48,
     paddingHorizontal: 14,
@@ -1071,7 +1077,7 @@ const styles = StyleSheet.create({
   modalSearchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#3E2723',
+    color: colors.text,
   },
   countryRow: {
     flexDirection: 'row',
@@ -1082,16 +1088,16 @@ const styles = StyleSheet.create({
   countryRowName: {
     flex: 1,
     fontSize: 14,
-    color: '#3E2723',
+    color: colors.text,
   },
   countryRowDial: {
     fontSize: 14,
-    color: '#757575',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   countryDivider: {
     height: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.divider,
   },
 
   clocheWrapper: {

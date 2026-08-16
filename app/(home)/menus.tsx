@@ -278,7 +278,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: colors.text },
 
-  distanceListWrapper: { flexGrow: 0, marginBottom: 14 },
+  // Alto explícito: un FlatList horizontal sin esto puede terminar con
+  // altura 0 según el contenido (Yoga no siempre infiere bien el alto de
+  // un scroll horizontal dentro de una columna), y los chips "1 km",
+  // "2 km", etc. quedaban cortados arriba/abajo.
+  distanceListWrapper: { flexGrow: 0, height: 46, marginBottom: 14 },
   // paddingRight: sin esto, el último chip ("Cualquier distancia") queda
   // pegado/cortado justo en el borde de la pantalla en vez de tener aire
   // como el resto -- el FlatList horizontal no agrega margen propio al

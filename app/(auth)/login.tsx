@@ -2,12 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from "expo-router";
 import LottieView from 'lottie-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   Image,
   ImageBackground,
-  Keyboard,
   Modal,
   StyleSheet,
   Text,
@@ -16,10 +15,16 @@ import {
   View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthService from "../../services/auth.service";
 import CategoryService from "../../services/category.service";
+import LocationService from "../../services/location.service";
 import { AppAlert } from "../components/common/AppAlert";
+import ThemeChoiceModal from "../components/common/ThemeChoiceModal";
 import { useTheme } from "../../contexts/ThemeContext";
+import type { Href } from "expo-router";
+
+const THEME_PROMPT_SHOWN_KEY = "@MenuDays:themePromptShown";
 
 const { width } = Dimensions.get('window');
 
@@ -57,12 +62,32 @@ const CATEGORIES = [
 ];
 
 export default function LoginScreen() {
-  const { refreshRole } = useTheme();
+  const { refreshRole, setMode } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [themePromptVisible, setThemePromptVisible] = useState(false);
+  const emailInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
+  // Adónde navegar una vez resuelto (y cerrado, si corresponde) el
+  // cartelito de elegir tema -- ver handleThemeChoice más abajo.
+  const pendingDestination = useRef<Href | null>(null);
+
+  function goToPendingDestination() {
+    if (pendingDestination.current) {
+      router.replace(pendingDestination.current);
+      pendingDestination.current = null;
+    }
+  }
+
+  async function handleThemeChoice(chosen: "light" | "dark") {
+    setMode(chosen);
+    await AsyncStorage.setItem(THEME_PROMPT_SHOWN_KEY, "true").catch(() => {});
+    setThemePromptVisible(false);
+    goToPendingDestination();
+  }
 
   async function handleLogin() {
     if (loading) return;
@@ -100,16 +125,38 @@ export default function LoginScreen() {
           router.replace("/(restaurant)/dashboard");
         }
       } else {
-        // comensal (o cualquier otro caso no contemplado)
-        router.replace("/(province)");
+        // comensal (o cualquier otro caso no contemplado). Si ya eligió
+        // ciudad/ubicación en una sesión anterior (queda guardada en el
+        // dispositivo, ver LocationService), no lo volvemos a mandar a
+        // elegirla -- entra directo a Inicio. Solo la primera vez (o si
+        // la borró desde Perfil) pasa por (province).
+        const savedLocation = await LocationService.getUserLocation();
+        pendingDestination.current = savedLocation ? "/(home)" : "/(province)";
+
+        // Solo comensal puede usar Dark Mode, así que el cartelito de
+        // "¿claro u oscuro?" también es solo para comensal, y solo la
+        // primera vez que loguea en este dispositivo.
+        const themePromptShown = await AsyncStorage.getItem(THEME_PROMPT_SHOWN_KEY);
+        if (!themePromptShown) {
+          setLoading(false);
+          setThemePromptVisible(true);
+          return;
+        }
+
+        goToPendingDestination();
       }
     } catch (error: any) {
-      // Cierra el teclado ANTES de mostrar la alerta de error: si queda
-      // abierto detrás del modal, KeyboardAwareScrollView se queda con
-      // una medición vieja del alto del teclado y, al volver a tocar el
-      // input de contraseña, no scrollea lo suficiente y el campo queda
-      // tapado. Cerrándolo acá, el próximo focus arranca limpio.
-      Keyboard.dismiss();
+      // Keyboard.dismiss() solo esconde el teclado nativo, pero NO hace
+      // blur del TextInput enfocado -- el input se queda "focused" a
+      // nivel de React aunque el teclado ya no esté. Si el usuario vuelve
+      // a tocar ESE MISMO input, no se dispara un nuevo evento onFocus
+      // (ya estaba enfocado), así que KeyboardAwareScrollView nunca
+      // vuelve a hacer scroll para mostrarlo y el campo queda tapado por
+      // el teclado. Por eso acá hacemos blur() explícito de los dos
+      // inputs (que de paso cierra el teclado) para que el próximo tap
+      // dispare un onFocus real y el scroll se recalcule bien.
+      emailInputRef.current?.blur();
+      passwordInputRef.current?.blur();
       AppAlert.alert(
         "Error",
         error.message || "No se pudo iniciar sesión."
@@ -185,6 +232,7 @@ export default function LoginScreen() {
         <View style={styles.inputContainer}>
           <Ionicons name="mail-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
+            ref={emailInputRef}
             style={styles.input}
             placeholder="Ingresa tu email o teléfono"
             placeholderTextColor="#9E9E9E"
@@ -200,6 +248,7 @@ export default function LoginScreen() {
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} color="#FFA726" style={styles.inputIcon} />
           <TextInput
+            ref={passwordInputRef}
             style={styles.input}
             placeholder="Ingresa tu contraseña"
             placeholderTextColor="#9E9E9E"
@@ -254,6 +303,8 @@ export default function LoginScreen() {
           <Text style={styles.loadingText}>Iniciando sesión...</Text>
         </View>
       </Modal>
+
+      <ThemeChoiceModal visible={themePromptVisible} onChoose={handleThemeChoice} />
     </KeyboardAwareScrollView>
   );
 }

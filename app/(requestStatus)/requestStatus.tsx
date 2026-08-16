@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -15,6 +15,8 @@ import RequestStatusTimeline from "./componentes/RequestStatusTimeline";
 import RequestStatusMessage from "./componentes/RequestStatusMessage";
 import RequestStatusActions from "./componentes/RequestStatusActions";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 type Status =
   | "pendiente"
@@ -22,6 +24,8 @@ type Status =
   | "rechazada";
 
 export default function RequestStatusScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
 
   const [status, setStatus] =
@@ -82,7 +86,7 @@ export default function RequestStatusScreen() {
       <SafeAreaView style={styles.loading}>
         <ActivityIndicator
           size="large"
-          color="#F5A800"
+          color={colors.primary}
         />
       </SafeAreaView>
     );
@@ -117,17 +121,17 @@ export default function RequestStatusScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F7F7",
+    backgroundColor: colors.background,
   },
 
   loading: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F7F7F7",
+    backgroundColor: colors.background,
   },
 
   content: {

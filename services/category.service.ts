@@ -7,9 +7,20 @@ export interface Category {
   iconos?: { url: string } | null;
 }
 
+// Mismo criterio que ProvinceService/LocationService (citiesCache): las
+// categorías son datos de referencia casi estáticos (solo cambian cuando
+// un admin agrega una nueva), así que se cachean en memoria durante la
+// sesión. Sin esto, cada vez que el usuario volvía a la tab "Explorar"
+// (o a Inicio) se repetía el fetch a GET /categories y se veía el
+// spinner de nuevo, aunque los datos fueran a ser exactamente los mismos.
+let categoriesCache: Category[] | null = null;
+
 class CategoryService {
   async getAll(): Promise<Category[]> {
-    return api<Category[]>("/categories");
+    if (categoriesCache) return categoriesCache;
+    const data = await api<Category[]>("/categories");
+    categoriesCache = data;
+    return data;
   }
 
   // GET /restaurants/categories

@@ -1,10 +1,13 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Shadow } from "react-native-shadow-2";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ClocheIcon from "../components/home/ClocheIcon";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 function TabIcon({
   name,
@@ -16,16 +19,32 @@ function TabIcon({
   focused: boolean;
 }) {
   return (
-    <View style={styles.iconWrapper}>
+    <View style={staticStyles.iconWrapper}>
       <Ionicons
         name={name}
         size={24}
         color={color}
       />
-      {focused && <View style={styles.dot} />}
+      {focused && <View style={staticStyles.dot} />}
     </View>
   );
 }
+
+// Estilos que no dependen del tema (el punto activo es siempre naranja de
+// marca), separados de createStyles() para que TabIcon no necesite
+// useTheme() propio.
+const staticStyles = StyleSheet.create({
+  iconWrapper: {
+    alignItems: "center",
+    gap: 4,
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#FFA726",
+  },
+});
 
 export default function TabLayout() {
   // "bottom: 18" solo (ver styles.tabBar) no alcanza en dispositivos con
@@ -34,6 +53,8 @@ export default function TabLayout() {
   // gestos (barra fina) el inset es chico y casi no se nota, por eso en
   // algunos celulares se ve bien y en otros no.
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Tabs
@@ -41,7 +62,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarStyle: [styles.tabBar, { bottom: 18 + insets.bottom }],
         tabBarActiveTintColor: "#FFA726",
-        tabBarInactiveTintColor: "#3E2723",
+        tabBarInactiveTintColor: colors.placeholder,
         tabBarLabelStyle: styles.tabLabel,
       }}
     >
@@ -150,6 +171,15 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="restaurante-catalogo"
+        options={{
+          // Se accede desde el botón "Ver Menú" del detalle de restaurante,
+          // no es un tab.
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="favoritos"
         options={{
           // Sigue existiendo como ruta (se accede desde Perfil),
@@ -202,7 +232,7 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   tabBar: {
     position: "absolute",
 
@@ -212,14 +242,14 @@ const styles = StyleSheet.create({
 
     height: 74,
 
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.navbarBackground,
 
     borderRadius: 38,
     borderTopWidth: 0,
 
     elevation: 12,
 
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 5,
@@ -235,18 +265,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  iconWrapper: {
-    alignItems: "center",
-    gap: 4,
-  },
-
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#FFA726",
-  },
-
   centerButton: {
     width: 62,
     height: 62,
@@ -260,6 +278,6 @@ const styles = StyleSheet.create({
     marginTop: -22,
 
     borderWidth: 4,
-    borderColor: "#FFFFFF",
+    borderColor: colors.navbarBackground,
   },
 });

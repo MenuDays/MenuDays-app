@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -22,9 +22,35 @@ const deliveryCharacter = require("../../assets/characters/menudays-delivery.png
 type DeliveryOption = "delivery" | "retiro" | null;
 
 export default function ConfigurarDeliveryScreen() {
+  // Igual criterio que elegir-categorias.tsx: si venimos de "Mi perfil"
+  // (from=perfil) es para EDITAR la configuración ya guardada, así que
+  // precargamos el valor actual y al guardar volvemos ahí. Si venimos
+  // del flujo de onboarding (recién aprobado, sin from), arranca vacío
+  // y al guardar sigue hacia el dashboard.
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const cameFromProfile = from === "perfil";
+
   const [option, setOption] = useState<DeliveryOption>(null);
   const [deliveryName, setDeliveryName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadingCurrent, setLoadingCurrent] = useState(cameFromProfile);
+
+  useEffect(() => {
+    if (!cameFromProfile) return;
+    RestaurantService.getProfile()
+      .then((data) => {
+        if (data.ofrece_delivery) {
+          setOption("delivery");
+          setDeliveryName(data.nombre_delivery ?? "");
+        } else {
+          setOption("retiro");
+        }
+      })
+      .catch(() => {
+        // Sin preselección si falla -- el restaurante igual puede elegir de cero.
+      })
+      .finally(() => setLoadingCurrent(false));
+  }, [cameFromProfile]);
 
   async function handleContinue() {
     if (!option) {
@@ -58,7 +84,11 @@ export default function ConfigurarDeliveryScreen() {
         });
       }
 
-      router.replace("/(restaurant)/dashboard");
+      if (cameFromProfile) {
+        router.back();
+      } else {
+        router.replace("/(restaurant)/dashboard");
+      }
     } catch (e: any) {
       console.log("Error configurando delivery:", e);
 
@@ -79,6 +109,14 @@ export default function ConfigurarDeliveryScreen() {
     }
   }
 
+  if (loadingCurrent) {
+    return (
+      <SafeAreaView style={[styles.container, styles.loadingContainer]} edges={["top", "bottom"]}>
+        <ActivityIndicator size="large" color="#F5A800" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
@@ -86,6 +124,16 @@ export default function ConfigurarDeliveryScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.content}>
+          {cameFromProfile && (
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => router.back()}
+              hitSlop={10}
+            >
+              <Ionicons name="close" size={22} color="#7A7A7A" />
+            </TouchableOpacity>
+          )}
+
           {/* Personaje */}
           <View style={styles.characterContainer}>
             <Image
@@ -328,6 +376,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
 
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   keyboard: {
     flex: 1,
   },
@@ -336,6 +389,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 22,
     justifyContent: "center",
+  },
+
+  closeButton: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F5F5F5",
+    zIndex: 2,
   },
 
   characterContainer: {

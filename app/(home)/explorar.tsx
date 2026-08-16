@@ -5,10 +5,9 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
-  ImageBackground,
   ActivityIndicator,
 } from "react-native";
+import { Image, ImageBackground } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -16,6 +15,14 @@ import { router } from "expo-router";
 import CategoryService, { Category } from "../../services/category.service";
 import { EmptyState } from "../components/common/EmptyState";
 import { getCategoryIcon } from "../../constants/categoryIcons";
+
+// Perf: expo-image (ya es dependencia del proyecto) decodifica más rápido
+// que el <Image> de react-native y cachea en memoria+disco -- importa acá
+// solo el fondo y los íconos de categoría. Los íconos locales, además,
+// venían pesando ~1.6MB cada uno a 1024x1024 (se mostraban en un círculo
+// de 72pt) -- reducidos a 256px máx en assets/images/categorias/, que
+// alcanza de sobra incluso a 3x de densidad de píxeles.
+const BLURHASH_PLACEHOLDER = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 
 // Tab "Explorar": grilla de categorías. Al tocar una, se navega a
 // explorar-resultados.tsx (buscador + filtros completos), precargada
@@ -59,7 +66,7 @@ export default function ExplorarCategoriasScreen() {
     <ImageBackground
       source={require("../../assets/images/explorar-bg.png")}
       style={styles.gradient}
-      resizeMode="cover"
+      contentFit="cover"
     >
       <SafeAreaView style={styles.container} edges={["top"]}>
         <Text style={styles.title}>Explorar por categoría</Text>
@@ -84,6 +91,10 @@ export default function ExplorarCategoriasScreen() {
             columnWrapperStyle={styles.row}
             contentContainerStyle={styles.grid}
             showsVerticalScrollIndicator={false}
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={7}
+            removeClippedSubviews
             ListEmptyComponent={
               <View style={styles.emptyCard}>
                 <EmptyState
@@ -101,9 +112,21 @@ export default function ExplorarCategoriasScreen() {
               >
                 <View style={styles.iconCircle}>
                   {getCategoryIcon(item.nombre) ? (
-                    <Image source={getCategoryIcon(item.nombre)!} style={styles.iconImage} />
+                    <Image
+                      source={getCategoryIcon(item.nombre)!}
+                      style={styles.iconImage}
+                      contentFit="cover"
+                      cachePolicy="memory"
+                    />
                   ) : item.iconos?.url ? (
-                    <Image source={{ uri: item.iconos.url }} style={styles.iconImage} />
+                    <Image
+                      source={{ uri: item.iconos.url }}
+                      style={styles.iconImage}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      placeholder={{ blurhash: BLURHASH_PLACEHOLDER }}
+                      transition={150}
+                    />
                   ) : (
                     <Ionicons name="restaurant-outline" size={26} color="#FB8C00" />
                   )}
@@ -168,7 +191,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  iconImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  iconImage: { width: "100%", height: "100%" },
   labelPill: {
     marginTop: -10,
     backgroundColor: "#FFFFFF",

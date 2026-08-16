@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 type RequestStatus =
   | "pendiente"
@@ -18,6 +20,8 @@ interface Props {
 export default function RequestStatusTimeline({
   status,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.container}>
       {/* Pendiente */}
@@ -121,7 +125,7 @@ export default function RequestStatusTimeline({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
@@ -159,7 +163,7 @@ const styles = StyleSheet.create({
   },
 
   inactiveCircle: {
-    backgroundColor: "#D9D9D9",
+    backgroundColor: colors.border,
   },
 
   line: {
@@ -168,7 +172,7 @@ const styles = StyleSheet.create({
 
     borderRadius: 2,
 
-    backgroundColor: "#E5E5E5",
+    backgroundColor: colors.divider,
 
     marginHorizontal: 6,
     marginBottom: 24,
@@ -188,13 +192,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
 
-    color: "#9E9E9E",
+    color: colors.placeholder,
 
     textAlign: "center",
   },
 
   activeLabel: {
-    color: "#1A1A1A",
+    color: colors.text,
     fontWeight: "700",
   },
 });

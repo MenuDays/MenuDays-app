@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface Props {
   status: "pendiente" | "aprobada" | "rechazada";
@@ -13,6 +15,8 @@ interface Props {
 export default function RequestStatusMessage({
   status,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const config = {
     pendiente: {
       icon: "time-outline" as const,
@@ -84,7 +88,7 @@ export default function RequestStatusMessage({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     marginHorizontal: 20,
     marginTop: 20,
@@ -95,7 +99,7 @@ const styles = StyleSheet.create({
 
     alignItems: "center",
 
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: {
@@ -130,7 +134,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
 
-    color: "#555555",
+    color: colors.textSecondary,
 
     textAlign: "center",
   },

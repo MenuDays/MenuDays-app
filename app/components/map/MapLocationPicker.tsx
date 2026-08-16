@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppAlert } from "../common/AppAlert";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 // Coordenadas por defecto de Ecuador
 const ECUADOR_DEFAULT: Region = {
@@ -60,6 +62,8 @@ export default function MapLocationPicker({
   initialLocation,
   cityCoords,
 }: MapLocationPickerProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const mapRef = useRef<MapView>(null);
   const startingPoint = initialLocation ?? cityCoords ?? ECUADOR_DEFAULT;
   const startingDelta = initialLocation
@@ -215,7 +219,7 @@ export default function MapLocationPicker({
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>{title}</Text>
@@ -229,7 +233,7 @@ export default function MapLocationPicker({
       <View style={styles.mapContainer}>
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#F5A800" />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Cargando mapa...</Text>
           </View>
         ) : (
@@ -241,7 +245,7 @@ export default function MapLocationPicker({
             showsUserLocation
             showsMyLocationButton={false}
           >
-            <Marker coordinate={marker} pinColor="#F5A800" />
+            <Marker coordinate={marker} pinColor={colors.primary} />
           </MapView>
         )}
 
@@ -251,9 +255,9 @@ export default function MapLocationPicker({
           disabled={locating}
         >
           {locating ? (
-            <ActivityIndicator size="small" color="#F5A800" />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Ionicons name="locate" size={22} color="#F5A800" />
+            <Ionicons name="locate" size={22} color={colors.primary} />
           )}
         </TouchableOpacity>
 
@@ -261,7 +265,7 @@ export default function MapLocationPicker({
           <Ionicons
             name="information-circle-outline"
             size={14}
-            color="#757575"
+            color={colors.textSecondary}
           />
           <Text style={styles.hintText}>
             Toca el mapa para ajustar tu ubicación
@@ -284,21 +288,21 @@ export default function MapLocationPicker({
           <Ionicons
             name="location-outline"
             size={20}
-            color="#F5A800"
+            color={colors.primary}
             style={styles.addressIcon}
           />
           <TextInput
             value={address}
             onChangeText={setAddress}
             placeholder="Ej: Av. Amazonas N34-183"
-            placeholderTextColor="#B7B7B7"
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
             returnKeyType="done"
-            selectionColor="#F5A800"
+            selectionColor={colors.primary}
           />
           {address.length > 0 && (
             <TouchableOpacity onPress={() => setAddress("")}>
-              <Ionicons name="close-circle" size={18} color="#BDBDBD" />
+              <Ionicons name="close-circle" size={18} color={colors.placeholder} />
             </TouchableOpacity>
           )}
         </View>
@@ -334,10 +338,10 @@ export default function MapLocationPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: "row",
@@ -345,13 +349,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -362,11 +366,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: "#757575",
+    color: colors.textSecondary,
     marginTop: 2,
   },
   mapContainer: {
@@ -384,7 +388,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: "#757575",
+    color: colors.textSecondary,
   },
   myLocationButton: {
     position: "absolute",
@@ -393,10 +397,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -408,7 +412,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -416,16 +420,16 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 12,
-    color: "#757575",
+    color: colors.textSecondary,
   },
   bottomPanel: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     paddingHorizontal: 18,
     paddingTop: 20,
     paddingBottom: 28,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    shadowColor: "#000",
+    borderTopColor: colors.divider,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: -3 },
@@ -434,18 +438,18 @@ const styles = StyleSheet.create({
   addressLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 10,
   },
   addressInput: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E7E7E7",
+    borderColor: colors.inputBorder,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 52,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.inputBackground,
     marginBottom: 6,
   },
   addressIcon: {
@@ -454,12 +458,12 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: "#1A1A1A",
+    color: colors.text,
     paddingVertical: 0,
   },
   addressHint: {
     fontSize: 12,
-    color: "#A8A8A8",
+    color: colors.placeholder,
     marginBottom: 20,
     paddingLeft: 4,
   },

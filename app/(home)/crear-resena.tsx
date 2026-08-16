@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import ReviewService from "../../services/review.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Se llega acá desde pedido-detalle.tsx, botón "Dejar reseña" (solo
 // visible cuando order.pedido.estado === "entregado"). Pega contra
@@ -24,6 +26,8 @@ import { AppAlert } from "../components/common/AppAlert";
 // en e.message en vez de duplicar la validación acá.
 
 export default function CrearResenaScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { pedidoId, restauranteNombre, productoNombre } = useLocalSearchParams<{
     pedidoId: string;
     restauranteNombre?: string;
@@ -59,7 +63,7 @@ export default function CrearResenaScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color="#3E2723" />
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dejar reseña</Text>
         <View style={{ width: 36 }} />
@@ -84,7 +88,7 @@ export default function CrearResenaScreen() {
                 <Ionicons
                   name={n <= calificacion ? "star" : "star-outline"}
                   size={38}
-                  color={n <= calificacion ? "#F5A800" : "#D9D9D9"}
+                  color={n <= calificacion ? "#F5A800" : colors.border}
                   style={{ marginHorizontal: 4 }}
                 />
               </TouchableOpacity>
@@ -98,7 +102,7 @@ export default function CrearResenaScreen() {
             numberOfLines={4}
             maxLength={1000}
             placeholder="Contanos cómo fue tu experiencia..."
-            placeholderTextColor="#BDBDBD"
+            placeholderTextColor={colors.placeholder}
             value={comentario}
             onChangeText={setComentario}
             textAlignVertical="top"
@@ -123,8 +127,8 @@ export default function CrearResenaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -137,35 +141,36 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
   content: { flex: 1, padding: 20 },
   summaryCard: {
-    backgroundColor: "#FFF8F0",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 16,
     padding: 14,
     marginBottom: 24,
   },
   summaryRestaurant: { fontSize: 13, fontWeight: "800", color: "#FB8C00" },
-  summaryProduct: { fontSize: 13, color: "#6B6B6B", marginTop: 2 },
-  label: { fontSize: 14, fontWeight: "700", color: "#1A1A1A", marginBottom: 12 },
+  summaryProduct: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  label: { fontSize: 14, fontWeight: "700", color: colors.text, marginBottom: 12 },
   starsRow: { flexDirection: "row", justifyContent: "center", marginBottom: 28 },
   textArea: {
     borderWidth: 1,
-    borderColor: "#E8E8E8",
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBackground,
     borderRadius: 14,
     padding: 14,
     fontSize: 14,
-    color: "#1A1A1A",
+    color: colors.text,
     minHeight: 110,
   },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: colors.divider,
   },
   cta: {
     backgroundColor: "#FFA726",

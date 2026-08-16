@@ -1,10 +1,14 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 export default function RestaurantMenuHistoryScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { nombre } = useLocalSearchParams<{
     nombre?: string;
   }>();
@@ -16,7 +20,7 @@ export default function RestaurantMenuHistoryScreen() {
           style={styles.roundButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -28,7 +32,7 @@ export default function RestaurantMenuHistoryScreen() {
       </View>
 
       <View style={styles.emptyWrap}>
-        <Ionicons name="time-outline" size={36} color="#D9D9D9" />
+        <Ionicons name="time-outline" size={36} color={colors.placeholder} />
 
         <Text style={styles.emptyTitle}>Próximamente</Text>
 
@@ -41,10 +45,10 @@ export default function RestaurantMenuHistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
   },
 
   header: {
@@ -54,7 +58,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
 
   roundButton: {
@@ -70,7 +74,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 15,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: colors.text,
     marginHorizontal: 8,
   },
 
@@ -85,12 +89,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: colors.text,
   },
 
   emptyText: {
     fontSize: 13,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 19,
   },

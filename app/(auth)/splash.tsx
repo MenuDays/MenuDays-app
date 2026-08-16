@@ -4,14 +4,16 @@ import { useEffect, useRef } from 'react';
 import { router, type Href } from 'expo-router';
 import { Image } from 'react-native';
 import AuthService from '../../services/auth.service';
+import LocationService from '../../services/location.service';
 
 
 // Adónde mandar a cada rol una vez logueado. Mismo mapeo que usa
-// login.tsx después de un login exitoso.
-function routeForRole(rol: string | undefined): Href {
+// login.tsx después de un login exitoso. Para comensal, "hasLocation"
+// decide entre Inicio (ya eligió ciudad antes) o (province) (primera vez).
+function routeForRole(rol: string | undefined, hasLocation: boolean): Href {
   if (rol === 'administrador') return '/(admin)/dashboard';
   if (rol === 'restaurante') return '/(restaurant)/dashboard';
-  return '/(province)';
+  return hasLocation ? '/(home)' : '/(province)';
 }
 
 export default function SplashScreen() {
@@ -98,7 +100,8 @@ export default function SplashScreen() {
         if (session) {
           // Ya hay sesión guardada: nos saltamos onboarding y login,
           // vamos directo a la pantalla que le corresponde al rol.
-          router.replace(routeForRole(session.user?.rol));
+          const savedLocation = await LocationService.getUserLocation();
+          router.replace(routeForRole(session.user?.rol, !!savedLocation));
         } else {
           router.replace('/(auth)/onboarding');
         }

@@ -1,8 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity, ImageSourcePropType } from "react-native";
-import Colors from "../../../constants/Colors";
-
-const C = Colors.light;
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 type EmptyStateProps = {
   /** require(...) de la imagen mascota a mostrar */
@@ -26,6 +25,8 @@ export function EmptyState({
   onAction,
   tone = "neutral",
 }: EmptyStateProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.wrap}>
       <Image
@@ -47,7 +48,7 @@ export function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: {
     alignItems: "center",
     marginTop: 60,
@@ -56,22 +57,22 @@ const styles = StyleSheet.create({
   },
   text: {
     textAlign: "center",
-    color: C.placeholder,
+    color: colors.placeholder,
     fontSize: 13,
     lineHeight: 19,
   },
   textError: {
-    color: C.text,
+    color: colors.text,
   },
   button: {
     marginTop: 6,
-    backgroundColor: C.primaryDark,
+    backgroundColor: colors.primaryDark,
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 24,
   },
   buttonError: {
-    backgroundColor: C.error,
+    backgroundColor: colors.error,
   },
   buttonText: {
     color: "#FFFFFF",

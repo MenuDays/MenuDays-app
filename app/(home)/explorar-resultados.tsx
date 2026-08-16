@@ -22,6 +22,8 @@ import LocationService from "../../services/location.service";
 import PublicDishService, { PublicDish } from "../../services/public-dish.service";
 import PublicMenuService, { PublicMenu } from "../../services/public-menu.service";
 import PublicPromotionService, { PublicPromotion } from "../../services/public-promotion.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // ==========================================================================
 // Conectado a GET /public/dishes, /public/menus, /public/promotions
@@ -132,6 +134,8 @@ function normalizePromotion(promotion: PublicPromotion): ResultItem {
 }
 
 export default function ExplorarResultadosScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { categoria } = useLocalSearchParams<{ categoria?: string }>();
   const category = categoria || "Todas";
   const navigation = useNavigation();
@@ -250,11 +254,11 @@ export default function ExplorarResultadosScreen() {
       right: 16,
       bottom: 18 + insets.bottom,
       height: 74,
-      backgroundColor: "#FFFFFF",
+      backgroundColor: colors.navbarBackground,
       borderRadius: 38,
       borderTopWidth: 0,
       elevation: 12,
-      shadowColor: "#000",
+      shadowColor: colors.shadow,
       shadowOffset: { width: 0, height: 5 },
       shadowOpacity: 0.12,
       shadowRadius: 10,
@@ -269,7 +273,7 @@ export default function ExplorarResultadosScreen() {
     return () => {
       navigation.setOptions({ tabBarStyle: undefined });
     };
-  }, [filtersOpen, navigation, insets.bottom]);
+  }, [filtersOpen, navigation, insets.bottom, colors]);
 
   // Bottom sheet arrastrable. OJO: acá NO se usa <Modal> de react-native a
   // propósito -- Modal crea su propia jerarquía nativa separada (una
@@ -337,7 +341,7 @@ export default function ExplorarResultadosScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="arrow-back" size={22} color="#3E2723" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>
           {category !== "Todas" ? category : "Explorar"}
@@ -366,17 +370,17 @@ export default function ExplorarResultadosScreen() {
 
       {/* Buscador */}
       <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color="#9E9E9E" />
+        <Ionicons name="search" size={18} color={colors.placeholder} />
         <TextInput
           style={styles.searchInput}
           placeholder={`Buscar ${TAB_LABELS[tab].toLowerCase()}...`}
-          placeholderTextColor="#B0B0B0"
+          placeholderTextColor={colors.placeholder}
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={18} color="#B0B0B0" />
+            <Ionicons name="close-circle" size={18} color={colors.placeholder} />
           </TouchableOpacity>
         )}
       </View>
@@ -388,7 +392,7 @@ export default function ExplorarResultadosScreen() {
           onPress={() => setFiltersOpen(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="options-outline" size={16} color="#3E2723" />
+          <Ionicons name="options-outline" size={16} color={colors.text} />
           <Text style={styles.filtersButtonText}>Filtros</Text>
           {activeFilterCount > 0 && (
             <View style={styles.filtersBadge}>
@@ -405,7 +409,7 @@ export default function ExplorarResultadosScreen() {
             <Ionicons
               name="navigate-outline"
               size={13}
-              color={sortBy === "cercania" ? "#FFFFFF" : "#3E2723"}
+              color={sortBy === "cercania" ? "#FFFFFF" : colors.text}
             />
             <Text style={[styles.sortChipText, sortBy === "cercania" && styles.sortChipTextActive]}>
               Cercanía
@@ -418,7 +422,7 @@ export default function ExplorarResultadosScreen() {
             <Ionicons
               name="star-outline"
               size={13}
-              color={sortBy === "calificacion" ? "#FFFFFF" : "#3E2723"}
+              color={sortBy === "calificacion" ? "#FFFFFF" : colors.text}
             />
             <Text
               style={[styles.sortChipText, sortBy === "calificacion" && styles.sortChipTextActive]}
@@ -465,7 +469,7 @@ export default function ExplorarResultadosScreen() {
                 <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
               ) : (
                 <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                  <Ionicons name="fast-food-outline" size={20} color="#BDBDBD" />
+                  <Ionicons name="fast-food-outline" size={20} color={colors.placeholder} />
                 </View>
               )}
 
@@ -609,8 +613,8 @@ export default function ExplorarResultadosScreen() {
 
 const ORANGE = "#FB8C00";
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAFAFA", paddingHorizontal: 16 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16 },
 
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
 
@@ -621,11 +625,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 14,
   },
-  title: { fontSize: 20, fontWeight: "bold", color: "#3E2723", textAlign: "center", flex: 1 },
+  title: { fontSize: 20, fontWeight: "bold", color: colors.text, textAlign: "center", flex: 1 },
 
   segmentedWrap: {
     flexDirection: "row",
-    backgroundColor: "#EFEFEF",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 16,
     padding: 4,
     marginBottom: 14,
@@ -637,21 +641,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   segmentActive: { backgroundColor: ORANGE },
-  segmentText: { fontSize: 13, fontWeight: "700", color: "#3E2723" },
+  segmentText: { fontSize: 13, fontWeight: "700", color: colors.text },
   segmentTextActive: { color: "#FFFFFF" },
 
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.inputBackground,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 46,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.inputBorder,
   },
-  searchInput: { flex: 1, fontSize: 14, color: "#1A1A1A" },
+  searchInput: { flex: 1, fontSize: 14, color: colors.text },
 
   toolbarRow: {
     flexDirection: "row",
@@ -664,14 +668,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  filtersButtonText: { fontSize: 13, fontWeight: "700", color: "#3E2723" },
+  filtersButtonText: { fontSize: 13, fontWeight: "700", color: colors.text },
   filtersBadge: {
     minWidth: 16,
     height: 16,
@@ -691,12 +695,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
   },
   sortChipActive: { backgroundColor: ORANGE, borderColor: ORANGE },
-  sortChipText: { fontSize: 12, fontWeight: "600", color: "#3E2723" },
+  sortChipText: { fontSize: 12, fontWeight: "600", color: colors.text },
   sortChipTextActive: { color: "#FFFFFF" },
 
   resultsList: { paddingBottom: 120 },
@@ -704,23 +708,23 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 12,
     marginBottom: 12,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  thumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: "#F0F0F0" },
+  thumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.surfaceSecondary },
   thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
   cardInfo: { flex: 1, justifyContent: "center" },
   cardHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardName: { fontSize: 15, fontWeight: "700", color: "#1A1A1A", flexShrink: 1 },
+  cardName: { fontSize: 15, fontWeight: "700", color: colors.text, flexShrink: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  cardMeta: { fontSize: 12, color: "#9E9E9E", marginTop: 2 },
+  cardMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   cardBottomRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -728,9 +732,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ratingWrap: { flexDirection: "row", alignItems: "center", gap: 3 },
-  ratingText: { fontSize: 13, fontWeight: "700", color: "#1A1A1A" },
-  reviewsText: { fontSize: 12, color: "#9E9E9E" },
-  distanceText: { fontSize: 12, color: "#9E9E9E" },
+  ratingText: { fontSize: 13, fontWeight: "700", color: colors.text },
+  reviewsText: { fontSize: 12, color: colors.textSecondary },
+  distanceText: { fontSize: 12, color: colors.textSecondary },
   priceWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
   price: { fontSize: 14, fontWeight: "700", color: ORANGE },
 
@@ -740,13 +744,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: colors.overlay,
     justifyContent: "flex-end",
     zIndex: 9999,
     elevation: 9999,
   },
   modalSheet: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.modalBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -761,7 +765,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: colors.border,
     alignSelf: "center",
     marginBottom: 12,
   },
@@ -771,12 +775,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#3E2723" },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
   modalClearText: { fontSize: 13, fontWeight: "600", color: ORANGE },
   modalSectionTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#3E2723",
+    color: colors.text,
     marginTop: 16,
     marginBottom: 8,
   },
@@ -785,12 +789,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 20,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
   },
   optionChipActive: { backgroundColor: ORANGE, borderColor: ORANGE },
-  optionChipText: { fontSize: 13, fontWeight: "600", color: "#3E2723" },
+  optionChipText: { fontSize: 13, fontWeight: "600", color: colors.text },
   optionChipTextActive: { color: "#FFFFFF" },
 
   applyButton: {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import { Ionicons } from "@expo/vector-icons";
 import RestaurantService, { PublicGalleryImage } from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
 import { EmptyState } from "../components/common/EmptyState";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // La galería completa ya viene incluida en RestaurantPublicDetail.galeria
 // (GET /restaurants/:id), así que no hace falta ningún endpoint nuevo acá
@@ -28,6 +30,8 @@ const NUM_COLUMNS = 3;
 const THUMB_SIZE = (width - 20 * 2 - GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
 export default function RestaurantGalleryScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id, nombre } = useLocalSearchParams<{ id: string; nombre?: string }>();
 
   const [images, setImages] = useState<PublicGalleryImage[]>([]);
@@ -52,7 +56,7 @@ export default function RestaurantGalleryScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.header}>
         <TouchableOpacity style={styles.roundButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color="#3E2723" />
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           Galería{nombre ? ` · ${nombre}` : ""}
@@ -113,8 +117,8 @@ export default function RestaurantGalleryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -122,17 +126,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
   roundButton: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 15, fontWeight: "800", color: "#1A1A1A" },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 15, fontWeight: "800", color: colors.text },
 
   grid: { padding: 20, gap: GAP },
-  thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: 10, marginBottom: GAP, backgroundColor: "#F5F5F5" },
+  thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: 10, marginBottom: GAP, backgroundColor: colors.surfaceSecondary },
 
   emptyWrap: { alignItems: "center", gap: 10, paddingVertical: 50 },
-  emptyText: { fontSize: 13, color: "#9E9E9E", textAlign: "center", paddingHorizontal: 30 },
+  emptyText: { fontSize: 13, color: colors.textSecondary, textAlign: "center", paddingHorizontal: 30 },
 
+  // El visor a pantalla completa se queda siempre oscuro a propósito
+  // (fondo negro para ver mejor la foto), no sigue el tema.
   viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)" },
   viewerHeader: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16 },
   viewerCloseButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },

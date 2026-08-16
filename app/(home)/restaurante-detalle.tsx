@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -19,12 +20,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // TODO: si el proyecto todavía no tiene "expo-clipboard" instalado,
 // correr `npx expo install expo-clipboard` (se usa para "Copiar dirección").
 import * as Clipboard from "expo-clipboard";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import FavoriteService from "../../services/favorite.service";
 import LocationService from "../../services/location.service";
 import RestaurantService, { RestaurantPublicDetail } from "../../services/restaurant.service";
 import ReviewService, { Review } from "../../services/review.service";
 import ReportService, { ReportReason } from "../../services/report.service";
+import OrderService from "../../services/order.service";
 import { AppAlert } from "../components/common/AppAlert";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
@@ -57,18 +60,23 @@ const restaurantId = previewRestaurantId ?? routeId;
   // No hay endpoint que la devuelva calculada desde el back.
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
-  // "Para pedir" (Menú del día / Platos / Promociones) se muestra en
-  // pestañas -- antes las 3 secciones iban una debajo de la otra siempre
-  // visibles, y quedaba una pantalla larguísima con todo apilado. Se
-  // arranca en la primera que tenga contenido (ver efecto más abajo).
-  const [catalogTab, setCatalogTab] = useState<"menus" | "platos" | "promos">("menus");
-
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportReasons, setReportReasons] = useState<ReportReason[]>([]);
   const [reportReasonsLoading, setReportReasonsLoading] = useState(false);
   const [selectedReasonId, setSelectedReasonId] = useState<number | null>(null);
   const [reportDescription, setReportDescription] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+
+  // Reseña "en línea" desde el propio perfil del restaurante: solo se
+  // puede calificar si el comensal tiene al menos un pedido ENTREGADO de
+  // este restaurante sin reseña todavía (el back exige pedidoId al crear
+  // la reseña -- ver review.service.ts). Se busca en el historial de
+  // pedidos del usuario; si el POST falla porque ese pedido puntual ya
+  // tenía reseña, se propaga el error del back tal cual.
+  const [reviewableOrderId, setReviewableOrderId] = useState<string | null>(null);
+  const [myRating, setMyRating] = useState(0);
+  const [myComment, setMyComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
    useEffect(() => {
     if (!restaurantId) {
@@ -81,6 +89,9 @@ const restaurantId = previewRestaurantId ?? routeId;
     setReviews([]);
     setIsFavorite(false);
     setDistanceKm(null);
+    setReviewableOrderId(null);
+    setMyRating(0);
+    setMyComment("");
     Promise.all([
       RestaurantService.getPublicDetail(restaurantId),
       ReviewService.getRestaurantReviews(restaurantId),
@@ -88,8 +99,11 @@ const restaurantId = previewRestaurantId ?? routeId;
       // no hay un endpoint "¿es favorito?" puntual, así que se deriva acá.
       FavoriteService.getAll().catch(() => []),
       LocationService.getUserLocation().catch(() => null),
+      // En ownerPreview no tiene sentido (el dueño no es comensal acá).
+      ownerPreview ? Promise.resolve([]) : OrderService.getHistory().catch(() => []),
+      AsyncStorage.getItem("@MenuDays:user").catch(() => null),
     ])
-      .then(([restaurantData, reviewsData, favoritesData, userLocation]) => {
+      .then(([restaurantData, reviewsData, favoritesData, userLocation, orderHistory, userRaw]) => {
         setRestaurant(restaurantData);
         setReviews(reviewsData);
         setIsFavorite(favoritesData.some((f) => f.restaurant.id === restaurantData.id));
@@ -100,6 +114,26 @@ const restaurantId = previewRestaurantId ?? routeId;
             haversineKm(userLocation.latitude, userLocation.longitude, lat, lng)
           );
         }
+
+        // Solo se puede calificar si hay un pedido ENTREGADO de este
+        // restaurante que este usuario todavía no reseñó.
+        try {
+          const currentUserId = userRaw ? JSON.parse(userRaw)?.id : null;
+          const reviewedPedidoIds = new Set(
+            reviewsData
+              .filter((r) => currentUserId != null && String(r.usuario_id) === String(currentUserId))
+              .map((r) => String(r.pedido_id))
+          );
+          const eligible = orderHistory.find(
+            (o) =>
+              String(o.restaurante.id) === String(restaurantData.id) &&
+              o.estado === "entregado" &&
+              !reviewedPedidoIds.has(String(o.id))
+          );
+          setReviewableOrderId(eligible ? String(eligible.id) : null);
+        } catch {
+          // Sin datos de usuario/pedidos: simplemente no se ofrece calificar.
+        }
       })
       .catch((e: any) => {
         const msg = e.message || "No se pudo cargar el restaurante.";
@@ -107,7 +141,36 @@ const restaurantId = previewRestaurantId ?? routeId;
         AppAlert.alert("Error", msg);
       })
       .finally(() => setLoading(false));
-  }, [restaurantId]);
+  }, [restaurantId, ownerPreview]);
+
+  async function handleSubmitInlineReview() {
+    if (!reviewableOrderId || myRating === 0 || submittingReview) return;
+    setSubmittingReview(true);
+    try {
+      await ReviewService.create({
+        pedidoId: reviewableOrderId,
+        calificacion: myRating,
+        comentario: myComment,
+      });
+      // Refresca reseñas + promedio/cantidad del restaurante con los
+      // datos reales que acaba de confirmar el back, en vez de simularlo
+      // a mano acá.
+      const [freshDetail, freshReviews] = await Promise.all([
+        RestaurantService.getPublicDetail(restaurantId),
+        ReviewService.getRestaurantReviews(restaurantId),
+      ]);
+      setRestaurant(freshDetail);
+      setReviews(freshReviews);
+      setReviewableOrderId(null);
+      setMyRating(0);
+      setMyComment("");
+      AppAlert.alert("¡Gracias!", "Tu reseña fue publicada.");
+    } catch (e: any) {
+      AppAlert.alert("No se pudo enviar", e.message || "Intentá de nuevo en unos minutos.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
 
   const scheduleGroups = useMemo(
     () => (restaurant ? groupSchedule(restaurant.horarios) : []),
@@ -115,15 +178,6 @@ const restaurantId = previewRestaurantId ?? routeId;
   );
 
   const ratingDistribution = useMemo(() => buildDistribution(reviews), [reviews]);
-
-  // Arranca en la primera pestaña de "Para pedir" que tenga contenido
-  // (menús > platos > promos), cada vez que cambia de restaurante.
-  useEffect(() => {
-    if (!restaurant) return;
-    if (restaurant.menus.length > 0) setCatalogTab("menus");
-    else if (restaurant.platos.length > 0) setCatalogTab("platos");
-    else if (restaurant.promociones.length > 0) setCatalogTab("promos");
-  }, [restaurant]);
 
   async function handleToggleFavorite() {
     if (!restaurant) return;
@@ -271,9 +325,20 @@ const restaurantId = previewRestaurantId ?? routeId;
           )}
 
           <SafeAreaView style={styles.coverOverlay} edges={["top"]}>
-            <TouchableOpacity style={styles.roundButton} onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={20} color="#3E2723" />
-            </TouchableOpacity>
+            {/* En ownerPreview (pestaña "Vista previa" de mi-local.tsx) esta
+                pantalla vive embebida DENTRO de otra, no como ruta propia
+                -- un router.back() acá pisaba el historial real de
+                navegación y terminaba mandando a cualquier lado (incluso
+                al lado comensal si se había usado "Ver como comensal"
+                antes). mi-local.tsx ya tiene su propio header con back,
+                así que acá directamente no mostramos el botón. */}
+            {ownerPreview ? (
+              <View style={styles.roundButton} />
+            ) : (
+              <TouchableOpacity style={styles.roundButton} onPress={() => router.back()}>
+                <Ionicons name="chevron-back" size={20} color="#3E2723" />
+              </TouchableOpacity>
+            )}
 
             <View style={styles.coverOverlayRight}>
               <TouchableOpacity style={styles.roundButton} onPress={handleOpenReport}>
@@ -360,186 +425,33 @@ const restaurantId = previewRestaurantId ?? routeId;
           ) : null}
 
           {(restaurant.menus.length > 0 || restaurant.platos.length > 0 || restaurant.promociones.length > 0) && (
-            <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="restaurant" size={18} color="#FB8C00" />
-                <Text style={styles.sectionTitle}>Para pedir</Text>
-              </View>
-
-              <View style={styles.catalogTabsRow}>
-                {restaurant.menus.length > 0 && (
-                  <TouchableOpacity
-                    style={[styles.catalogTab, catalogTab === "menus" && styles.catalogTabActive]}
-                    onPress={() => setCatalogTab("menus")}
-                  >
-                    <Text style={[styles.catalogTabText, catalogTab === "menus" && styles.catalogTabTextActive]}>
-                      Menú del día
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {restaurant.platos.length > 0 && (
-                  <TouchableOpacity
-                    style={[styles.catalogTab, catalogTab === "platos" && styles.catalogTabActive]}
-                    onPress={() => setCatalogTab("platos")}
-                  >
-                    <Text style={[styles.catalogTabText, catalogTab === "platos" && styles.catalogTabTextActive]}>
-                      Platos
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {restaurant.promociones.length > 0 && (
-                  <TouchableOpacity
-                    style={[styles.catalogTab, catalogTab === "promos" && styles.catalogTabActive]}
-                    onPress={() => setCatalogTab("promos")}
-                  >
-                    <Text style={[styles.catalogTabText, catalogTab === "promos" && styles.catalogTabTextActive]}>
-                      Promociones
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {catalogTab === "menus" &&
-                restaurant.menus.map((menu) => (
-                  <View key={menu.id} style={styles.menuCard}>
-                    {menu.foto_url ? (
-                      <Image source={{ uri: menu.foto_url }} style={styles.menuImage} />
-                    ) : (
-                      <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                        <Ionicons name="restaurant-outline" size={18} color={colors.placeholder} />
-                      </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.menuTopRow}>
-                        <Text style={styles.menuName} numberOfLines={1}>
-                          {menu.nombre}
-                        </Text>
-                        <View style={styles.priceBadge}>
-                          <Text style={styles.priceBadgeText}>${menu.precio.toFixed(2)}</Text>
-                        </View>
-                      </View>
-                      {menu.descripcion ? (
-                        <Text style={styles.menuDescription} numberOfLines={2}>
-                          {menu.descripcion}
-                        </Text>
-                      ) : null}
-                      {/* Va al detalle de producto (pedido-producto.tsx), no
-                          arma el pedido acá directo. Esa pantalla es la que
-                          tiene el botón real "Realizar pedido". */}
-                      {!ownerPreview && (
-                        <TouchableOpacity
-                          style={styles.pedirButton}
-                          onPress={() =>
-                            router.push({
-                              pathname: "/(home)/pedido-producto",
-                              params: {
-                                id: menu.id,
-                                tipo: "menu_dia",
-                                ofreceDelivery: String(restaurant.ofreceDelivery),
-                                nombreDelivery: restaurant.nombreDelivery ?? "",
-                              },
-                            })
-                          }
-                        >
-                          <Text style={styles.pedirButtonText}>Pedir</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                ))}
-
-              {catalogTab === "platos" &&
-                restaurant.platos.map((plato) => (
-                  <View key={plato.id} style={styles.menuCard}>
-                    {plato.plato_imagenes[0]?.url ? (
-                      <Image source={{ uri: plato.plato_imagenes[0].url }} style={styles.menuImage} />
-                    ) : (
-                      <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                        <Ionicons name="fast-food-outline" size={18} color={colors.placeholder} />
-                      </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.menuTopRow}>
-                        <Text style={styles.menuName} numberOfLines={1}>
-                          {plato.nombre}
-                        </Text>
-                        <View style={styles.priceBadge}>
-                          <Text style={styles.priceBadgeText}>${plato.precio.toFixed(2)}</Text>
-                        </View>
-                      </View>
-                      {plato.descripcion ? (
-                        <Text style={styles.menuDescription} numberOfLines={2}>
-                          {plato.descripcion}
-                        </Text>
-                      ) : null}
-                      {!ownerPreview && (
-                        <TouchableOpacity
-                          style={styles.pedirButton}
-                          onPress={() =>
-                            router.push({
-                              pathname: "/(home)/pedido-producto",
-                              params: {
-                                id: plato.id,
-                                tipo: "plato",
-                                ofreceDelivery: String(restaurant.ofreceDelivery),
-                                nombreDelivery: restaurant.nombreDelivery ?? "",
-                              },
-                            })
-                          }
-                        >
-                          <Text style={styles.pedirButtonText}>Pedir</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                ))}
-
-              {catalogTab === "promos" &&
-                restaurant.promociones.map((promo) => (
-                  <View key={promo.id} style={styles.menuCard}>
-                    {promo.imagen_url ? (
-                      <Image source={{ uri: promo.imagen_url }} style={styles.menuImage} />
-                    ) : (
-                      <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                        <Ionicons name="pricetag-outline" size={18} color={colors.placeholder} />
-                      </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.menuTopRow}>
-                        <Text style={styles.menuName} numberOfLines={1}>
-                          {promo.titulo}
-                        </Text>
-                        <View style={styles.priceBadge}>
-                          <Text style={styles.priceBadgeText}>${promo.precio.toFixed(2)}</Text>
-                        </View>
-                      </View>
-                      {promo.descripcion ? (
-                        <Text style={styles.menuDescription} numberOfLines={2}>
-                          {promo.descripcion}
-                        </Text>
-                      ) : null}
-                      {!ownerPreview && (
-                        <TouchableOpacity
-                          style={styles.pedirButton}
-                          onPress={() =>
-                            router.push({
-                              pathname: "/(home)/pedido-producto",
-                              params: {
-                                id: promo.id,
-                                tipo: "promocion",
-                                ofreceDelivery: String(restaurant.ofreceDelivery),
-                                nombreDelivery: restaurant.nombreDelivery ?? "",
-                              },
-                            })
-                          }
-                        >
-                          <Text style={styles.pedirButtonText}>Pedir</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                ))}
-            </View>
+            <TouchableOpacity
+              style={styles.verMenuButton}
+              activeOpacity={0.9}
+              onPress={() =>
+                router.push({
+                  pathname: "/(home)/restaurante-catalogo",
+                  params: {
+                    id: String(restaurant.id),
+                    nombre: restaurant.nombreComercial,
+                    ofreceDelivery: String(restaurant.ofreceDelivery),
+                    nombreDelivery: restaurant.nombreDelivery ?? "",
+                    ownerPreview: String(!!ownerPreview),
+                  },
+                })
+              }
+            >
+              <LinearGradient
+                colors={["#FFB74D", "#FB8C00"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.verMenuGradient}
+              >
+                <Ionicons name="restaurant" size={18} color="#FFFFFF" />
+                <Text style={styles.verMenuText}>Ver Menú</Text>
+                <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+              </LinearGradient>
+            </TouchableOpacity>
           )}
 
           <View style={styles.section}>
@@ -638,6 +550,44 @@ const restaurantId = previewRestaurantId ?? routeId;
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Reseñas de la comunidad</Text>
+
+            {reviewableOrderId && (
+              <View style={styles.rateCard}>
+                <Text style={styles.rateCardTitle}>Calificá tu experiencia</Text>
+                <View style={styles.rateStarsRow}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <TouchableOpacity key={n} onPress={() => setMyRating(n)} hitSlop={8}>
+                      <Ionicons
+                        name={n <= myRating ? "star" : "star-outline"}
+                        size={34}
+                        color={n <= myRating ? "#F5A800" : colors.border}
+                        style={{ marginHorizontal: 3 }}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.rateCommentInput}
+                  placeholder="Contanos cómo fue tu experiencia (opcional)"
+                  placeholderTextColor={colors.placeholder}
+                  value={myComment}
+                  onChangeText={setMyComment}
+                  multiline
+                  maxLength={1000}
+                />
+                <TouchableOpacity
+                  style={[styles.rateSubmitButton, (myRating === 0 || submittingReview) && { opacity: 0.6 }]}
+                  onPress={handleSubmitInlineReview}
+                  disabled={myRating === 0 || submittingReview}
+                >
+                  {submittingReview ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.rateSubmitButtonText}>Publicar reseña</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={styles.reviewsSummaryRow}>
               <View style={styles.reviewsAvgWrap}>
@@ -969,7 +919,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
 
   content: { padding: 20 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: -44 },
+  // El logo se superpone al borde inferior de la portada (marginTop
+  // negativo), pero el nombre va alineado abajo ("flex-end") en vez de
+  // centrado con el logo -- así el texto queda debajo del solape, sin
+  // mezclarse visualmente con la foto de portada.
+  headerRow: { flexDirection: "row", alignItems: "flex-end", gap: 12, marginTop: -36 },
   logo: {
     width: 64,
     height: 64,
@@ -1008,43 +962,24 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   linkText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
   paragraph: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
 
-  catalogTabsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
-  catalogTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.divider,
+  verMenuButton: {
+    marginTop: 26,
+    borderRadius: 26,
+    overflow: "hidden",
+    shadowColor: "#FB8C00",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  catalogTabActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
-  catalogTabText: { fontSize: 12.5, fontWeight: "700", color: colors.textSecondary },
-  catalogTabTextActive: { color: "#FFFFFF" },
-  menuCard: {
+  verMenuGradient: {
+    height: 56,
     flexDirection: "row",
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    borderRadius: 16,
-    padding: 10,
-    marginBottom: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
-  menuImage: { width: 64, height: 64, borderRadius: 12 },
-  menuImagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
-  menuTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
-  menuName: { flex: 1, fontSize: 14, fontWeight: "800", color: colors.text },
-  menuDescription: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
-  priceBadge: { backgroundColor: "#FFA726", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  priceBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-  pedirButton: {
-    marginTop: 8,
-    alignSelf: "flex-start",
-    backgroundColor: "#FB8C00",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  pedirButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
+  verMenuText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
 
   mapWrap: { height: 130, borderRadius: 16, overflow: "hidden", marginBottom: 12 },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
@@ -1090,6 +1025,34 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scheduleClosed: { fontSize: 13, color: colors.error, fontWeight: "700" },
 
   galleryThumb: { width: 84, height: 84, borderRadius: 12 },
+
+  rateCard: {
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 18,
+  },
+  rateCardTitle: { fontSize: 14, fontWeight: "800", color: colors.text, marginBottom: 10 },
+  rateStarsRow: { flexDirection: "row", justifyContent: "center", marginBottom: 14 },
+  rateCommentInput: {
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBackground,
+    borderRadius: 14,
+    padding: 12,
+    fontSize: 13,
+    color: colors.text,
+    minHeight: 70,
+    textAlignVertical: "top",
+    marginBottom: 12,
+  },
+  rateSubmitButton: {
+    backgroundColor: "#FB8C00",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  rateSubmitButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
 
   reviewsSummaryRow: { flexDirection: "row", gap: 20, alignItems: "center", marginBottom: 18 },
   reviewsAvgWrap: { alignItems: "center" },

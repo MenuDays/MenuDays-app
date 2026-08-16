@@ -15,6 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import ReviewService, { Review } from "../../services/review.service";
 import { AppAlert } from "../components/common/AppAlert";
 import { EmptyState } from "../components/common/EmptyState";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Pantalla de "Ver todas las reseñas". El back todavía devuelve el
 // listado completo en una sola llamada (GET /restaurants/:id/reviews sin
@@ -27,6 +29,8 @@ const PAGE_SIZE = 15;
 type StarFilter = 0 | 1 | 2 | 3 | 4 | 5;
 
 export default function RestaurantReviewsScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id, nombre, promedio, cantidad } = useLocalSearchParams<{
     id: string;
     nombre?: string;
@@ -75,7 +79,7 @@ export default function RestaurantReviewsScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.header}>
         <TouchableOpacity style={styles.roundButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color="#3E2723" />
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           Reseñas{nombre ? ` · ${nombre}` : ""}
@@ -101,7 +105,7 @@ export default function RestaurantReviewsScreen() {
                         key={i}
                         name="star"
                         size={12}
-                        color={i < Math.round(promedioNum) ? "#F5A800" : "#E0E0E0"}
+                        color={i < Math.round(promedioNum) ? "#F5A800" : colors.border}
                       />
                     ))}
                   </View>
@@ -151,7 +155,7 @@ export default function RestaurantReviewsScreen() {
                   <Image source={{ uri: review.usuarios.foto_perfil_url }} style={styles.reviewAvatar} />
                 ) : (
                   <View style={[styles.reviewAvatar, styles.reviewAvatarPlaceholder]}>
-                    <Ionicons name="person" size={14} color="#BDBDBD" />
+                    <Ionicons name="person" size={14} color={colors.placeholder} />
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
@@ -166,7 +170,7 @@ export default function RestaurantReviewsScreen() {
                       key={i}
                       name="star"
                       size={12}
-                      color={i < review.calificacion ? "#F5A800" : "#E0E0E0"}
+                      color={i < review.calificacion ? "#F5A800" : colors.border}
                     />
                   ))}
                 </View>
@@ -228,8 +232,8 @@ function relativeTime(iso: string): string {
   return `Hace ${months} mes${months > 1 ? "es" : ""}`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -237,7 +241,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
   roundButton: {
     width: 36,
@@ -246,17 +250,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 15, fontWeight: "800", color: "#1A1A1A" },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 15, fontWeight: "800", color: colors.text },
 
   list: { padding: 20, paddingBottom: 60 },
 
   summaryRow: { flexDirection: "row", gap: 20, alignItems: "center", marginBottom: 14 },
   avgWrap: { alignItems: "center", gap: 2 },
-  avgNumber: { fontSize: 30, fontWeight: "900", color: "#1A1A1A" },
-  avgLabel: { fontSize: 10, color: "#9E9E9E", fontWeight: "700" },
+  avgNumber: { fontSize: 30, fontWeight: "900", color: colors.text },
+  avgLabel: { fontSize: 10, color: colors.textSecondary, fontWeight: "700" },
   distributionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  distributionStar: { fontSize: 11, color: "#9E9E9E", width: 10 },
-  distributionTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: "#F0F0F0", overflow: "hidden" },
+  distributionStar: { fontSize: 11, color: colors.textSecondary, width: 10 },
+  distributionTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.divider, overflow: "hidden" },
   distributionFill: { height: "100%", backgroundColor: "#FFA726" },
 
   chip: {
@@ -264,26 +268,26 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
   },
-  chipActive: { backgroundColor: "#FFF3E0", borderColor: "#FFA726" },
-  chipText: { fontSize: 12, fontWeight: "700", color: "#5C5C5C" },
+  chipActive: { backgroundColor: colors.surfaceSecondary, borderColor: "#FFA726" },
+  chipText: { fontSize: 12, fontWeight: "700", color: colors.textSecondary },
   chipTextActive: { color: "#FB8C00" },
 
-  reviewCard: { borderTopWidth: 1, borderTopColor: "#F0F0F0", paddingVertical: 14 },
+  reviewCard: { borderTopWidth: 1, borderTopColor: colors.divider, paddingVertical: 14 },
   reviewHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   reviewAvatar: { width: 34, height: 34, borderRadius: 17 },
-  reviewAvatarPlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
-  reviewName: { fontSize: 13, fontWeight: "700", color: "#1A1A1A" },
-  reviewDate: { fontSize: 11, color: "#9E9E9E", marginTop: 1 },
-  reviewComment: { fontSize: 12, color: "#5C5C5C", marginTop: 8, lineHeight: 18, fontStyle: "italic" },
+  reviewAvatarPlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  reviewName: { fontSize: 13, fontWeight: "700", color: colors.text },
+  reviewDate: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+  reviewComment: { fontSize: 12, color: colors.textSecondary, marginTop: 8, lineHeight: 18, fontStyle: "italic" },
 
-  replyBox: { marginTop: 10, backgroundColor: "#FAFAFA", borderRadius: 12, padding: 10 },
+  replyBox: { marginTop: 10, backgroundColor: colors.surfaceSecondary, borderRadius: 12, padding: 10 },
   replyLabel: { fontSize: 11, fontWeight: "800", color: "#FB8C00", marginBottom: 3 },
-  replyText: { fontSize: 12, color: "#5C5C5C", lineHeight: 17 },
+  replyText: { fontSize: 12, color: colors.textSecondary, lineHeight: 17 },
 
   emptyWrap: { alignItems: "center", gap: 10, paddingVertical: 50 },
-  emptyText: { fontSize: 13, color: "#9E9E9E", textAlign: "center", paddingHorizontal: 30 },
+  emptyText: { fontSize: 13, color: colors.textSecondary, textAlign: "center", paddingHorizontal: 30 },
 
   loadMoreButton: {
     alignItems: "center",

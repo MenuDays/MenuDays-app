@@ -304,42 +304,6 @@ export default function HomeScreen() {
               />
             </View>
 
-            {/* Restaurantes destacados -- los mejor calificados (4+
-                estrellas) dentro del mismo radio elegido arriba. */}
-            {!restaurantsLoading && featuredRestaurants.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Restaurantes destacados</Text>
-                </View>
-                <FlatList
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  data={featuredRestaurants}
-                  keyExtractor={item => `featured-${item.id}`}
-                  contentContainerStyle={styles.restaurantsList}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.featuredCard}
-                      onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: item.id } })}
-                    >
-                      {item.logo_url ? (
-                        <Image source={{ uri: item.logo_url }} style={styles.featuredLogo} />
-                      ) : (
-                        <View style={[styles.featuredLogo, styles.featuredLogoPlaceholder]}>
-                          <Ionicons name="storefront-outline" size={22} color="#BDBDBD" />
-                        </View>
-                      )}
-                      <Text style={styles.featuredName} numberOfLines={1}>{item.nombre_comercial}</Text>
-                      <View style={styles.featuredRatingRow}>
-                        <Ionicons name="star" size={11} color={colors.primary} />
-                        <Text style={styles.featuredRatingText}>{item.calificacion_promedio.toFixed(1)}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                />
-              </>
-            )}
-
             {/* Restaurantes cercanos */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Restaurantes cercanos</Text>
@@ -388,6 +352,42 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 }
               />
+            )}
+
+            {/* Restaurantes destacados -- los mejor calificados (4 a 5
+                estrellas) dentro del mismo radio elegido arriba. */}
+            {!restaurantsLoading && featuredRestaurants.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Restaurantes destacados</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={featuredRestaurants}
+                  keyExtractor={item => `featured-${item.id}`}
+                  contentContainerStyle={styles.restaurantsList}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.featuredCard}
+                      onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: item.id } })}
+                    >
+                      {item.logo_url ? (
+                        <Image source={{ uri: item.logo_url }} style={styles.featuredLogo} />
+                      ) : (
+                        <View style={[styles.featuredLogo, styles.featuredLogoPlaceholder]}>
+                          <Ionicons name="storefront-outline" size={22} color="#BDBDBD" />
+                        </View>
+                      )}
+                      <Text style={styles.featuredName} numberOfLines={1}>{item.nombre_comercial}</Text>
+                      <View style={styles.featuredRatingRow}>
+                        <Ionicons name="star" size={11} color={colors.primary} />
+                        <Text style={styles.featuredRatingText}>{item.calificacion_promedio.toFixed(1)}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              </>
             )}
 
             {/* Menús disponibles hoy */}

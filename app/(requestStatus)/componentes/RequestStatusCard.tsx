@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Image,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 export type RequestStatus =
   | "pendiente"
@@ -21,6 +23,8 @@ export default function RequestStatusCard({
   status,
   restaurantName,
 }: RequestStatusCardProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const config = getStatusConfig(status);
 
   return (
@@ -105,9 +109,9 @@ function getStatusConfig(status: RequestStatus) {
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
 
     marginHorizontal: 20,
     marginTop: 24,
@@ -119,7 +123,7 @@ const styles = StyleSheet.create({
 
     alignItems: "center",
 
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: {
@@ -160,7 +164,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
 
-    color: "#1A1A1A",
+    color: colors.text,
 
     textAlign: "center",
   },
@@ -171,7 +175,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
 
-    color: "#666666",
+    color: colors.textSecondary,
 
     textAlign: "center",
   },

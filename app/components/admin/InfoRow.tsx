@@ -44,12 +44,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
+    fontWeight: "600",
     color: "#9E9E9E",
     marginBottom: 2,
   },
   value: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "400",
     color: "#1A1A1A",
   },
 });

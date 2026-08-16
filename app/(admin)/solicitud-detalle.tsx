@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   },
   socialTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#FB8C00",
     marginBottom: 10,
   },
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#1A1A1A",
     marginTop: 20,
     marginBottom: 10,
