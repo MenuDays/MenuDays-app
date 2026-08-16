@@ -4,6 +4,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppAlertProvider } from "./components/common/AppAlert";
 import IPhonePreview from "./preview/IPhonePreview";
+import { ThemeProvider } from "../contexts/ThemeContext";
+import { PreviewModeProvider } from "../contexts/PreviewModeContext";
 
 // PANTALLAS PARA PREVIEW
 import RestaurantDashboard from "./(restaurant)/dashboard";
@@ -18,13 +20,19 @@ export default function RootLayout() {
   if (Platform.OS !== "web") {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <AppAlertProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-            }}
-          />
-        </AppAlertProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <PreviewModeProvider>
+              <AppAlertProvider>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                  }}
+                />
+              </AppAlertProvider>
+            </PreviewModeProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
@@ -33,11 +41,17 @@ export default function RootLayout() {
   if (WEB_PREVIEW) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <AppAlertProvider>
-          <IPhonePreview>
-            <RestaurantDashboard />
-          </IPhonePreview>
-        </AppAlertProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <PreviewModeProvider>
+              <AppAlertProvider>
+                <IPhonePreview>
+                  <RestaurantDashboard />
+                </IPhonePreview>
+              </AppAlertProvider>
+            </PreviewModeProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
@@ -46,13 +60,17 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AppAlertProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-            }}
-          />
-        </AppAlertProvider>
+        <ThemeProvider>
+          <PreviewModeProvider>
+            <AppAlertProvider>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                }}
+              />
+            </AppAlertProvider>
+          </PreviewModeProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
