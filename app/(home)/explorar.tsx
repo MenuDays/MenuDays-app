@@ -15,6 +15,7 @@ import { router } from "expo-router";
 
 import CategoryService, { Category } from "../../services/category.service";
 import { EmptyState } from "../components/common/EmptyState";
+import { getCategoryIcon } from "../../constants/categoryIcons";
 
 // Tab "Explorar": grilla de categorías. Al tocar una, se navega a
 // explorar-resultados.tsx (buscador + filtros completos), precargada
@@ -99,7 +100,9 @@ export default function ExplorarCategoriasScreen() {
                 onPress={() => handleSelectCategory(item.nombre)}
               >
                 <View style={styles.iconCircle}>
-                  {item.iconos?.url ? (
+                  {getCategoryIcon(item.nombre) ? (
+                    <Image source={getCategoryIcon(item.nombre)!} style={styles.iconImage} />
+                  ) : item.iconos?.url ? (
                     <Image source={{ uri: item.iconos.url }} style={styles.iconImage} />
                   ) : (
                     <Ionicons name="restaurant-outline" size={26} color="#FB8C00" />

@@ -40,6 +40,13 @@ export default function PedidoProductoScreen() {
     // (menuId/restauranteId), por si queda algún router.push sin
     // actualizar en el proyecto.
     menuId?: string;
+    // Vienen de restaurante-detalle.tsx (que ya tiene el restaurante
+    // completo cargado) para saber si mostrar "Delivery" como medio de
+    // entrega en pedido-entrega.tsx. Si se llega por otro camino (ej.
+    // explorar-resultados.tsx) y no vienen, esa pantalla cae a mostrar
+    // ambas opciones como antes.
+    ofreceDelivery?: string;
+    nombreDelivery?: string;
   }>();
 
   const productId = params.id ?? params.menuId;
@@ -114,6 +121,8 @@ export default function PedidoProductoScreen() {
       params: {
         productoId: productId,
         tipo,
+        ofreceDelivery: params.ofreceDelivery,
+        nombreDelivery: params.nombreDelivery,
       },
     });
   }

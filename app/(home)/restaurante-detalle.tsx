@@ -5,10 +5,12 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  Modal,
   ScrollView,
   Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -22,6 +24,7 @@ import FavoriteService from "../../services/favorite.service";
 import LocationService from "../../services/location.service";
 import RestaurantService, { RestaurantPublicDetail } from "../../services/restaurant.service";
 import ReviewService, { Review } from "../../services/review.service";
+import ReportService, { ReportReason } from "../../services/report.service";
 import { AppAlert } from "../components/common/AppAlert";
 
 const DAY_NAMES = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
@@ -49,6 +52,19 @@ const restaurantId = previewRestaurantId ?? routeId;
   // guardada del usuario (LocationService) + lat/lng del restaurante.
   // No hay endpoint que la devuelva calculada desde el back.
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
+
+  // "Para pedir" (Menú del día / Platos / Promociones) se muestra en
+  // pestañas -- antes las 3 secciones iban una debajo de la otra siempre
+  // visibles, y quedaba una pantalla larguísima con todo apilado. Se
+  // arranca en la primera que tenga contenido (ver efecto más abajo).
+  const [catalogTab, setCatalogTab] = useState<"menus" | "platos" | "promos">("menus");
+
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReasons, setReportReasons] = useState<ReportReason[]>([]);
+  const [reportReasonsLoading, setReportReasonsLoading] = useState(false);
+  const [selectedReasonId, setSelectedReasonId] = useState<number | null>(null);
+  const [reportDescription, setReportDescription] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
 
    useEffect(() => {
     if (!restaurantId) {
@@ -95,6 +111,15 @@ const restaurantId = previewRestaurantId ?? routeId;
   );
 
   const ratingDistribution = useMemo(() => buildDistribution(reviews), [reviews]);
+
+  // Arranca en la primera pestaña de "Para pedir" que tenga contenido
+  // (menús > platos > promos), cada vez que cambia de restaurante.
+  useEffect(() => {
+    if (!restaurant) return;
+    if (restaurant.menus.length > 0) setCatalogTab("menus");
+    else if (restaurant.platos.length > 0) setCatalogTab("platos");
+    else if (restaurant.promociones.length > 0) setCatalogTab("promos");
+  }, [restaurant]);
 
   async function handleToggleFavorite() {
     if (!restaurant) return;
@@ -150,6 +175,40 @@ const restaurantId = previewRestaurantId ?? routeId;
     Share.share({
       message: `Mira ${restaurant.nombreComercial} en MenuDays${restaurant.direccion ? ` — ${restaurant.direccion}` : ""}`,
     });
+  }
+
+  function handleOpenReport() {
+    setReportModalVisible(true);
+    if (reportReasons.length === 0) {
+      setReportReasonsLoading(true);
+      ReportService.getReasons()
+        .then(setReportReasons)
+        .catch(() => AppAlert.alert("Error", "No se pudieron cargar los motivos de reporte."))
+        .finally(() => setReportReasonsLoading(false));
+    }
+  }
+
+  function handleCloseReport() {
+    if (submittingReport) return;
+    setReportModalVisible(false);
+    setSelectedReasonId(null);
+    setReportDescription("");
+  }
+
+  async function handleSubmitReport() {
+    if (!restaurant || !selectedReasonId || submittingReport) return;
+    setSubmittingReport(true);
+    try {
+      await ReportService.create(restaurant.id, selectedReasonId, reportDescription);
+      setReportModalVisible(false);
+      setSelectedReasonId(null);
+      setReportDescription("");
+      AppAlert.alert("Reporte enviado", "Gracias. Nuestro equipo revisará el caso.");
+    } catch (e: any) {
+      AppAlert.alert("No se pudo enviar el reporte", e.message || "Ocurrió un error. Intentá de nuevo.");
+    } finally {
+      setSubmittingReport(false);
+    }
   }
 
   function handleCopiarDireccion() {
@@ -212,17 +271,23 @@ const restaurantId = previewRestaurantId ?? routeId;
               <Ionicons name="chevron-back" size={20} color="#3E2723" />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.roundButton}
-              onPress={handleToggleFavorite}
-              disabled={favoriteLoading}
-            >
-              <Ionicons
-                name={isFavorite ? "heart" : "heart-outline"}
-                size={20}
-                color={isFavorite ? "#E53935" : "#3E2723"}
-              />
-            </TouchableOpacity>
+            <View style={styles.coverOverlayRight}>
+              <TouchableOpacity style={styles.roundButton} onPress={handleOpenReport}>
+                <Ionicons name="flag-outline" size={18} color="#3E2723" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.roundButton}
+                onPress={handleToggleFavorite}
+                disabled={favoriteLoading}
+              >
+                <Ionicons
+                  name={isFavorite ? "heart" : "heart-outline"}
+                  size={20}
+                  color={isFavorite ? "#E53935" : "#3E2723"}
+                />
+              </TouchableOpacity>
+            </View>
           </SafeAreaView>
         </View>
 
@@ -290,150 +355,186 @@ const restaurantId = previewRestaurantId ?? routeId;
             </View>
           ) : null}
 
-          {restaurant.menus.length > 0 && (
+          {(restaurant.menus.length > 0 || restaurant.platos.length > 0 || restaurant.promociones.length > 0) && (
             <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Menú del día</Text>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="restaurant" size={18} color="#FB8C00" />
+                <Text style={styles.sectionTitle}>Para pedir</Text>
               </View>
 
-              {restaurant.menus.map((menu) => (
-                <View key={menu.id} style={styles.menuCard}>
-                  {menu.foto_url ? (
-                    <Image source={{ uri: menu.foto_url }} style={styles.menuImage} />
-                  ) : (
-                    <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                      <Ionicons name="restaurant-outline" size={18} color="#BDBDBD" />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.menuTopRow}>
-                      <Text style={styles.menuName} numberOfLines={1}>
-                        {menu.nombre}
-                      </Text>
-                      <View style={styles.priceBadge}>
-                        <Text style={styles.priceBadgeText}>${menu.precio.toFixed(2)}</Text>
-                      </View>
-                    </View>
-                    {menu.descripcion ? (
-                      <Text style={styles.menuDescription} numberOfLines={2}>
-                        {menu.descripcion}
-                      </Text>
-                    ) : null}
-                    {/* Va al detalle de producto (pedido-producto.tsx), no
-                        arma el pedido acá directo. Esa pantalla es la que
-                        tiene el botón real "Realizar pedido". */}
-                    {!ownerPreview && (
-                      <TouchableOpacity
-                        style={styles.pedirButton}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/(home)/pedido-producto",
-                            params: { id: menu.id, tipo: "menu_dia" },
-                          })
-                        }
-                      >
-                        <Text style={styles.pedirButtonText}>Pedir</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {restaurant.platos.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Platos</Text>
+              <View style={styles.catalogTabsRow}>
+                {restaurant.menus.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.catalogTab, catalogTab === "menus" && styles.catalogTabActive]}
+                    onPress={() => setCatalogTab("menus")}
+                  >
+                    <Text style={[styles.catalogTabText, catalogTab === "menus" && styles.catalogTabTextActive]}>
+                      Menú del día
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {restaurant.platos.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.catalogTab, catalogTab === "platos" && styles.catalogTabActive]}
+                    onPress={() => setCatalogTab("platos")}
+                  >
+                    <Text style={[styles.catalogTabText, catalogTab === "platos" && styles.catalogTabTextActive]}>
+                      Platos
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {restaurant.promociones.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.catalogTab, catalogTab === "promos" && styles.catalogTabActive]}
+                    onPress={() => setCatalogTab("promos")}
+                  >
+                    <Text style={[styles.catalogTabText, catalogTab === "promos" && styles.catalogTabTextActive]}>
+                      Promociones
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
-              {restaurant.platos.map((plato) => (
-                <View key={plato.id} style={styles.menuCard}>
-                  {plato.plato_imagenes[0]?.url ? (
-                    <Image source={{ uri: plato.plato_imagenes[0].url }} style={styles.menuImage} />
-                  ) : (
-                    <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                      <Ionicons name="fast-food-outline" size={18} color="#BDBDBD" />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.menuTopRow}>
-                      <Text style={styles.menuName} numberOfLines={1}>
-                        {plato.nombre}
-                      </Text>
-                      <View style={styles.priceBadge}>
-                        <Text style={styles.priceBadgeText}>${plato.precio.toFixed(2)}</Text>
+              {catalogTab === "menus" &&
+                restaurant.menus.map((menu) => (
+                  <View key={menu.id} style={styles.menuCard}>
+                    {menu.foto_url ? (
+                      <Image source={{ uri: menu.foto_url }} style={styles.menuImage} />
+                    ) : (
+                      <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
+                        <Ionicons name="restaurant-outline" size={18} color="#BDBDBD" />
                       </View>
-                    </View>
-                    {plato.descripcion ? (
-                      <Text style={styles.menuDescription} numberOfLines={2}>
-                        {plato.descripcion}
-                      </Text>
-                    ) : null}
-                    {!ownerPreview && (
-                      <TouchableOpacity
-                        style={styles.pedirButton}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/(home)/pedido-producto",
-                            params: { id: plato.id, tipo: "plato" },
-                          })
-                        }
-                      >
-                        <Text style={styles.pedirButtonText}>Pedir</Text>
-                      </TouchableOpacity>
                     )}
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {restaurant.promociones.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Promociones</Text>
-              </View>
-
-              {restaurant.promociones.map((promo) => (
-                <View key={promo.id} style={styles.menuCard}>
-                  {promo.imagen_url ? (
-                    <Image source={{ uri: promo.imagen_url }} style={styles.menuImage} />
-                  ) : (
-                    <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                      <Ionicons name="pricetag-outline" size={18} color="#BDBDBD" />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.menuTopRow}>
-                      <Text style={styles.menuName} numberOfLines={1}>
-                        {promo.titulo}
-                      </Text>
-                      <View style={styles.priceBadge}>
-                        <Text style={styles.priceBadgeText}>${promo.precio.toFixed(2)}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.menuTopRow}>
+                        <Text style={styles.menuName} numberOfLines={1}>
+                          {menu.nombre}
+                        </Text>
+                        <View style={styles.priceBadge}>
+                          <Text style={styles.priceBadgeText}>${menu.precio.toFixed(2)}</Text>
+                        </View>
                       </View>
+                      {menu.descripcion ? (
+                        <Text style={styles.menuDescription} numberOfLines={2}>
+                          {menu.descripcion}
+                        </Text>
+                      ) : null}
+                      {/* Va al detalle de producto (pedido-producto.tsx), no
+                          arma el pedido acá directo. Esa pantalla es la que
+                          tiene el botón real "Realizar pedido". */}
+                      {!ownerPreview && (
+                        <TouchableOpacity
+                          style={styles.pedirButton}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/(home)/pedido-producto",
+                              params: {
+                                id: menu.id,
+                                tipo: "menu_dia",
+                                ofreceDelivery: String(restaurant.ofreceDelivery),
+                                nombreDelivery: restaurant.nombreDelivery ?? "",
+                              },
+                            })
+                          }
+                        >
+                          <Text style={styles.pedirButtonText}>Pedir</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    {promo.descripcion ? (
-                      <Text style={styles.menuDescription} numberOfLines={2}>
-                        {promo.descripcion}
-                      </Text>
-                    ) : null}
-                    {!ownerPreview && (
-                      <TouchableOpacity
-                        style={styles.pedirButton}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/(home)/pedido-producto",
-                            params: { id: promo.id, tipo: "promocion" },
-                          })
-                        }
-                      >
-                        <Text style={styles.pedirButtonText}>Pedir</Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
-                </View>
-              ))}
+                ))}
+
+              {catalogTab === "platos" &&
+                restaurant.platos.map((plato) => (
+                  <View key={plato.id} style={styles.menuCard}>
+                    {plato.plato_imagenes[0]?.url ? (
+                      <Image source={{ uri: plato.plato_imagenes[0].url }} style={styles.menuImage} />
+                    ) : (
+                      <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
+                        <Ionicons name="fast-food-outline" size={18} color="#BDBDBD" />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.menuTopRow}>
+                        <Text style={styles.menuName} numberOfLines={1}>
+                          {plato.nombre}
+                        </Text>
+                        <View style={styles.priceBadge}>
+                          <Text style={styles.priceBadgeText}>${plato.precio.toFixed(2)}</Text>
+                        </View>
+                      </View>
+                      {plato.descripcion ? (
+                        <Text style={styles.menuDescription} numberOfLines={2}>
+                          {plato.descripcion}
+                        </Text>
+                      ) : null}
+                      {!ownerPreview && (
+                        <TouchableOpacity
+                          style={styles.pedirButton}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/(home)/pedido-producto",
+                              params: {
+                                id: plato.id,
+                                tipo: "plato",
+                                ofreceDelivery: String(restaurant.ofreceDelivery),
+                                nombreDelivery: restaurant.nombreDelivery ?? "",
+                              },
+                            })
+                          }
+                        >
+                          <Text style={styles.pedirButtonText}>Pedir</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                ))}
+
+              {catalogTab === "promos" &&
+                restaurant.promociones.map((promo) => (
+                  <View key={promo.id} style={styles.menuCard}>
+                    {promo.imagen_url ? (
+                      <Image source={{ uri: promo.imagen_url }} style={styles.menuImage} />
+                    ) : (
+                      <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
+                        <Ionicons name="pricetag-outline" size={18} color="#BDBDBD" />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.menuTopRow}>
+                        <Text style={styles.menuName} numberOfLines={1}>
+                          {promo.titulo}
+                        </Text>
+                        <View style={styles.priceBadge}>
+                          <Text style={styles.priceBadgeText}>${promo.precio.toFixed(2)}</Text>
+                        </View>
+                      </View>
+                      {promo.descripcion ? (
+                        <Text style={styles.menuDescription} numberOfLines={2}>
+                          {promo.descripcion}
+                        </Text>
+                      ) : null}
+                      {!ownerPreview && (
+                        <TouchableOpacity
+                          style={styles.pedirButton}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/(home)/pedido-producto",
+                              params: {
+                                id: promo.id,
+                                tipo: "promocion",
+                                ofreceDelivery: String(restaurant.ofreceDelivery),
+                                nombreDelivery: restaurant.nombreDelivery ?? "",
+                              },
+                            })
+                          }
+                        >
+                          <Text style={styles.pedirButtonText}>Pedir</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                ))}
             </View>
           )}
 
@@ -605,6 +706,89 @@ const restaurantId = previewRestaurantId ?? routeId;
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={reportModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={handleCloseReport}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reportar restaurante</Text>
+              <TouchableOpacity onPress={handleCloseReport} disabled={submittingReport} hitSlop={10}>
+                <Ionicons name="close" size={24} color="#1A1A1A" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalSubtitle}>
+                Contanos qué ocurrió para que podamos revisarlo.
+              </Text>
+
+              {reportReasonsLoading ? (
+                <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
+              ) : (
+                <View style={styles.reasonsList}>
+                  {reportReasons.map((reason) => {
+                    const selected = selectedReasonId === reason.id;
+                    return (
+                      <TouchableOpacity
+                        key={reason.id}
+                        style={[styles.reasonRow, selected && styles.reasonRowSelected]}
+                        onPress={() => setSelectedReasonId(reason.id)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                          {selected && <View style={styles.radioInner} />}
+                        </View>
+                        <Text style={styles.reasonText}>{reason.nombre}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              <Text style={styles.modalFieldLabel}>Descripción adicional (opcional)</Text>
+              <TextInput
+                style={styles.modalTextarea}
+                placeholder="Contanos más detalles..."
+                placeholderTextColor="#B0B0B0"
+                value={reportDescription}
+                onChangeText={setReportDescription}
+                multiline
+                maxLength={1000}
+              />
+            </ScrollView>
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={handleCloseReport}
+                disabled={submittingReport}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalSubmitButton,
+                  (!selectedReasonId || submittingReport) && styles.modalSubmitButtonDisabled,
+                ]}
+                onPress={handleSubmitReport}
+                disabled={!selectedReasonId || submittingReport}
+              >
+                {submittingReport ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSubmitButtonText}>Enviar reporte</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -762,6 +946,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 4,
   },
+  coverOverlayRight: {
+    flexDirection: "row",
+    gap: 10,
+  },
   roundButton: {
     width: 36,
     height: 36,
@@ -811,6 +999,18 @@ const styles = StyleSheet.create({
   linkText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
   paragraph: { fontSize: 13, color: "#5C5C5C", lineHeight: 20 },
 
+  catalogTabsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  catalogTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "#F5F5F5",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  catalogTabActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
+  catalogTabText: { fontSize: 12.5, fontWeight: "700", color: "#5C5C5C" },
+  catalogTabTextActive: { color: "#FFFFFF" },
   menuCard: {
     flexDirection: "row",
     gap: 12,
@@ -912,4 +1112,91 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   reviewsButtonText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#1A1A1A" },
+  modalSubtitle: { fontSize: 13, color: "#9E9E9E", marginBottom: 16, lineHeight: 19 },
+
+  reasonsList: { gap: 10, marginBottom: 18 },
+  reasonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  reasonRowSelected: {
+    borderColor: "#FB8C00",
+    backgroundColor: "#FFF3E0",
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioOuterSelected: { borderColor: "#FB8C00" },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FB8C00" },
+  reasonText: { flex: 1, fontSize: 14, color: "#1A1A1A", fontWeight: "600" },
+
+  modalFieldLabel: { fontSize: 13, fontWeight: "600", color: "#1A1A1A", marginBottom: 8 },
+  modalTextarea: {
+    borderWidth: 1,
+    borderColor: "#EFEFEF",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#1A1A1A",
+    height: 90,
+    textAlignVertical: "top",
+    marginBottom: 8,
+  },
+
+  modalActionsRow: { flexDirection: "row", gap: 10, marginTop: 14 },
+  modalCancelButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#E0E0E0",
+  },
+  modalCancelButtonText: { fontSize: 15, fontWeight: "700", color: "#9E9E9E" },
+  modalSubmitButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FB8C00",
+  },
+  modalSubmitButtonDisabled: { opacity: 0.5 },
+  modalSubmitButtonText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
 });

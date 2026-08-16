@@ -10,20 +10,44 @@ interface DeliveryOption {
   value: DeliveryMethod;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  // TODO: mock a propósito. El nombre del repartidor/delivery vendría
-  // del back cuando exista un módulo de delivery asignado; por ahora
-  // se muestra fijo como en el mockup ("delivery: {nombre}").
   helper?: string;
 }
 
-const OPTIONS: DeliveryOption[] = [
-  { value: "delivery", label: "Delivery", icon: "bicycle-outline", helper: "Repartidor: a asignar" },
-  { value: "retiro_presencial", label: "Retiro presencial", icon: "storefront-outline" },
-];
-
 export default function PedidoEntregaScreen() {
-  const params = useLocalSearchParams<{ productoId: string; tipo: string }>();
-  const [selected, setSelected] = useState<DeliveryMethod>("delivery");
+  const params = useLocalSearchParams<{
+    productoId: string;
+    tipo: string;
+    // Vienen de pedido-producto.tsx (que a su vez los recibe de
+    // restaurante-detalle.tsx). Si "ofreceDelivery" no vino (undefined,
+    // ej. se llegó por un camino que no lo manda todavía), se muestran
+    // las dos opciones como antes -- solo se OCULTA "Delivery" cuando
+    // se sabe con certeza que el restaurante no lo ofrece.
+    ofreceDelivery?: string;
+    nombreDelivery?: string;
+  }>();
+
+  // El back rechaza el pedido (400) si se manda metodoEntrega=DELIVERY
+  // para un restaurante sin delivery configurado (ver
+  // validateDeliveryAvailability en OrderService del back) -- acá se
+  // oculta esa opción de entrada para no dejar elegir algo que después
+  // va a fallar.
+  const deliveryDisponible = params.ofreceDelivery !== "false";
+
+  const OPTIONS: DeliveryOption[] = [
+    ...(deliveryDisponible
+      ? [
+          {
+            value: "delivery" as DeliveryMethod,
+            label: "Delivery",
+            icon: "bicycle-outline" as const,
+            helper: params.nombreDelivery ? `Repartidor: ${params.nombreDelivery}` : undefined,
+          },
+        ]
+      : []),
+    { value: "retiro_presencial" as DeliveryMethod, label: "Retiro presencial", icon: "storefront-outline" as const },
+  ];
+
+  const [selected, setSelected] = useState<DeliveryMethod>(deliveryDisponible ? "delivery" : "retiro_presencial");
 
   // Misma razón que en pedido-producto.tsx: esta pantalla está dentro
   // del stack de tabs "(home)", cuya tab bar flota con position

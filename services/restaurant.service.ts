@@ -153,6 +153,12 @@ export interface RestaurantPublicDetail {
   menus: PublicMenuDelDia[];
   platos: PublicDish[];
   promociones: PublicPromotion[];
+  // El back ya los manda en RestaurantPublicService.buildResponse() pero
+  // no estaban tipados acá -- hacen falta para saber si mostrar "Delivery"
+  // como medio de entrega en pedido-entrega.tsx (un restaurante sin
+  // delivery configurado solo puede recibir pedidos por retiro en local).
+  ofreceDelivery: boolean;
+  nombreDelivery: string | null;
 }
 // ==========================================================================
 // GET /restaurants/dashboard -- shape tal cual RestaurantService.getDashboard()

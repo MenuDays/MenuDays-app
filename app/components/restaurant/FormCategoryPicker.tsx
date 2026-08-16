@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Category } from "../../../services/category.service";
+import { getCategoryIcon } from "../../../constants/categoryIcons";
 
 interface FormCategoryPickerProps {
   label: string;
@@ -60,7 +61,9 @@ export default function FormCategoryPicker({
                       setVisible(false);
                     }}
                   >
-                    {item.iconos?.url ? (
+                    {getCategoryIcon(item.nombre) ? (
+                      <Image source={getCategoryIcon(item.nombre)!} style={styles.optionIcon} />
+                    ) : item.iconos?.url ? (
                       <Image source={{ uri: item.iconos.url }} style={styles.optionIcon} />
                     ) : (
                       <View style={[styles.optionIcon, styles.optionIconPlaceholder]}>

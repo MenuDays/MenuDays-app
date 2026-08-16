@@ -276,7 +276,11 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, color: "#1A1A1A" },
 
   distanceListWrapper: { flexGrow: 0, marginBottom: 14 },
-  distanceList: { gap: 8 },
+  // paddingRight: sin esto, el último chip ("Cualquier distancia") queda
+  // pegado/cortado justo en el borde de la pantalla en vez de tener aire
+  // como el resto -- el FlatList horizontal no agrega margen propio al
+  // final de su contenido.
+  distanceList: { gap: 8, paddingRight: 16 },
   sortChip: {
     flexDirection: "row",
     alignItems: "center",

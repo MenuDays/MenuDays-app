@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import CategoryService, { Category } from '../../services/category.service';
 import ExploreService, { ExploreRestaurant } from '../../services/explore.service';
 import PublicMenuService, { PublicMenu } from '../../services/public-menu.service';
 import { useDeviceLocation } from '../../hooks/useDeviceLocation';
+import { getCategoryIcon } from '../../constants/categoryIcons';
 
 const C = Colors.light; // por ahora fijo en light, luego se puede swapear con useColorScheme
 
@@ -167,6 +168,22 @@ useEffect(() => {
   const [restaurants, setRestaurants] = useState<ExploreRestaurant[]>([]);
   const [restaurantsLoading, setRestaurantsLoading] = useState(true);
 
+  const nearbyRestaurants = useMemo(() => restaurants.slice(0, 10), [restaurants]);
+
+  // "Restaurantes destacados" -- mismos restaurantes de la tira de
+  // arriba (mismo radio de 5km), filtrados a calificación >= 4 y
+  // ordenados de mejor a peor. Si ninguno llega a 4 estrellas todavía
+  // (calificación arranca en 0 hasta la primera reseña real), la
+  // sección no se muestra.
+  const featuredRestaurants = useMemo(
+    () =>
+      [...restaurants]
+        .filter((r) => r.calificacion_promedio >= 4)
+        .sort((a, b) => b.calificacion_promedio - a.calificacion_promedio)
+        .slice(0, 10),
+    [restaurants]
+  );
+
   // "Menús disponibles hoy" -- GET /public/menus, mismo endpoint que
   // menus.tsx (PublicMenuService).
   const [menus, setMenus] = useState<PublicMenu[]>([]);
@@ -240,7 +257,7 @@ useEffect(() => {
         latitude: useDistance ? user!.latitude : undefined,
         longitude: useDistance ? user!.longitude : undefined,
       });
-      setRestaurants(data.slice(0, 10));
+      setRestaurants(data);
     } catch (e) {
       console.log('[HomeScreen] ERROR cargando restaurantes cercanos:', e);
     } finally {
@@ -378,7 +395,7 @@ useEffect(() => {
               <View style={styles.restaurantsLoadingWrap}>
                 <ActivityIndicator size="small" color={C.primary} />
               </View>
-            ) : restaurants.length === 0 ? (
+            ) : nearbyRestaurants.length === 0 ? (
               <Text style={styles.emptyStripText}>
                 No encontramos restaurantes cerca tuyo por ahora.
               </Text>
@@ -386,7 +403,7 @@ useEffect(() => {
               <FlatList
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                data={restaurants}
+                data={nearbyRestaurants}
                 keyExtractor={item => item.id.toString()}
                 contentContainerStyle={styles.restaurantsList}
                 renderItem={({ item }) => (
@@ -410,6 +427,36 @@ useEffect(() => {
                   </TouchableOpacity>
                 }
               />
+            )}
+
+            {/* Restaurantes destacados -- los mejor calificados (4+
+                estrellas) dentro del mismo radio de arriba. Misma card
+                que "Restaurantes cercanos". */}
+            {!restaurantsLoading && featuredRestaurants.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>⭐ Restaurantes destacados</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={featuredRestaurants}
+                  keyExtractor={item => `featured-${item.id}`}
+                  contentContainerStyle={styles.restaurantsList}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.restaurantCard}
+                      onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: item.id } })}
+                    >
+                      {item.logo_url ? (
+                        <Image source={{ uri: item.logo_url }} style={styles.restaurantLogo} />
+                      ) : (
+                        <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+              </>
             )}
 
             {/* Menús disponibles hoy */}
@@ -511,7 +558,12 @@ function CategoryItem({ category }: { category: Category }) {
       }
     >
       <View style={styles.categoryCircle}>
-        {category.iconos?.url ? (
+        {getCategoryIcon(category.nombre) ? (
+          <Image
+            source={getCategoryIcon(category.nombre)!}
+            style={styles.categoryImage}
+          />
+        ) : category.iconos?.url ? (
           <Image
             source={{ uri: category.iconos.url }}
             style={styles.categoryImage}

@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import CategoryService, { Category } from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
+import { getCategoryIcon } from "../../constants/categoryIcons";
 
 export default function ChooseCategoriesScreen() {
   // Si venimos de "Mi perfil" para editar (from=perfil), al guardar
@@ -148,7 +149,9 @@ export default function ChooseCategoriesScreen() {
                   onPress={() => toggleCategory(item.id)}
                 >
                   <View style={styles.imageWrap}>
-                    {item.iconos?.url ? (
+                    {getCategoryIcon(item.nombre) ? (
+                      <Image source={getCategoryIcon(item.nombre)!} style={styles.image} />
+                    ) : item.iconos?.url ? (
                       <Image source={{ uri: item.iconos.url }} style={styles.image} />
                     ) : (
                       <View style={[styles.image, styles.imagePlaceholder]}>
