@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
 import {
   ActivityIndicator,
@@ -25,9 +25,15 @@ import LocationCard from "../components/profile/LocationCard";
 import InfoRow from "../components/profile/InfoRow";
 import EditableRow from "../components/profile/EditableRow";
 import Divider from "../components/profile/Divider";
+import ThemeToggle from "../components/common/ThemeToggle";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 export default function PerfilScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -248,8 +254,21 @@ export default function PerfilScreen() {
               </View>
               <Text style={styles.menuRowText}>Favoritos</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#BDBDBD" />
+            <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
           </TouchableOpacity>
+
+          {/* Tema oscuro -- único lugar de la app donde se puede cambiar
+              (solo disponible para comensal, ver allowDarkMode en
+              ThemeContext: restaurante/admin quedan siempre en Light). */}
+          <View style={styles.menuRow}>
+            <View style={styles.menuRowLeft}>
+              <View style={styles.menuRowIcon}>
+                <Ionicons name="moon-outline" size={20} color="#F5A800" />
+              </View>
+              <Text style={styles.menuRowText}>Tema oscuro</Text>
+            </View>
+            <ThemeToggle size={32} />
+          </View>
 
           {!checkingRequest && (
             <TouchableOpacity
@@ -349,19 +368,20 @@ function getRestaurantCardConfig(requestStatus: RestaurantRequestStatus | null) 
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
     paddingBottom: 30,
   },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.background,
   },
   content: {
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     marginTop: -24,
@@ -391,14 +411,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#757575",
+    color: colors.textSecondary,
   },
   saveButton: {
     flex: 1,
@@ -418,7 +438,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 10,
     marginTop: 4,
   },
@@ -426,12 +446,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -446,21 +466,21 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#FFF9EC",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
   menuRowText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   restaurantCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -486,7 +506,7 @@ const styles = StyleSheet.create({
   restaurantCardTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   restaurantCardSubtitle: {
     fontSize: 13,
@@ -496,7 +516,7 @@ const styles = StyleSheet.create({
   },
   restaurantCardBody: {
     fontSize: 14,
-    color: "#555555",
+    color: colors.textSecondary,
     lineHeight: 21,
     marginBottom: 16,
   },

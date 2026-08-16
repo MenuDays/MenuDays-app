@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -8,6 +8,8 @@ import PublicMenuService from "../../services/public-menu.service";
 import PublicDishService from "../../services/public-dish.service";
 import PublicPromotionService from "../../services/public-promotion.service";
 import { OrderItemType } from "../../services/order.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Conectado a GET /public/menus/:id, GET /public/dishes/:id y
 // GET /public/promotions/:id (PublicMenuService / PublicDishService /
@@ -33,6 +35,8 @@ interface ProductoNormalizado {
 }
 
 export default function PedidoProductoScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{
     id: string;
     tipo: OrderItemType;
@@ -140,11 +144,11 @@ export default function PedidoProductoScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={22} color="#3E2723" />
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
         <View style={styles.centerContainer}>
-          <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+          <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
           <Text style={styles.errorText}>{error || "No se pudo cargar el producto."}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
             <Text style={styles.retryButtonText}>Volver</Text>
@@ -158,7 +162,7 @@ export default function PedidoProductoScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color="#3E2723" />
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -168,7 +172,7 @@ export default function PedidoProductoScreen() {
             <Image source={{ uri: producto.imagenUrl }} style={styles.image} />
           ) : (
             <View style={[styles.image, styles.imagePlaceholder]}>
-              <Ionicons name="restaurant-outline" size={32} color="#BDBDBD" />
+              <Ionicons name="restaurant-outline" size={32} color={colors.placeholder} />
             </View>
           )}
         </View>
@@ -190,10 +194,10 @@ export default function PedidoProductoScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  centerContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30, backgroundColor: "#FFFFFF" },
-  errorText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centerContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30, backgroundColor: colors.background },
+  errorText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
   retryButton: { marginTop: 4, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 },
   retryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   header: { paddingHorizontal: 16, paddingTop: 4 },
@@ -201,23 +205,23 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
   content: { padding: 20, paddingBottom: 24 },
   imageWrap: { height: 220, borderRadius: 20, overflow: "hidden", marginBottom: 18 },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
-  restaurante: { fontSize: 13, fontWeight: "700", color: "#9E9E9E", marginBottom: 4 },
+  imagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  restaurante: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, marginBottom: 4 },
   topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
-  nombre: { flex: 1, fontSize: 22, fontWeight: "900", color: "#1A1A1A" },
+  nombre: { flex: 1, fontSize: 22, fontWeight: "900", color: colors.text },
   precio: { fontSize: 18, fontWeight: "800", color: "#FB8C00" },
-  descripcion: { fontSize: 14, color: "#6B6B6B", marginTop: 10, lineHeight: 20 },
+  descripcion: { fontSize: 14, color: colors.textSecondary, marginTop: 10, lineHeight: 20 },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: colors.divider,
   },
   cta: {
     backgroundColor: "#FFA726",

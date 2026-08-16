@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
 import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Vista de SOLO LECTURA para el comensal: acá no hay ningún control para
 // cambiar el estado del pedido (eso es exclusivo del lado restaurante,
@@ -82,6 +84,8 @@ function buildConsultaMessage(order: OrderDetail): string {
 }
 
 export default function PedidoDetalleScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -157,8 +161,8 @@ export default function PedidoDetalleScreen() {
   if (error || !order) {
     return (
       <View style={styles.loaderContainer}>
-        <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
-        <Text style={{ marginTop: 10, textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
+        <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
+        <Text style={{ marginTop: 10, textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
           {error || "No se pudo cargar el pedido."}
         </Text>
         <TouchableOpacity
@@ -185,7 +189,7 @@ export default function PedidoDetalleScreen() {
             <Image source={{ uri: order.restaurante.portada }} style={styles.cover} />
           ) : (
             <View style={[styles.cover, styles.coverPlaceholder]}>
-              <Ionicons name="receipt-outline" size={32} color="#C9C9C9" />
+              <Ionicons name="receipt-outline" size={32} color={colors.placeholder} />
             </View>
           )}
 
@@ -202,7 +206,7 @@ export default function PedidoDetalleScreen() {
               <Image source={{ uri: order.producto.imagen }} style={styles.productImage} />
             ) : (
               <View style={[styles.productImage, styles.productImagePlaceholder]}>
-                <Ionicons name="restaurant-outline" size={20} color="#BDBDBD" />
+                <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
               </View>
             )}
 
@@ -290,10 +294,13 @@ function InfoRow({
   value: string;
   valueStyle?: object;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLabelWrap}>
-        <Ionicons name={icon} size={15} color="#9E9E9E" />
+        <Ionicons name={icon} size={15} color={colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
       <Text style={[styles.infoValue, valueStyle]}>{value}</Text>
@@ -315,11 +322,11 @@ function formatDateTime(iso: string): string {
   return `${datePart} · ${timePart}`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
 
-  coverWrap: { height: 160, backgroundColor: "#F5F5F5" },
+  coverWrap: { height: 160, backgroundColor: colors.surfaceSecondary },
   cover: { width: "100%", height: "100%" },
   coverPlaceholder: { alignItems: "center", justifyContent: "center" },
   coverOverlay: {
@@ -348,19 +355,19 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 16,
     borderWidth: 3,
-    borderColor: "#FFFFFF",
-    backgroundColor: "#FFFFFF",
+    borderColor: colors.background,
+    backgroundColor: colors.card,
   },
   productImagePlaceholder: { alignItems: "center", justifyContent: "center" },
-  productName: { fontSize: 17, fontWeight: "900", color: "#1A1A1A" },
+  productName: { fontSize: 17, fontWeight: "900", color: colors.text },
   restaurantLink: { fontSize: 13, fontWeight: "700", color: "#FB8C00", marginTop: 2 },
 
   statusRow: { marginTop: 18 },
 
   section: { marginTop: 24 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
-  paragraph: { fontSize: 13, color: "#5C5C5C", lineHeight: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
+  paragraph: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
 
   infoRow: {
     flexDirection: "row",
@@ -368,11 +375,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
   infoLabelWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
-  infoLabel: { fontSize: 13, color: "#9E9E9E", fontWeight: "600" },
-  infoValue: { fontSize: 13, color: "#1A1A1A", fontWeight: "700" },
+  infoLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
+  infoValue: { fontSize: 13, color: colors.text, fontWeight: "700" },
   totalValue: { fontSize: 15, color: "#FB8C00", fontWeight: "900" },
 
   footer: {
@@ -383,9 +390,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 14,
     gap: 10,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: colors.divider,
   },
   cta: {
     flexDirection: "row",
@@ -400,7 +407,7 @@ const styles = StyleSheet.create({
   ctaSecondary: {
     flexDirection: "row",
     gap: 8,
-    backgroundColor: "#FFF3E0",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 24,
     paddingVertical: 15,
     alignItems: "center",

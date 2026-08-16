@@ -7,6 +7,7 @@ import {
   Dimensions,
   Image,
   ImageBackground,
+  Keyboard,
   Modal,
   StyleSheet,
   Text,
@@ -18,6 +19,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthService from "../../services/auth.service";
 import CategoryService from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get('window');
 
@@ -55,6 +57,7 @@ const CATEGORIES = [
 ];
 
 export default function LoginScreen() {
+  const { refreshRole } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,6 +74,12 @@ export default function LoginScreen() {
       });
 
       const rol = response.user?.rol;
+
+      // El lock de Dark Mode (solo comensal) se decide por el rol
+      // guardado en AsyncStorage -- sin esto, si alguien cierra sesión de
+      // un restaurante/admin y entra como comensal en la misma instancia
+      // de la app, el tema seguiría forzado en Light hasta un remount.
+      refreshRole();
 
       if (rol === "administrador") {
         router.replace("/(admin)/dashboard");
@@ -95,6 +104,12 @@ export default function LoginScreen() {
         router.replace("/(province)");
       }
     } catch (error: any) {
+      // Cierra el teclado ANTES de mostrar la alerta de error: si queda
+      // abierto detrás del modal, KeyboardAwareScrollView se queda con
+      // una medición vieja del alto del teclado y, al volver a tocar el
+      // input de contraseña, no scrollea lo suficiente y el campo queda
+      // tapado. Cerrándolo acá, el próximo focus arranca limpio.
+      Keyboard.dismiss();
       AppAlert.alert(
         "Error",
         error.message || "No se pudo iniciar sesión."

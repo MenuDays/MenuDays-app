@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Image } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -8,6 +8,8 @@ import OrderService, { DeliveryMethod, Order } from "../../services/order.servic
 import { AppAlert } from "../components/common/AppAlert";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
 import { EmptyState } from "../components/common/EmptyState";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 const MEDIO_LABEL: Record<DeliveryMethod, string> = {
   delivery: "Delivery",
@@ -25,6 +27,8 @@ const ESTADO_LABEL: Record<Order["pedido"]["estado"], string> = {
 };
 
 export default function PedidoConfirmarScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{
     productoId: string;
     tipo: string;
@@ -90,7 +94,7 @@ export default function PedidoConfirmarScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={22} color="#3E2723" />
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
         <EmptyState
@@ -122,7 +126,7 @@ export default function PedidoConfirmarScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color="#3E2723" />
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -164,6 +168,8 @@ export default function PedidoConfirmarScreen() {
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -186,20 +192,20 @@ function buildFallbackMessage(order: Order): string {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   loaderMascot: { width: 140, height: 140 },
-  loaderText: { marginTop: 10, fontSize: 13, fontWeight: "600", color: "#9E9E9E" },
+  loaderText: { marginTop: 10, fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   mascotWrap: { alignItems: "center", marginBottom: 12 },
   mascotImage: { width: 130, height: 130 },
-  mascotText: { fontSize: 14, fontWeight: "800", color: "#1A1A1A", marginTop: 4, textAlign: "center" },
+  mascotText: { fontSize: 14, fontWeight: "800", color: colors.text, marginTop: 4, textAlign: "center" },
   header: { paddingHorizontal: 16, paddingTop: 4 },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -207,24 +213,24 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1.5,
     borderColor: "#FFD180",
-    backgroundColor: "#FFF8EE",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 18,
     padding: 18,
   },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: "#1A1A1A", marginBottom: 14 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: colors.text, marginBottom: 14 },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#FFE7C2",
+    borderBottomColor: colors.divider,
   },
-  infoLabel: { fontSize: 13, color: "#9E9E9E", fontWeight: "600" },
-  infoValue: { fontSize: 13, color: "#1A1A1A", fontWeight: "700" },
+  infoLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
+  infoValue: { fontSize: 13, color: colors.text, fontWeight: "700" },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: colors.divider,
   },
   cta: {
     flexDirection: "row",

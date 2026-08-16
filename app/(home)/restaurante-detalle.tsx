@@ -26,6 +26,8 @@ import RestaurantService, { RestaurantPublicDetail } from "../../services/restau
 import ReviewService, { Review } from "../../services/review.service";
 import ReportService, { ReportReason } from "../../services/report.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 const DAY_NAMES = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
@@ -38,6 +40,8 @@ export default function RestauranteDetalleScreen({
   previewRestaurantId,
   ownerPreview = false,
 }: Props) {
+const { colors } = useTheme();
+const styles = useMemo(() => createStyles(colors), [colors]);
 const { id: routeId } = useLocalSearchParams<{ id: string }>();
 
 const restaurantId = previewRestaurantId ?? routeId;
@@ -238,8 +242,8 @@ const restaurantId = previewRestaurantId ?? routeId;
   if (error || !restaurant) {
     return (
       <View style={styles.loaderContainer}>
-        <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
-        <Text style={{ marginTop: 10, textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
+        <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
+        <Text style={{ marginTop: 10, textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
           {error || "No se pudo cargar el restaurante."}
         </Text>
         <TouchableOpacity
@@ -297,7 +301,7 @@ const restaurantId = previewRestaurantId ?? routeId;
               <Image source={{ uri: restaurant.logoUrl }} style={styles.logo} />
             ) : (
               <View style={[styles.logo, styles.logoPlaceholder]}>
-                <Ionicons name="restaurant-outline" size={20} color="#BDBDBD" />
+                <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
               </View>
             )}
 
@@ -402,7 +406,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                       <Image source={{ uri: menu.foto_url }} style={styles.menuImage} />
                     ) : (
                       <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                        <Ionicons name="restaurant-outline" size={18} color="#BDBDBD" />
+                        <Ionicons name="restaurant-outline" size={18} color={colors.placeholder} />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
@@ -451,7 +455,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                       <Image source={{ uri: plato.plato_imagenes[0].url }} style={styles.menuImage} />
                     ) : (
                       <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                        <Ionicons name="fast-food-outline" size={18} color="#BDBDBD" />
+                        <Ionicons name="fast-food-outline" size={18} color={colors.placeholder} />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
@@ -497,7 +501,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                       <Image source={{ uri: promo.imagen_url }} style={styles.menuImage} />
                     ) : (
                       <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
-                        <Ionicons name="pricetag-outline" size={18} color="#BDBDBD" />
+                        <Ionicons name="pricetag-outline" size={18} color={colors.placeholder} />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
@@ -563,7 +567,7 @@ const restaurantId = previewRestaurantId ?? routeId;
 
             {restaurant.direccion ? (
               <View style={styles.addressRow}>
-                <Ionicons name="location-outline" size={16} color="#9E9E9E" />
+                <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
                 <Text style={styles.addressText}>
                   {restaurant.direccion}
                   {restaurant.ciudad ? `, ${restaurant.ciudad.nombre}, ${restaurant.ciudad.provincia.nombre}` : ""}
@@ -573,7 +577,7 @@ const restaurantId = previewRestaurantId ?? routeId;
 
             <View style={styles.addressButtonsRow}>
               <TouchableOpacity style={styles.outlineButton} onPress={handleCopiarDireccion}>
-                <Ionicons name="copy-outline" size={15} color="#3E2723" />
+                <Ionicons name="copy-outline" size={15} color={colors.text} />
                 <Text style={styles.outlineButtonText}>Copiar dirección</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.filledButton} onPress={handleComoLlegar}>
@@ -665,7 +669,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                     <Image source={{ uri: review.usuarios.foto_perfil_url }} style={styles.reviewAvatar} />
                   ) : (
                     <View style={[styles.reviewAvatar, styles.reviewAvatarPlaceholder]}>
-                      <Ionicons name="person" size={14} color="#BDBDBD" />
+                      <Ionicons name="person" size={14} color={colors.placeholder} />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -680,7 +684,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                         key={i}
                         name="star"
                         size={12}
-                        color={i < review.calificacion ? "#F5A800" : "#E0E0E0"}
+                        color={i < review.calificacion ? "#F5A800" : colors.border}
                       />
                     ))}
                   </View>
@@ -689,8 +693,6 @@ const restaurantId = previewRestaurantId ?? routeId;
               </View>
             ))}
 
-            {/* TODO: navegar a una pantalla con el listado completo de
-                reseñas (con paginación) cuando exista. */}
             <TouchableOpacity
               style={styles.reviewsButton}
               onPress={() =>
@@ -718,7 +720,7 @@ const restaurantId = previewRestaurantId ?? routeId;
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reportar restaurante</Text>
               <TouchableOpacity onPress={handleCloseReport} disabled={submittingReport} hitSlop={10}>
-                <Ionicons name="close" size={24} color="#1A1A1A" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -754,7 +756,7 @@ const restaurantId = previewRestaurantId ?? routeId;
               <TextInput
                 style={styles.modalTextarea}
                 placeholder="Contanos más detalles..."
-                placeholderTextColor="#B0B0B0"
+                placeholderTextColor={colors.placeholder}
                 value={reportDescription}
                 onChangeText={setReportDescription}
                 multiline
@@ -802,6 +804,9 @@ function ActionButton({
   label: string;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <TouchableOpacity style={styles.actionButton} onPress={onPress}>
       <View style={styles.actionIconWrap}>
@@ -929,11 +934,11 @@ function relativeTime(iso: string): string {
   return `Hace ${months} mes${months > 1 ? "es" : ""}`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
 
-  coverWrap: { height: 220, backgroundColor: "#F5F5F5" },
+  coverWrap: { height: 220, backgroundColor: colors.surfaceSecondary },
   cover: { width: "100%", height: "100%" },
   coverPlaceholder: { alignItems: "center", justifyContent: "center" },
   coverOverlay: {
@@ -950,6 +955,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
+  // Botones flotantes SOBRE la foto de portada -- se quedan blancos fijos
+  // en los dos temas a propósito (identidad visual sobre una foto, no
+  // sobre el fondo de la app), igual criterio que el pill de ubicación
+  // del header de Home.
   roundButton: {
     width: 36,
     height: 36,
@@ -966,13 +975,13 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     borderWidth: 3,
-    borderColor: "#FFFFFF",
-    backgroundColor: "#FFFFFF",
+    borderColor: colors.background,
+    backgroundColor: colors.background,
   },
   logoPlaceholder: { alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 19, fontWeight: "900", color: "#1A1A1A" },
+  name: { fontSize: 19, fontWeight: "900", color: colors.text },
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
-  metaText: { fontSize: 12, color: "#757575", fontWeight: "600" },
+  metaText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
 
   actionsRow: {
   flexDirection: "row",
@@ -986,45 +995,45 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#FFF3E0",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
-  actionLabel: { fontSize: 11, fontWeight: "600", color: "#3E2723" },
+  actionLabel: { fontSize: 11, fontWeight: "600", color: colors.text },
 
   section: { marginTop: 26 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
   linkText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
-  paragraph: { fontSize: 13, color: "#5C5C5C", lineHeight: 20 },
+  paragraph: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
 
   catalogTabsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   catalogTab: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: colors.divider,
   },
   catalogTabActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
-  catalogTabText: { fontSize: 12.5, fontWeight: "700", color: "#5C5C5C" },
+  catalogTabText: { fontSize: 12.5, fontWeight: "700", color: colors.textSecondary },
   catalogTabTextActive: { color: "#FFFFFF" },
   menuCard: {
     flexDirection: "row",
     gap: 12,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: colors.divider,
     borderRadius: 16,
     padding: 10,
     marginBottom: 10,
   },
   menuImage: { width: 64, height: 64, borderRadius: 12 },
-  menuImagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
+  menuImagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   menuTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
-  menuName: { flex: 1, fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
-  menuDescription: { fontSize: 12, color: "#9E9E9E", marginTop: 4 },
+  menuName: { flex: 1, fontSize: 14, fontWeight: "800", color: colors.text },
+  menuDescription: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
   priceBadge: { backgroundColor: "#FFA726", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   priceBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
   pedirButton: {
@@ -1039,7 +1048,7 @@ const styles = StyleSheet.create({
 
   mapWrap: { height: 130, borderRadius: 16, overflow: "hidden", marginBottom: 12 },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  addressText: { flex: 1, fontSize: 13, color: "#5C5C5C" },
+  addressText: { flex: 1, fontSize: 13, color: colors.textSecondary },
   addressButtonsRow: { flexDirection: "row", gap: 10, marginTop: 14 },
   outlineButton: {
     flex: 1,
@@ -1048,11 +1057,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
     borderRadius: 20,
     paddingVertical: 11,
   },
-  outlineButtonText: { fontSize: 13, fontWeight: "700", color: "#3E2723" },
+  outlineButtonText: { fontSize: 13, fontWeight: "700", color: colors.text },
   filledButton: {
     flex: 1,
     flexDirection: "row",
@@ -1067,7 +1076,7 @@ const styles = StyleSheet.create({
 
   scheduleCard: {
     marginTop: 26,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 16,
     padding: 16,
   },
@@ -1076,29 +1085,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 6,
   },
-  scheduleDay: { fontSize: 13, color: "#5C5C5C", fontWeight: "600" },
-  scheduleHours: { fontSize: 13, color: "#1A1A1A", fontWeight: "700" },
-  scheduleClosed: { fontSize: 13, color: "#E53935", fontWeight: "700" },
+  scheduleDay: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
+  scheduleHours: { fontSize: 13, color: colors.text, fontWeight: "700" },
+  scheduleClosed: { fontSize: 13, color: colors.error, fontWeight: "700" },
 
   galleryThumb: { width: 84, height: 84, borderRadius: 12 },
 
   reviewsSummaryRow: { flexDirection: "row", gap: 20, alignItems: "center", marginBottom: 18 },
   reviewsAvgWrap: { alignItems: "center" },
-  reviewsAvgNumber: { fontSize: 30, fontWeight: "900", color: "#1A1A1A" },
-  reviewsAvgLabel: { fontSize: 10, color: "#9E9E9E", fontWeight: "700" },
+  reviewsAvgNumber: { fontSize: 30, fontWeight: "900", color: colors.text },
+  reviewsAvgLabel: { fontSize: 10, color: colors.textSecondary, fontWeight: "700" },
   distributionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  distributionStar: { fontSize: 11, color: "#9E9E9E", width: 10 },
-  distributionTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: "#F0F0F0", overflow: "hidden" },
+  distributionStar: { fontSize: 11, color: colors.textSecondary, width: 10 },
+  distributionTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.divider, overflow: "hidden" },
   distributionFill: { height: "100%", backgroundColor: "#FFA726" },
 
-  reviewCard: { borderTopWidth: 1, borderTopColor: "#F0F0F0", paddingVertical: 14 },
+  reviewCard: { borderTopWidth: 1, borderTopColor: colors.divider, paddingVertical: 14 },
   reviewHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   reviewAvatar: { width: 34, height: 34, borderRadius: 17 },
-  reviewAvatarPlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
-  reviewName: { fontSize: 13, fontWeight: "700", color: "#1A1A1A" },
-  reviewDate: { fontSize: 11, color: "#9E9E9E", marginTop: 1 },
+  reviewAvatarPlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  reviewName: { fontSize: 13, fontWeight: "700", color: colors.text },
+  reviewDate: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
   reviewStarsRow: { flexDirection: "row", gap: 1 },
-  reviewComment: { fontSize: 12, color: "#5C5C5C", marginTop: 8, lineHeight: 18, fontStyle: "italic" },
+  reviewComment: { fontSize: 12, color: colors.textSecondary, marginTop: 8, lineHeight: 18, fontStyle: "italic" },
 
   reviewsButton: {
     flexDirection: "row",
@@ -1115,11 +1124,11 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: colors.overlay,
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.modalBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 20,
@@ -1133,8 +1142,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 6,
   },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#1A1A1A" },
-  modalSubtitle: { fontSize: 13, color: "#9E9E9E", marginBottom: 16, lineHeight: 19 },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
+  modalSubtitle: { fontSize: 13, color: colors.textSecondary, marginBottom: 16, lineHeight: 19 },
 
   reasonsList: { gap: 10, marginBottom: 18 },
   reasonRow: {
@@ -1142,37 +1151,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
   reasonRowSelected: {
     borderColor: "#FB8C00",
-    backgroundColor: "#FFF3E0",
+    backgroundColor: colors.surfaceSecondary,
   },
   radioOuter: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
   radioOuterSelected: { borderColor: "#FB8C00" },
   radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FB8C00" },
-  reasonText: { flex: 1, fontSize: 14, color: "#1A1A1A", fontWeight: "600" },
+  reasonText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: "600" },
 
-  modalFieldLabel: { fontSize: 13, fontWeight: "600", color: "#1A1A1A", marginBottom: 8 },
+  modalFieldLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 8 },
   modalTextarea: {
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.inputBorder,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    color: "#1A1A1A",
+    color: colors.text,
     height: 90,
     textAlignVertical: "top",
     marginBottom: 8,
@@ -1186,9 +1195,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
   },
-  modalCancelButtonText: { fontSize: 15, fontWeight: "700", color: "#9E9E9E" },
+  modalCancelButtonText: { fontSize: 15, fontWeight: "700", color: colors.textSecondary },
   modalSubmitButton: {
     flex: 1,
     height: 50,

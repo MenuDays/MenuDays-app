@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Image,
   FlatList,
   ActivityIndicator,
@@ -15,37 +16,34 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WaveBottom from '../components/home/WaveBottom';
 import WaveTop from '../components/home/WaveTop';
-import Colors from '../../constants/Colors'; 
 import UserService, { User } from '../../services/user.service';
 import CategoryService, { Category } from '../../services/category.service';
 import ExploreService, { ExploreRestaurant } from '../../services/explore.service';
 import PublicMenuService, { PublicMenu } from '../../services/public-menu.service';
 import { useDeviceLocation } from '../../hooks/useDeviceLocation';
 import { getCategoryIcon } from '../../constants/categoryIcons';
-
-const C = Colors.light; // por ahora fijo en light, luego se puede swapear con useColorScheme
+import { useTheme } from '../../contexts/ThemeContext';
+import type { ThemeColors } from '../../contexts/ThemeContext';
+import { AppAlert, AlertButton } from '../components/common/AppAlert';
 
 // Categorías: vienen del back (GET /categories), con el ícono en
-// item.iconos.url. Se muestran TODAS en un carrusel horizontal de una
-// sola línea, con auto-scroll (dos copias del set renderizadas una al
-// lado de la otra para simular loop infinito, ver categoriesSetWidth
-// más abajo), así que da lo mismo si el back devuelve 5, 10 o más.
-// Nombres curados que se usaban antes para filtrar solo 5 categorías
-// en Inicio. Ya no se usa, pero queda como referencia por si se quiere
-// volver a ese comportamiento.
+// item.iconos.url. El back las devuelve ordenadas alfabéticamente, así
+// que acá se buscan por nombre las 5 curadas para Inicio (mismas que
+// antes eran hardcodeadas) y se conservan en este orden. El resto de
+// las categorías se ve en la pantalla "Explorar" (grilla completa).
 const HOME_CATEGORY_NAMES = ['Ejecutivo', 'Mariscos', 'Parrillas', 'Sopas', 'Pollo'];
 
-// Radio fijo de la tira "Restaurantes cercanos" de Inicio. No hay
-// buscador ni selector de distancia en esta pantalla (para eso ya está
-// restaurantes.tsx/menus.tsx/explorar-resultados.tsx, que sí filtran de
-// verdad) -- acá el radio queda fijo en 5km, sin UI para cambiarlo.
-const HOME_RADIUS_KM = 5;
+// Mismas opciones de radio que restaurantes.tsx/menus.tsx (0 = "cualquiera",
+// acá no se usa porque el pill de Inicio siempre filtra por un radio).
+const DISTANCE_OPTIONS = [1, 2, 5, 10];
 
-// Separación entre categorías del carrusel de Inicio. Mismo valor que
-// styles.categoriesRow.gap -- se usa acá también (no solo en el
-// stylesheet) porque el cálculo del punto de "loop" del auto-scroll
-// necesita este número a mano (ver categoriesSetWidth más arriba).
-const CATEGORIES_GAP = 14;
+// El header naranja usa el MISMO gradiente en Light y Dark (identidad de
+// marca, no cambia con el tema -- ver Colors.ts, primaryLight/primaryDark
+// son iguales en ambos). Por eso el texto/íconos que van directo sobre el
+// naranja (no dentro de una card/pill que sí cambia con el tema) usan
+// este color fijo en vez de `colors.text`, que sí sigue el tema y en
+// Dark queda casi blanco -- ilegible sobre el pill blanco/naranja.
+const HEADER_PILL_TEXT = '#3E2723';
 
 // Mismo mapeo de estado operativo que menus.tsx, para la tira "Menús
 // disponibles hoy" (acá viene de item.restaurante.estado_operativo).
@@ -57,124 +55,27 @@ const OPEN_LABEL: Record<string, { text: string; color: string }> = {
 };
 
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [user, setUser] = useState<User | null>(null);
-  // Se pone en true recién cuando loadUser() termina (haya funcionado o
-  // no). Sirve para no disparar la carga de restaurantes/menús ANTES de
-  // saber si el usuario tiene una ubicación guardada -- ver el useEffect
-  // de loadRestaurants/loadMenus más abajo.
-  const [userLoaded, setUserLoaded] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  // Carrusel de categorías: se mueve solo de a poquito, y si el usuario
-  // lo toca para scrollear manualmente, se pausa el auto-scroll y
-  // recién retoma unos segundos después de que lo suelta.
-  const categoriesScrollRef = useRef<ScrollView>(null);
-const categoriesScrollX = useRef(0);
-
-// Ancho real de UNA sola copia del set de categorías (medido con
-// onLayout sobre el View que envuelve esa copia, ver JSX más abajo).
-// OJO: antes esto se calculaba como contentWidth/2 a partir de
-// onContentSizeChange del ScrollView completo (las dos copias juntas),
-// pero esa cuenta no da el ancho real de una copia: el contenido total
-// incluye el padding exterior del ScrollView (paddingHorizontal: 12,
-// osea 24px repartidos en los dos bordes) + el gap entre items (14px),
-// y esos dos valores no coinciden. Como consecuencia, "la mitad" del
-// ancho total quedaba corrida ~5px respecto al punto real donde termina
-// la primera copia y empieza la segunda, y cada vez que el auto-scroll
-// completaba una vuelta se notaba un salto/glitch en vez de un loop
-// perfectamente continuo. Midiendo el View de una sola copia (que no
-// tiene el padding del ScrollView, solo el gap interno entre sus
-// items) se obtiene el ancho exacto y el loop no salta.
-const categoriesSetWidth = useRef(0);
-
-const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-const resumeAutoScrollTimeout =
-  useRef<ReturnType<typeof setTimeout> | null>(null);
-
-function stopCategoriesAutoScroll() {
-  if (autoScrollTimer.current) {
-    clearInterval(autoScrollTimer.current);
-    autoScrollTimer.current = null;
-  }
-}
-
-function startCategoriesAutoScroll() {
-  stopCategoriesAutoScroll();
-
-  autoScrollTimer.current = setInterval(() => {
-    const setWidth = categoriesSetWidth.current;
-
-    if (setWidth <= 0 || categories.length === 0) {
-      return;
-    }
-
-    // El período real del patrón es el ancho de una copia MÁS el gap
-    // que separa esa copia de la siguiente (mismo "gap: 14" que separa
-    // a cada item entre sí -- ver CATEGORIES_GAP más abajo), no solo
-    // el ancho de la copia.
-    const period = setWidth + CATEGORIES_GAP;
-
-    let nextX = categoriesScrollX.current + 0.6;
-
-    // Cuando terminamos la primera copia,
-    // saltamos a la misma posición de la segunda copia.
-    if (nextX >= period) {
-      nextX = nextX - period;
-    }
-
-    categoriesScrollX.current = nextX;
-
-    categoriesScrollRef.current?.scrollTo({
-      x: nextX,
-      animated: false,
-    });
-  }, 16);
-}
-
-function handleCategoriesTouchStart() {
-  stopCategoriesAutoScroll();
-
-  if (resumeAutoScrollTimeout.current) {
-    clearTimeout(resumeAutoScrollTimeout.current);
-  }
-}
-
-function handleCategoriesTouchEnd() {
-  if (resumeAutoScrollTimeout.current) {
-    clearTimeout(resumeAutoScrollTimeout.current);
-  }
-
-  resumeAutoScrollTimeout.current = setTimeout(() => {
-    startCategoriesAutoScroll();
-  }, 2500);
-}
-
-useEffect(() => {
-  return () => {
-    stopCategoriesAutoScroll();
-
-    if (resumeAutoScrollTimeout.current) {
-      clearTimeout(resumeAutoScrollTimeout.current);
-    }
-  };
-}, []);
-
-
   // "Restaurantes cercanos" -- GET /explore/restaurants, mismo endpoint
-  // que restaurantes.tsx (ExploreService). Acá se muestran las primeras
-  // filas nomás, a modo de vidriera; "Ver todas" ya lleva a esa pantalla
-  // con el listado completo.
+  // que restaurantes.tsx (ExploreService). Se guarda la respuesta
+  // completa (sin cortar) para poder derivar de ahí tanto la tira de
+  // "cercanos" como la de "destacados" (4+ estrellas) sin duplicar el
+  // fetch.
   const [restaurants, setRestaurants] = useState<ExploreRestaurant[]>([]);
   const [restaurantsLoading, setRestaurantsLoading] = useState(true);
 
   const nearbyRestaurants = useMemo(() => restaurants.slice(0, 10), [restaurants]);
 
   // "Restaurantes destacados" -- mismos restaurantes de la tira de
-  // arriba (mismo radio de 5km), filtrados a calificación >= 4 y
-  // ordenados de mejor a peor. Si ninguno llega a 4 estrellas todavía
-  // (calificación arranca en 0 hasta la primera reseña real), la
-  // sección no se muestra.
+  // arriba (mismo radio/ubicación), filtrados a calificación >= 4 y
+  // ordenados de mejor a peor. Si ningún restaurante llega a 4
+  // estrellas todavía (calificación arranca en 0 hasta la primera
+  // reseña), la sección simplemente no se muestra.
   const featuredRestaurants = useMemo(
     () =>
       [...restaurants]
@@ -188,6 +89,9 @@ useEffect(() => {
   // menus.tsx (PublicMenuService).
   const [menus, setMenus] = useState<PublicMenu[]>([]);
   const [menusLoading, setMenusLoading] = useState(true);
+
+  // Radio del pill "N km" -- afecta a ambas tiras (restaurantes y menús).
+  const [radiusKm, setRadiusKm] = useState(5);
 
   // Ubicación reverse-geocodeada a partir de la lat/lng GUARDADA
   // en el perfil (la que se fijó en el mapa), NO del GPS en vivo.
@@ -204,20 +108,13 @@ useEffect(() => {
 
   // Las tiras de restaurantes/menús dependen de la ubicación guardada del
   // usuario para poder filtrar por radio (igual que restaurantes.tsx y
-  // menus.tsx). Se espera a que loadUser() resuelva (userLoaded) antes
-  // de disparar el primer fetch -- antes este efecto corría también en
-  // el montaje inicial (userLoaded no existía), con user todavía en
-  // null, así que pedía restaurantes/menús SIN ubicación y un instante
-  // después los volvía a pedir CON ubicación apenas loadUser()
-  // resolvía: dos fetches de más y un parpadeo de resultados sin
-  // filtrar que se reemplazaban solos. Sin coords guardadas, se listan
-  // igual pero sin filtro de distancia (una sola vez, no dos).
+  // menus.tsx); se disparan de nuevo apenas loadUser() resuelve. Sin
+  // coords guardadas, se listan igual pero sin filtro de distancia.
   useEffect(() => {
-    if (!userLoaded) return;
     loadRestaurants();
     loadMenus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userLoaded, user?.latitude, user?.longitude]);
+  }, [user?.latitude, user?.longitude, radiusKm]);
 
   async function loadUser() {
     try {
@@ -226,20 +123,12 @@ useEffect(() => {
       setUser(data);
     } catch (e) {
       console.log('[HomeScreen] ERROR cargando usuario:', e);
-    } finally {
-      setUserLoaded(true);
     }
   }
 
   async function loadCategories() {
     try {
       const data = await CategoryService.getAll();
-
-      categoriesScrollX.current = 0;
-      categoriesScrollRef.current?.scrollTo({
-        x: 0,
-        animated: false,
-      });
       setCategories(data);
     } catch (e) {
       console.log('[HomeScreen] ERROR cargando categorías:', e);
@@ -253,7 +142,7 @@ useEffect(() => {
     try {
       const useDistance = user?.latitude != null && user?.longitude != null;
       const data = await ExploreService.findRestaurants({
-        radius: useDistance ? HOME_RADIUS_KM : undefined,
+        radius: useDistance ? radiusKm : undefined,
         latitude: useDistance ? user!.latitude : undefined,
         longitude: useDistance ? user!.longitude : undefined,
       });
@@ -270,7 +159,7 @@ useEffect(() => {
     try {
       const useDistance = user?.latitude != null && user?.longitude != null;
       const data = await PublicMenuService.findAvailable({
-        radius: useDistance ? HOME_RADIUS_KM : undefined,
+        radius: useDistance ? radiusKm : undefined,
         latitude: useDistance ? user!.latitude : undefined,
         longitude: useDistance ? user!.longitude : undefined,
       });
@@ -282,12 +171,30 @@ useEffect(() => {
     }
   }
 
-  // Categorías del carrusel de Inicio: se muestran TODAS las que
-  // devuelve el back (antes eran solo 5 curadas por nombre). Al ser un
-  // carrusel horizontal con auto-scroll, ahora da lo mismo si son 5,
-  // 10 o más -- se acomodan solas. Si en algún momento se quiere volver
-  // a curar cuáles se muestran acá, se puede filtrar por
-  // HOME_CATEGORY_NAMES como antes.
+  // Selector de radio del pill "N km" -- reutiliza AppAlert (mismo patrón
+  // que promptLocationChoice en MapLocationPicker) en vez de armar un
+  // dropdown nuevo. Elegir una opción dispara el efecto de arriba, que
+  // vuelve a pedir restaurantes/menús con el radio nuevo.
+  function openDistancePicker() {
+    AppAlert.alert(
+      'Radio de búsqueda',
+      'Elegí hasta qué distancia buscar restaurantes y menús cerca tuyo.',
+      [
+        ...DISTANCE_OPTIONS.map((km): AlertButton => ({
+          text: `${km} km`,
+          onPress: () => setRadiusKm(km),
+        })),
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  }
+
+  // Las 5 curadas de Inicio, en el orden fijo de HOME_CATEGORY_NAMES
+  // (no las primeras 5 alfabéticas que devuelve el back). Si alguna
+  // todavía no existe en el back, simplemente no se muestra.
+  const homeCategories = HOME_CATEGORY_NAMES.map((name) =>
+    categories.find((c) => c.nombre.toLowerCase() === name.toLowerCase())
+  ).filter((c): c is Category => !!c);
 
   // Texto a mostrar en el pill: primero la dirección exacta reverse-geocodeada
   // a partir de la ubicación guardada en el perfil; si no hay coords guardadas
@@ -300,82 +207,83 @@ useEffect(() => {
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
 
-        {/* HEADER NARANJA */}
-        <LinearGradient colors={[C.primaryLight, C.primaryDark]} style={styles.header}>
+        {/* HEADER NARANJA -- compacto: pill de ubicación + carrusel de
+            categorías en una sola fila, con la onda como cierre visual. */}
+        <LinearGradient colors={[colors.primaryLight, colors.primaryDark]} style={styles.header}>
 
           <View style={styles.headerContent}>
 
-            {/* Selector ubicación */}
-            <TouchableOpacity
-              style={styles.locationPill}
-              onPress={() => router.push('/(province)')}
-            >
-              <Ionicons name="location-outline" size={18} color={C.text} />
-              <Text style={styles.locationText} numberOfLines={1}>
-                {locationLabel}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={C.text} />
-            </TouchableOpacity>
+            <View style={styles.headerTopRow}>
+              {/* Selector ubicación */}
+              <TouchableOpacity
+                style={styles.locationPill}
+                onPress={() => router.push('/(province)')}
+              >
+                <Ionicons name="location-outline" size={16} color={HEADER_PILL_TEXT} />
+                <Text style={styles.locationText} numberOfLines={1}>
+                  {locationLabel}
+                </Text>
+                <Ionicons name="chevron-down" size={14} color={HEADER_PILL_TEXT} />
+              </TouchableOpacity>
 
-            <View style={styles.divider} />
+              <TouchableOpacity
+                style={styles.verTodosButton}
+                onPress={() => router.push('/(home)/explorar')}
+              >
+                <Text style={styles.verTodosText}>Ver todas</Text>
+              </TouchableOpacity>
+            </View>
 
-            {/* Categorías */}
+            {/* Categorías -- carrusel horizontal real (FlatList, con
+                momentum/inercia nativa), no una grilla estática. */}
             {categoriesLoading ? (
               <View style={styles.categoriesLoadingWrap}>
-                <ActivityIndicator size="small" color={C.text} />
+                <ActivityIndicator size="small" color={HEADER_PILL_TEXT} />
               </View>
             ) : (
-              <ScrollView
-                ref={categoriesScrollRef}
+              <View style={styles.categoriesCarouselWrapper}>
+              <FlatList
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoriesRow}
-                onScrollBeginDrag={handleCategoriesTouchStart}
-                onScrollEndDrag={handleCategoriesTouchEnd}
-                onMomentumScrollEnd={handleCategoriesTouchEnd}
-                onScroll={(e) => {
-                  categoriesScrollX.current = e.nativeEvent.contentOffset.x;
-                }}
-                scrollEventThrottle={16}
-              >
-                {/* Dos copias del mismo set, una al lado de la otra, para
-                    simular un loop infinito (ver comentario en
-                    categoriesSetWidth arriba). Solo la primera copia
-                    necesita onLayout: como ambas tienen el mismo
-                    contenido, miden lo mismo. */}
-                <View
-                  style={styles.categoriesSet}
-                  onLayout={(e) => {
-                    categoriesSetWidth.current = e.nativeEvent.layout.width;
-
-                    if (!autoScrollTimer.current && categories.length > 0) {
-                      setTimeout(() => {
-                        startCategoriesAutoScroll();
-                      }, 300);
-                    }
-                  }}
-                >
-                  {categories.map((cat) => (
-                    <CategoryItem key={`a-${cat.id}`} category={cat} />
-                  ))}
-                </View>
-                <View style={styles.categoriesSet}>
-                  {categories.map((cat) => (
-                    <CategoryItem key={`b-${cat.id}`} category={cat} />
-                  ))}
-                </View>
-              </ScrollView>
+                data={homeCategories}
+                keyExtractor={(cat) => String(cat.id)}
+                contentContainerStyle={styles.categoriesCarousel}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                renderItem={({ item: cat }) => (
+                  <TouchableOpacity
+                    style={styles.categoryItem}
+                    onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre, categoriaId: String(cat.id) } })}
+                  >
+                    <View style={styles.categoryCircle}>
+                      {getCategoryIcon(cat.nombre) ? (
+                        <Image
+                          source={getCategoryIcon(cat.nombre)!}
+                          style={styles.categoryImage}
+                        />
+                      ) : cat.iconos?.url ? (
+                        <Image
+                          source={{ uri: cat.iconos.url }}
+                          style={styles.categoryImage}
+                        />
+                      ) : (
+                        <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
+                          <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.categoryName} numberOfLines={1} ellipsizeMode="tail">
+                      {cat.nombre}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+              </View>
             )}
 
           </View>
 
           <WaveBottom />
-
-          <View style={styles.verTodosContainer}>
-            <TouchableOpacity style={styles.verTodosButton} onPress={() => router.push('/(home)/explorar')}>
-              <Text style={styles.verTodosText}>Ver todas</Text>
-            </TouchableOpacity>
-          </View>
 
         </LinearGradient>
 
@@ -386,14 +294,64 @@ useEffect(() => {
           <View style={styles.content}>
           <View style={styles.contentInner}>
 
+            {/* Buscador */}
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={20} color={colors.placeholder} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Busca una comida..."
+                placeholderTextColor={colors.placeholder}
+              />
+            </View>
+
+            {/* Restaurantes destacados -- los mejor calificados (4+
+                estrellas) dentro del mismo radio elegido arriba. */}
+            {!restaurantsLoading && featuredRestaurants.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Restaurantes destacados</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={featuredRestaurants}
+                  keyExtractor={item => `featured-${item.id}`}
+                  contentContainerStyle={styles.restaurantsList}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.featuredCard}
+                      onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: item.id } })}
+                    >
+                      {item.logo_url ? (
+                        <Image source={{ uri: item.logo_url }} style={styles.featuredLogo} />
+                      ) : (
+                        <View style={[styles.featuredLogo, styles.featuredLogoPlaceholder]}>
+                          <Ionicons name="storefront-outline" size={22} color="#BDBDBD" />
+                        </View>
+                      )}
+                      <Text style={styles.featuredName} numberOfLines={1}>{item.nombre_comercial}</Text>
+                      <View style={styles.featuredRatingRow}>
+                        <Ionicons name="star" size={11} color={colors.primary} />
+                        <Text style={styles.featuredRatingText}>{item.calificacion_promedio.toFixed(1)}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              </>
+            )}
+
             {/* Restaurantes cercanos */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Restaurantes cercanos</Text>
+              <TouchableOpacity style={styles.distancePill} onPress={openDistancePicker}>
+                <Text style={styles.distanceText}>{radiusKm} km</Text>
+                <Ionicons name="chevron-down" size={14} color={colors.text} />
+              </TouchableOpacity>
             </View>
 
             {restaurantsLoading ? (
               <View style={styles.restaurantsLoadingWrap}>
-                <ActivityIndicator size="small" color={C.primary} />
+                <ActivityIndicator size="small" color={colors.primary} />
               </View>
             ) : nearbyRestaurants.length === 0 ? (
               <Text style={styles.emptyStripText}>
@@ -412,7 +370,10 @@ useEffect(() => {
                     onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: item.id } })}
                   >
                     {item.logo_url ? (
-                      <Image source={{ uri: item.logo_url }} style={styles.restaurantLogo} />
+                      <Image
+                        source={{ uri: item.logo_url }}
+                        style={styles.restaurantLogo}
+                      />
                     ) : (
                       <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
                     )}
@@ -423,53 +384,23 @@ useEffect(() => {
                     style={styles.arrowButton}
                     onPress={() => router.push("/(home)/restaurantes")}
                   >
-                    <Ionicons name="chevron-forward" size={20} color={C.textSecondary} />
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 }
               />
             )}
 
-            {/* Restaurantes destacados -- los mejor calificados (4+
-                estrellas) dentro del mismo radio de arriba. Misma card
-                que "Restaurantes cercanos". */}
-            {!restaurantsLoading && featuredRestaurants.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>⭐ Restaurantes destacados</Text>
-                </View>
-                <FlatList
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  data={featuredRestaurants}
-                  keyExtractor={item => `featured-${item.id}`}
-                  contentContainerStyle={styles.restaurantsList}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.restaurantCard}
-                      onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: item.id } })}
-                    >
-                      {item.logo_url ? (
-                        <Image source={{ uri: item.logo_url }} style={styles.restaurantLogo} />
-                      ) : (
-                        <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
-                      )}
-                    </TouchableOpacity>
-                  )}
-                />
-              </>
-            )}
-
             {/* Menús disponibles hoy */}
             <View style={styles.menusSectionHeader}>
-              <Text style={styles.sectionTitle}>🔥 Menús disponibles hoy</Text>
+              <Text style={styles.sectionTitle}>Menús disponibles hoy</Text>
               <TouchableOpacity onPress={() => router.push('/(home)/menus')}>
-                <Ionicons name="chevron-forward" size={20} color={C.textSecondary} />
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             {menusLoading ? (
               <View style={styles.restaurantsLoadingWrap}>
-                <ActivityIndicator size="small" color={C.primary} />
+                <ActivityIndicator size="small" color={colors.primary} />
               </View>
             ) : menus.length === 0 ? (
               <Text style={styles.emptyStripText}>
@@ -486,7 +417,10 @@ useEffect(() => {
                   >
                     <View style={styles.menuImageContainer}>
                       {menu.foto_url ? (
-                        <Image source={{ uri: menu.foto_url }} style={styles.menuImage} />
+                        <Image
+                          source={{ uri: menu.foto_url }}
+                          style={styles.menuImage}
+                        />
                       ) : (
                         <View style={[styles.menuImage, styles.menuImagePlaceholder]}>
                           <Ionicons name="restaurant-outline" size={22} color="#BDBDBD" />
@@ -500,7 +434,10 @@ useEffect(() => {
                     <View style={styles.menuInfo}>
                       <View style={styles.menuHeader}>
                         {menu.restaurante.logo_url ? (
-                          <Image source={{ uri: menu.restaurante.logo_url }} style={styles.menuLogo} />
+                          <Image
+                            source={{ uri: menu.restaurante.logo_url }}
+                            style={styles.menuLogo}
+                          />
                         ) : (
                           <View style={[styles.menuLogo, styles.menuLogoPlaceholder]}>
                             <Ionicons name="storefront-outline" size={12} color="#BDBDBD" />
@@ -516,12 +453,12 @@ useEffect(() => {
 
                       <View style={styles.menuMeta}>
                         <View style={styles.metaItem}>
-                          <Ionicons name="star" size={12} color={C.primary} />
+                          <Ionicons name="star" size={12} color={colors.primary} />
                           <Text style={styles.metaText}>{menu.restaurante.calificacion_promedio.toFixed(1)}</Text>
                         </View>
                         {menu.distancia != null && (
                           <View style={styles.metaItem}>
-                            <Ionicons name="location-outline" size={12} color={C.textSecondary} />
+                            <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
                             <Text style={styles.metaText}>{menu.distancia.toFixed(1)} km</Text>
                           </View>
                         )}
@@ -544,147 +481,128 @@ useEffect(() => {
   );
 }
 
-function CategoryItem({ category }: { category: Category }) {
-  return (
-    <TouchableOpacity
-      style={styles.categoryItem}
-      onPress={() =>
-        router.push({
-          pathname: '/(home)/explorar-resultados',
-          params: {
-            categoria: category.nombre,
-          },
-        })
-      }
-    >
-      <View style={styles.categoryCircle}>
-        {getCategoryIcon(category.nombre) ? (
-          <Image
-            source={getCategoryIcon(category.nombre)!}
-            style={styles.categoryImage}
-          />
-        ) : category.iconos?.url ? (
-          <Image
-            source={{ uri: category.iconos.url }}
-            style={styles.categoryImage}
-          />
-        ) : (
-          <View
-            style={[
-              styles.categoryImage,
-              styles.categoryImagePlaceholder,
-            ]}
-          >
-            <Ionicons name="restaurant-outline" size={22} color="#BDBDBD" />
-          </View>
-        )}
-      </View>
-
-      <View style={styles.categoryPill}>
-        <Text style={styles.categoryName} numberOfLines={1}>
-          {category.nombre}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
-  header: { paddingTop: 16, position: 'relative' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.primaryDark },
+  header: { paddingTop: 12, position: 'relative' },
   headerContent: { paddingHorizontal: 16 },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    alignSelf: 'center',
-    maxWidth: '80%',
-    gap: 8,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    flexShrink: 1,
+    gap: 6,
   },
-  locationText: { fontSize: 15, fontWeight: '600', color: Colors.light.text, flexShrink: 1 },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginVertical: 12 },
-  categoriesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 12 },
-  // Envoltorio de UNA copia del set de categorías, con el mismo gap
-  // interno que categoriesRow (así el espaciado visual entre items es
-  // idéntico a como era con el array plano de antes). El gap ENTRE las
-  // dos copias lo pone categoriesRow (es su gap, aplicado entre sus dos
-  // hijos: este View y su copia hermana).
-  categoriesSet: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
-  categoryItem: { alignItems: 'center', width: 68 },
+  locationText: { fontSize: 13.5, fontWeight: '600', color: HEADER_PILL_TEXT, flexShrink: 1 },
+  categoriesCarouselWrapper: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  categoriesCarousel: {
+    paddingTop: 12,
+    paddingBottom: 4,
+    paddingRight: 4,
+    gap: 14,
+  },
+  categoryItem: { alignItems: 'center', width: 58 },
   categoryCircle: {
-  width: 60,
-  height: 60,
-  borderRadius: 30,
-  backgroundColor: Colors.light.background,
-  overflow: 'hidden',
-  borderWidth: 2,
-  borderColor: Colors.light.primaryDark,
-},
-  categoryImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  categoryImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5' },
-  categoriesLoadingWrap: { paddingVertical: 30, alignItems: 'center' },
-  categoryPill: {
-    backgroundColor: Colors.light.background,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginTop: -6,
-    zIndex: 1,
-    borderWidth: 1,
-    borderColor: '#FB8C00',
-    maxWidth: 68,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: colors.card,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.55)',
   },
-  categoryName: { fontSize: 11, fontWeight: '600', color: Colors.light.text, textAlign: 'center' },
-  verTodosContainer: {
-    position: 'absolute',
-    bottom: 6,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 20,
-    elevation: 20,
+  categoryImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  categoryImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSecondary },
+  categoriesLoadingWrap: { paddingVertical: 20, alignItems: 'center' },
+  categoryName: {
+    marginTop: 5,
+    fontSize: 11,
+    fontWeight: '600',
+    color: HEADER_PILL_TEXT,
+    textAlign: 'center',
   },
   verTodosButton: {
-    backgroundColor: Colors.light.background,
-    borderRadius: 20,
-    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderRadius: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-},
-verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700' },
-  content: { backgroundColor: Colors.light.background, paddingBottom: 100 },
+  },
+  verTodosText: { color: colors.primaryDark, fontSize: 12.5, fontWeight: '700' },
+  content: { backgroundColor: colors.background, paddingBottom: 100 },
   contentInner: { paddingHorizontal: 16 },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.inputBackground,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 48,
+    marginTop: 24,
+    marginBottom: 20,
+    gap: 10,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: colors.text },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 24,
     marginBottom: 12,
   },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.light.text },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: colors.text },
+  distancePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  distanceText: { fontSize: 13, color: colors.text },
   restaurantsList: { paddingBottom: 16, gap: 10 },
   restaurantsLoadingWrap: { paddingVertical: 20, alignItems: 'center' },
-  emptyStripText: { fontSize: 12, color: Colors.light.textSecondary, paddingBottom: 16 },
+  emptyStripText: { fontSize: 12, color: colors.textSecondary, paddingBottom: 16 },
   restaurantCard: {
     width: 80,
     height: 80,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: colors.border,
     overflow: 'hidden',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   restaurantLogo: { width: 60, height: 60, resizeMode: 'contain' },
   arrowButton: { width: 40, height: 80, alignItems: 'center', justifyContent: 'center' },
+  featuredCard: {
+    width: 92,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    padding: 10,
+    gap: 4,
+  },
+  featuredLogo: { width: 48, height: 48, borderRadius: 12, resizeMode: 'contain' },
+  featuredLogoPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSecondary },
+  featuredName: { fontSize: 11.5, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  featuredRatingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  featuredRatingText: { fontSize: 11, fontWeight: '700', color: colors.text },
   menusSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -694,14 +612,14 @@ verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700'
   },
   menuCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.card,
     borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: colors.divider,
     height: 100,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -709,29 +627,29 @@ verTodosText: { color: Colors.light.primaryDark, fontSize: 13, fontWeight: '700'
   },
   menuImageContainer: { width: 150, height: 100, position: 'relative' },
   menuImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  menuImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5' },
+  menuImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSecondary },
   priceBadge: {
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  priceText: { color: Colors.light.background, fontSize: 13, fontWeight: 'bold' },
+  priceText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
   menuInfo: { flex: 1, padding: 10, justifyContent: 'space-between' },
   menuHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   menuLogo: { width: 24, height: 24, borderRadius: 12, resizeMode: 'contain' },
-  menuLogoPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5' },
-  restaurantName: { fontSize: 13, color: Colors.light.textSecondary, flex: 1 },
-  dishName: { fontSize: 15, fontWeight: 'bold', color: Colors.light.text, marginBottom: 2 },
-  dishDescription: { fontSize: 12, color: Colors.light.placeholder },
+  menuLogoPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSecondary },
+  restaurantName: { fontSize: 13, color: colors.textSecondary, flex: 1 },
+  dishName: { fontSize: 15, fontWeight: 'bold', color: colors.text, marginBottom: 2 },
+  dishDescription: { fontSize: 12, color: colors.placeholder },
   menuMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  metaText: { fontSize: 11, color: Colors.light.textSecondary },
-  openBadge: { backgroundColor: '#E8F5E9', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
-  openText: { fontSize: 11, color: Colors.light.success, fontWeight: '600' },
+  metaText: { fontSize: 11, color: colors.textSecondary },
+  openBadge: { backgroundColor: colors.surfaceSecondary, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  openText: { fontSize: 11, color: colors.success, fontWeight: '600' },
   contentWrapper: {
   marginTop: -20, },
 });

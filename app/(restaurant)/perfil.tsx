@@ -276,12 +276,12 @@ async function handleUploadLogo() {
       "¡Listo!",
       "Logo actualizado correctamente."
     );
-  } catch (e) {
+  } catch (e: any) {
     console.log("Error subiendo logo:", e);
 
     AppAlert.alert(
       "Error",
-      "No se pudo actualizar el logo."
+      e?.message || "No se pudo actualizar el logo."
     );
   }
 }
@@ -323,12 +323,12 @@ async function handleUploadCover() {
       "¡Listo!",
       "Portada actualizada correctamente."
     );
-  } catch (e) {
+  } catch (e: any) {
     console.log("Error subiendo portada:", e);
 
     AppAlert.alert(
       "Error",
-      "No se pudo actualizar la portada."
+      e?.message || "No se pudo actualizar la portada."
     );
   }
 }
