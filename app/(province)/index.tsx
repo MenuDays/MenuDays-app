@@ -14,8 +14,13 @@ import ProvinceSearch from "../components/province/ProvinceSearch";
 import ProvinceService, {
     Province,
 } from "../../services/province.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
+import { showLocationError, isNetworkError } from "../utils/locationErrors";
 
 export default function ProvinceScreen() {
+    const { colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
     const [search, setSearch] = useState("");
     const [selectedProvince, setSelectedProvince] =
         useState<Province | null>(null);
@@ -31,6 +36,10 @@ export default function ProvinceScreen() {
             setProvinces(data);
         } catch (error) {
             console.error("Error al cargar provincias:", error);
+            showLocationError(
+                isNetworkError(error) ? "networkError" : "genericError",
+                loadProvinces
+            );
         }
     }
 
@@ -45,7 +54,10 @@ export default function ProvinceScreen() {
     }, [search, provinces]);
 
     async function handleContinue() {
-        if (!selectedProvince) return;
+        if (!selectedProvince) {
+            showLocationError("missingProvince");
+            return;
+        }
 
         await ProvinceService.saveSelectedProvince(selectedProvince);
 
@@ -60,38 +72,39 @@ export default function ProvinceScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <ProvinceHeader />
+            <ProvinceList
+                provinces={filteredProvinces}
+                selectedProvince={selectedProvince}
+                onSelectProvince={setSelectedProvince}
+                ListHeaderComponent={
+                    <>
+                        <ProvinceHeader />
+                        <View style={styles.searchWrap}>
+                            <ProvinceSearch
+                                value={search}
+                                onChangeText={setSearch}
+                            />
+                        </View>
+                    </>
+                }
+            />
 
-            <View style={styles.content}>
-                <ProvinceSearch
-                    value={search}
-                    onChangeText={setSearch}
-                />
-
-                <ProvinceList
-                    provinces={filteredProvinces}
-                    selectedProvince={selectedProvince}
-                    onSelectProvince={setSelectedProvince}
-                />
-
-                <ContinueButton
-                    disabled={!selectedProvince}
-                    onPress={handleContinue}
-                />
-            </View>
+            <ContinueButton
+                disabled={!selectedProvince}
+                onPress={handleContinue}
+            />
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F8F8F8",
+        backgroundColor: colors.background,
     },
 
-    content: {
-        flex: 1,
-        backgroundColor: "#FFFFFF",
+    searchWrap: {
+        backgroundColor: colors.background,
         marginTop: -28,
         borderTopLeftRadius: 30,
         borderTopRightRadius: 30,

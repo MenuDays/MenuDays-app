@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 interface AvatarModeProps {
   mode: "avatar";
@@ -11,7 +12,7 @@ interface AvatarModeProps {
   initials: string;
   onPressCamera?: () => void;
 }
- 
+
 interface CoverModeProps {
   mode: "cover";
   logoUrl?: string | null;
@@ -19,28 +20,30 @@ interface CoverModeProps {
   onPressEditLogo?: () => void;
   onPressEditCover?: () => void;
 }
- 
+
 type ProfileHeroProps = AvatarModeProps | CoverModeProps;
- 
+
 /**
  * Header reutilizable de perfil.
  * - mode="avatar": el que ya usaba el comensal (avatar circular sobre
  *   fondo con gradiente). NO TOCAR -- comparte estilos con mode="cover"
- *   pero cada uno tiene su propio bloque de estilos separado.
+ *   pero cada uno tiene su propio bloque de estilos separado. El
+ *   gradiente naranja es igual en Light y Dark (identidad de marca), así
+ *   que este modo no necesita tokens de tema.
  * - mode="cover": para el restaurante -- imagen de portada de fondo,
- *   logo circular centrado y superpuesto, cada uno con su botón de
- *   editar (solo ícono, sin texto). El nombre/subtítulo del
- *   restaurante ya NO se pinta acá encima de la foto -- ahora es un
- *   campo aparte más abajo en la pantalla (ver RestaurantProfileScreen),
- *   igual que en la referencia visual.
+ *   logo circular centrado y superpuesto, cada uno con su propio botón
+ *   de editar (solo ícono, sin texto). Estos SÍ se apoyan en el fondo de
+ *   la pantalla (blanco/oscuro según el tema), así que usan `colors`.
  */
 export default function ProfileHero(props: ProfileHeroProps) {
+  const { colors } = useTheme();
+
   if (props.mode === "avatar") {
     const { title, subtitle, photoUrl, initials, onPressCamera } = props;
     return (
       <LinearGradient colors={["#FFB640", "#F58A07"]} style={styles.avatarHeader}>
         <Text style={styles.headerTitle}>Mi perfil</Text>
- 
+
         <View style={styles.avatarContainer}>
           {photoUrl ? (
             <Image source={{ uri: photoUrl }} style={styles.avatar} />
@@ -53,50 +56,64 @@ export default function ProfileHero(props: ProfileHeroProps) {
             <Ionicons name="camera" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
- 
+
         <Text style={styles.userName}>{title}</Text>
         <Text style={styles.userSubtitle}>{subtitle}</Text>
       </LinearGradient>
     );
   }
- 
+
   const { logoUrl, coverUrl, onPressEditLogo, onPressEditCover } = props;
   return (
     <View style={styles.coverHeader}>
       {coverUrl ? (
         <>
           <Image source={{ uri: coverUrl }} style={styles.coverImage} />
-          <TouchableOpacity style={styles.editCoverButton} onPress={onPressEditCover}>
-            <Ionicons name="camera" size={16} color="#3E2723" />
+          <TouchableOpacity
+            style={[styles.editCoverButton, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
+            onPress={onPressEditCover}
+          >
+            <Ionicons name="camera" size={16} color={colors.text} />
           </TouchableOpacity>
         </>
       ) : (
         <TouchableOpacity
-          style={styles.coverEmpty}
+          style={[
+            styles.coverEmpty,
+            { backgroundColor: colors.surfaceSecondary, borderColor: colors.border },
+          ]}
           onPress={onPressEditCover}
           activeOpacity={0.8}
         >
-          <Ionicons name="image-outline" size={28} color="#BDBDBD" />
-          <Text style={styles.coverEmptyText}>Subir portada</Text>
+          <Ionicons name="image-outline" size={28} color={colors.placeholder} />
+          <Text style={[styles.coverEmptyText, { color: colors.textSecondary }]}>Subir portada</Text>
         </TouchableOpacity>
       )}
- 
+
       <View style={styles.logoWrapper}>
         {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logo} />
+          <Image source={{ uri: logoUrl }} style={[styles.logo, { borderColor: colors.card }]} />
         ) : (
-          <View style={styles.logoPlaceholder}>
-            <Ionicons name="storefront" size={28} color="#F5A800" />
+          <View
+            style={[
+              styles.logoPlaceholder,
+              { borderColor: colors.card, backgroundColor: colors.surfaceSecondary },
+            ]}
+          >
+            <Ionicons name="storefront" size={28} color={colors.primary} />
           </View>
         )}
-        <TouchableOpacity style={styles.cameraButtonLogo} onPress={onPressEditLogo}>
-            <Ionicons name="camera" size={13} color="#3E2723" />
+        <TouchableOpacity
+          style={[styles.cameraButtonLogo, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={onPressEditLogo}
+        >
+            <Ionicons name="camera" size={13} color={colors.text} />
         </TouchableOpacity>
       </View>
     </View>
   );
 }
- 
+
 const styles = StyleSheet.create({
   /* ---- Modo avatar (comensal) -- sin cambios ---- */
   avatarHeader: {
@@ -159,7 +176,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "rgba(255,255,255,0.85)",
   },
- 
+
   /* ---- Modo cover (restaurante) ---- */
   coverHeader: {
     height: 170,
@@ -181,10 +198,8 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
@@ -200,15 +215,12 @@ const styles = StyleSheet.create({
     height: 84,
     borderRadius: 42,
     borderWidth: 4,
-    borderColor: "#FFFFFF",
   },
   logoPlaceholder: {
     width: 84,
     height: 84,
     borderRadius: 42,
     borderWidth: 4,
-    borderColor: "#FFFFFF",
-    backgroundColor: "#FFF3DE",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -219,18 +231,14 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#F0F0F0",
   },
   coverEmpty: {
   flex: 1,
   borderRadius: 18,
-  backgroundColor: "#F5F5F5",
   borderWidth: 1,
-  borderColor: "#E0E0E0",
   borderStyle: "dashed",
   alignItems: "center",
   justifyContent: "center",
@@ -239,7 +247,6 @@ const styles = StyleSheet.create({
 coverEmptyText: {
   fontSize: 14,
   fontWeight: "600",
-  color: "#9E9E9E",
 },
 });
- 
+

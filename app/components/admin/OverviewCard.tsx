@@ -3,16 +3,17 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Dimensions,
   Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 import { chartBaseConfig } from "./chartConfig";
-import { AppAlert } from "../common/AppAlert";
 
-const { width } = Dimensions.get("screen");
+// Se limita a un ancho "de celular" para que el LineChart (necesita un
+// width numérico fijo, no admite porcentajes) no se estire enorme en tablets.
+const { width: rawScreenWidth } = Dimensions.get("screen");
+const width = Math.min(rawScreenWidth, 480);
 
 interface OverviewCardProps {
   totalLabel: string;
@@ -81,15 +82,6 @@ export default function OverviewCard({
           <View style={styles.legendDot} />
           <Text style={styles.chartLegendText}>Solicitudes</Text>
         </View>
-
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={styles.periodButton}
-          onPress={() => AppAlert.alert("Próximamente", "El selector de período estará disponible pronto.")}
-        >
-          <Text style={styles.periodButtonText}>Últimos 7 días</Text>
-          <Ionicons name="chevron-down" size={14} color="#757575" />
-        </TouchableOpacity>
       </View>
     </Animated.View>
   );
@@ -160,14 +152,4 @@ const styles = StyleSheet.create({
   chartLegend: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#F5A800" },
   chartLegendText: { fontSize: 11, color: "#9E9E9E" },
-  periodButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 9,
-    backgroundColor: "#F7F7F7",
-  },
-  periodButtonText: { fontSize: 10, fontWeight: "700", color: "#757575" },
 });

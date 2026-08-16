@@ -46,6 +46,7 @@
       [
         "expo-location",
         {
+          "locationWhenInUsePermission": "Permití el acceso a tu ubicación para mostrarte restaurantes cercanos.",
           "locationAlwaysAndWhenInUsePermission": "Permití el acceso a tu ubicación para mostrarte restaurantes cercanos."
         }
       ],

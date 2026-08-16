@@ -176,31 +176,34 @@ export default function SplashScreen() {
             </Text>
           </Animated.View>
 
-          {/* Tarjetas */}
-          <View style={styles.cardsContainer}>
-            <Animated.View
+          {/* Caption -- texto simple, sin fondo/emoji, estilo iOS. */}
+          <View style={styles.captionRow}>
+            <Animated.Text
               style={[
-                styles.card,
-                {
-                  opacity: card1Opacity,
-                  transform: [{ translateY: card1Y }],
-                }
+                styles.captionText,
+                { opacity: card1Opacity, transform: [{ translateY: card1Y }] },
               ]}
             >
-              <Text style={styles.cardText}>🍽️ Menú del día</Text>
-            </Animated.View>
+              MENÚ DEL DÍA
+            </Animated.Text>
 
-            <Animated.View
+            <Animated.Text
               style={[
-                styles.card,
-                {
-                  opacity: card2Opacity,
-                  transform: [{ translateY: card2Y }],
-                }
+                styles.captionDot,
+                { opacity: card1Opacity, transform: [{ translateY: card1Y }] },
               ]}
             >
-              <Text style={styles.cardText}>🧾 Pedidos</Text>
-            </Animated.View>
+              ·
+            </Animated.Text>
+
+            <Animated.Text
+              style={[
+                styles.captionText,
+                { opacity: card2Opacity, transform: [{ translateY: card2Y }] },
+              ]}
+            >
+              PEDIDOS
+            </Animated.Text>
           </View>
 
           {/* Barra de progreso */}
@@ -304,24 +307,23 @@ vaporLottie: {
     color: '#FFA726',
     fontWeight: 'bold',
   },
-  cardsContainer: {
+  captionRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 32,
     marginBottom: 48,
   },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: 6,
-  },
-  cardText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+  captionText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
     fontWeight: '600',
+    letterSpacing: 1.5,
+  },
+  captionDot: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginHorizontal: 10,
   },
   progressContainer: {
     position: 'absolute',

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node \"/c/Users/Liliana/AppData/Local/Temp/md_check_duplicates.js\")",
+      "Bash(node -e ' *)",
+      "Read(//c/Users/Liliana/AppData/Local/Temp/**)",
+      "Bash(rm -f \"/c/Users/Liliana/AppData/Local/Temp/md_check_duplicates.js\" \"/c/Users/Liliana/AppData/Local/Temp/md_check_duplicates_output.txt\")",
+      "Bash(node \"/c/Users/Liliana/AppData/Local/Temp/md_fix_duplicates.js\")",
+      "Bash(rm -f \"/c/Users/Liliana/AppData/Local/Temp/md_fix_duplicates.js\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:GkUauRBycHcfHfFXdflsolUDwrplYQwl@sakura.proxy.rlwy.net:11905/railway\" npx prisma migrate deploy)",
+      "Bash(npx prisma *)",
+      "Bash(npx tsx *)",
+      "Bash(rm -f \"/c/Users/Liliana/Desktop/WORK/ALEX/MENUDAYS/CÓDIGO/menu-days-api/prisma/_tmp_test_idempotencia.ts\")",
+      "Bash(npx tsc *)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:GkUauRBycHcfHfFXdflsolUDwrplYQwl@sakura.proxy.rlwy.net:11905/railway\" npx prisma validate)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:GkUauRBycHcfHfFXdflsolUDwrplYQwl@sakura.proxy.rlwy.net:11905/railway\" npx prisma migrate status)",
+      "Bash(npm run *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(echo \"TSC_EXIT:$?\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Liliana\\AppData\\Local\\Temp",
+      "C:\\Users\\Liliana\\Desktop\\WORK\\ALEX\\MENUDAYS\\CÓDIGO\\menu-days-api\\prisma",
+      "C:\\Users\\Liliana\\Desktop\\WORK\\ALEX\\MENUDAYS\\CÓDIGO\\menu-days-api\\prisma\\seeds"
+    ]
+  }
+}

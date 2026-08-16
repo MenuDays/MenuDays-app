@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RestaurantSocialLink, RedSocial } from "../../../services/restaurant.service";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 const NETWORK_ICONS: Record<RedSocial, string> = {
   instagram: "logo-instagram",
@@ -21,6 +22,7 @@ export default function SocialLinksEditor({
   onAdd: (plataforma: RedSocial, url: string) => void;
   onRemove: (id: number) => void;
 }) {
+  const { colors } = useTheme();
   const [selectedNetwork, setSelectedNetwork] = useState<RedSocial>("instagram");
   const [newUrl, setNewUrl] = useState("");
 
@@ -34,30 +36,36 @@ export default function SocialLinksEditor({
   return (
     <View>
       {links.map((link) => (
-        <View key={link.id} style={styles.row}>
-          <Ionicons name={NETWORK_ICONS[link.plataforma] as any} size={18} color="#F5A800" style={styles.icon} />
-          <Text style={styles.value} numberOfLines={1}>{link.url}</Text>
+        <View key={link.id} style={[styles.row, { borderBottomColor: colors.divider }]}>
+          <Ionicons name={NETWORK_ICONS[link.plataforma] as any} size={18} color={colors.primary} style={styles.icon} />
+          <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>{link.url}</Text>
           <TouchableOpacity onPress={() => onRemove(link.id)} hitSlop={10}>
-            <Ionicons name="close-circle" size={20} color="#E0E0E0" />
+            <Ionicons name="close-circle" size={20} color={colors.border} />
           </TouchableOpacity>
         </View>
       ))}
 
       {links.length === 0 && (
-        <Text style={styles.emptyText}>Todavía no agregaste redes sociales</Text>
+        <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+          Todavía no agregaste redes sociales
+        </Text>
       )}
 
       <View style={styles.networkPicker}>
         {NETWORK_OPTIONS.map((net) => (
           <TouchableOpacity
             key={net}
-            style={[styles.networkChip, selectedNetwork === net && styles.networkChipActive]}
+            style={[
+              styles.networkChip,
+              { backgroundColor: colors.surfaceSecondary },
+              selectedNetwork === net && { backgroundColor: colors.primary },
+            ]}
             onPress={() => setSelectedNetwork(net)}
           >
             <Ionicons
               name={NETWORK_ICONS[net] as any}
               size={16}
-              color={selectedNetwork === net ? "#FFFFFF" : "#9E9E9E"}
+              color={selectedNetwork === net ? "#FFFFFF" : colors.placeholder}
             />
           </TouchableOpacity>
         ))}
@@ -65,16 +73,23 @@ export default function SocialLinksEditor({
 
       <View style={styles.addRow}>
         <TextInput
-          style={styles.addInput}
+          style={[
+            styles.addInput,
+            { borderColor: colors.inputBorder, color: colors.text, backgroundColor: colors.inputBackground },
+          ]}
           value={newUrl}
           onChangeText={setNewUrl}
           placeholder="https://..."
-          placeholderTextColor="#BDBDBD"
+          placeholderTextColor={colors.placeholder}
           autoCapitalize="none"
           keyboardType="url"
           onSubmitEditing={handleAdd}
         />
-        <TouchableOpacity style={styles.addButton} onPress={handleAdd} disabled={!newUrl.trim()}>
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          onPress={handleAdd}
+          disabled={!newUrl.trim()}
+        >
           <Ionicons name="add" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
@@ -88,7 +103,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
   },
   icon: {
     marginRight: 10,
@@ -97,11 +111,9 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: "600",
-    color: "#1A1A1A",
   },
   emptyText: {
     fontSize: 13,
-    color: "#9E9E9E",
     paddingVertical: 12,
   },
   networkPicker: {
@@ -114,12 +126,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
-  },
-  networkChipActive: {
-    backgroundColor: "#F5A800",
   },
   addRow: {
     flexDirection: "row",
@@ -131,17 +139,13 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E7E7E7",
     paddingHorizontal: 12,
     fontSize: 14,
-    color: "#1A1A1A",
-    backgroundColor: "#FAFAFA",
   },
   addButton: {
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: "#F5A800",
     alignItems: "center",
     justifyContent: "center",
   },

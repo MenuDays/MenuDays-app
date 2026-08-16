@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { router } from "expo-router";
 import ExploreService, { ExploreRestaurant } from "../../services/explore.service";
 import UserService from "../../services/user.service";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Listado completo de restaurantes ("ver todos" desde Inicio). Solo
 // muestra ícono/logo + nombre -- sin rating, categoría ni distancia --
@@ -32,6 +34,8 @@ import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen"
 const DISTANCE_OPTIONS = [1, 3, 5, 10, 0]; // 0 = "cualquiera"
 
 export default function RestaurantesScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState("");
   const [maxDistance, setMaxDistance] = useState(0);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -82,17 +86,17 @@ export default function RestaurantesScreen() {
         <Text style={styles.title}>Restaurantes</Text>
 
         <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color="#9E9E9E" />
+          <Ionicons name="search" size={18} color={colors.placeholder} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar restaurante..."
-            placeholderTextColor="#B0B0B0"
+            placeholderTextColor={colors.placeholder}
             value={search}
             onChangeText={setSearch}
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={18} color="#B0B0B0" />
+              <Ionicons name="close-circle" size={18} color={colors.placeholder} />
             </TouchableOpacity>
           )}
         </View>
@@ -118,7 +122,7 @@ export default function RestaurantesScreen() {
                   <Ionicons
                     name="navigate-outline"
                     size={13}
-                    color={active ? "#FFFFFF" : "#3E2723"}
+                    color={active ? "#FFFFFF" : colors.text}
                   />
                 )}
                 <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
@@ -131,11 +135,11 @@ export default function RestaurantesScreen() {
 
         {loading ? (
           <View style={styles.centerWrap}>
-            <ActivityIndicator size="large" color="#FB8C00" />
+            <ActivityIndicator size="large" color={colors.primaryDark} />
           </View>
         ) : error ? (
           <View style={styles.centerWrap}>
-            <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+            <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
             <Text style={styles.emptyText}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={fetchRestaurants}>
               <Text style={styles.retryButtonText}>Reintentar</Text>
@@ -152,7 +156,7 @@ export default function RestaurantesScreen() {
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
-                <Ionicons name="restaurant-outline" size={36} color="#D9D9D9" />
+                <Ionicons name="restaurant-outline" size={36} color={colors.placeholder} />
                 <Text style={styles.emptyText}>No encontramos restaurantes con ese nombre.</Text>
               </View>
             }
@@ -164,9 +168,12 @@ export default function RestaurantesScreen() {
               >
                 <View style={styles.logoCircle}>
                   {item.logo_url ? (
-                    <Image source={{ uri: item.logo_url }} style={styles.logoImage} />
+                    <Image
+                      source={{ uri: item.logo_url }}
+                      style={styles.logoImage}
+                    />
                   ) : (
-                    <Ionicons name="storefront-outline" size={26} color="#BDBDBD" />
+                    <Ionicons name="storefront-outline" size={26} color={colors.placeholder} />
                   )}
                   <View
                     style={[
@@ -187,23 +194,23 @@ export default function RestaurantesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAFAFA", paddingHorizontal: 16 },
-  title: { fontSize: 22, fontWeight: "bold", color: "#3E2723", marginTop: 8, marginBottom: 12 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16 },
+  title: { fontSize: 22, fontWeight: "bold", color: colors.text, marginTop: 8, marginBottom: 12 },
 
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.inputBackground,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 46,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.inputBorder,
     marginBottom: 14,
   },
-  searchInput: { flex: 1, fontSize: 14, color: "#1A1A1A" },
+  searchInput: { flex: 1, fontSize: 14, color: colors.text },
 
   // flexGrow: 0 para que el FlatList horizontal no se estire a lo ancho
   // de la pantalla y termine "adivinando" mal dónde corta el contenido.
@@ -219,19 +226,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
   },
-  sortChipActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
+  sortChipActive: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
   sortChipDisabled: { opacity: 0.4 },
-  sortChipText: { fontSize: 12, fontWeight: "700", color: "#3E2723" },
+  sortChipText: { fontSize: 12, fontWeight: "700", color: colors.text },
   sortChipTextActive: { color: "#FFFFFF" },
 
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
   retryButton: {
     marginTop: 4,
-    backgroundColor: "#FB8C00",
+    backgroundColor: colors.primaryDark,
     borderRadius: 12,
     paddingHorizontal: 18,
     paddingVertical: 9,
@@ -241,19 +248,19 @@ const styles = StyleSheet.create({
   resultsList: { paddingBottom: 120 },
   row: { justifyContent: "space-between", marginBottom: 22 },
   emptyWrap: { alignItems: "center", marginTop: 60, paddingHorizontal: 30, gap: 10 },
-  emptyText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
+  emptyText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
 
   card: { width: "31%", alignItems: "center" },
   logoCircle: {
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#EFEFEF",
-    shadowColor: "#000",
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -268,13 +275,13 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: "#FFFFFF",
+    borderColor: colors.card,
   },
   cardName: {
     marginTop: 8,
     fontSize: 12,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
     textAlign: "center",
   },
 });

@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { DeliveryMethod } from "../../services/order.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 interface DeliveryOption {
   value: DeliveryMethod;
@@ -22,6 +24,8 @@ const OPTIONS: DeliveryOption[] = [
 ];
 
 export default function PedidoEntregaScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{ productoId: string; tipo: string }>();
   const [selected, setSelected] = useState<DeliveryMethod>("delivery");
 
@@ -37,10 +41,10 @@ export default function PedidoEntregaScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color="#3E2723" />
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -59,9 +63,9 @@ export default function PedidoEntregaScreen() {
                 <Ionicons
                   name={isSelected ? "radio-button-on" : "radio-button-off"}
                   size={20}
-                  color={isSelected ? "#FB8C00" : "#C9C9C9"}
+                  color={isSelected ? colors.primaryDark : colors.placeholder}
                 />
-                <Ionicons name={option.icon} size={20} color="#3E2723" style={styles.optionIcon} />
+                <Ionicons name={option.icon} size={20} color={colors.text} style={styles.optionIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.optionLabel}>{option.label}</Text>
                   {option.helper ? <Text style={styles.optionHelper}>{option.helper}</Text> : null}
@@ -81,44 +85,44 @@ export default function PedidoEntregaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 16, paddingTop: 4 },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
   content: { flex: 1, padding: 20 },
-  title: { fontSize: 18, fontWeight: "800", color: "#1A1A1A", marginTop: 8, marginBottom: 24 },
+  title: { fontSize: 18, fontWeight: "800", color: colors.text, marginTop: 8, marginBottom: 24 },
   optionsList: { gap: 12 },
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 14,
   },
   optionCardSelected: {
-    borderColor: "#FB8C00",
-    backgroundColor: "#FFF8EE",
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.surfaceSecondary,
   },
   optionIcon: { marginRight: 2 },
-  optionLabel: { fontSize: 15, fontWeight: "700", color: "#1A1A1A" },
-  optionHelper: { fontSize: 12, color: "#9E9E9E", marginTop: 2 },
+  optionLabel: { fontSize: 15, fontWeight: "700", color: colors.text },
+  optionHelper: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: colors.divider,
   },
   cta: {
-    backgroundColor: "#FFA726",
+    backgroundColor: colors.primary,
     borderRadius: 24,
     paddingVertical: 15,
     alignItems: "center",

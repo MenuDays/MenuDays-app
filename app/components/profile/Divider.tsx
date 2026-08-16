@@ -1,13 +1,14 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 export default function Divider() {
-  return <View style={styles.divider} />;
+  const { colors } = useTheme();
+  return <View style={[styles.divider, { backgroundColor: colors.divider }]} />;
 }
 
 const styles = StyleSheet.create({
   divider: {
     height: 1,
-    backgroundColor: "#F5F5F5",
   },
 });

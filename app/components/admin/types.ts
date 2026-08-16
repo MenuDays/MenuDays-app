@@ -12,4 +12,4 @@ export type StatCardData = {
   trendPositive?: boolean;
 };
 
-export type RankingRow = { position: number; name: string; value: number };
+export type RankingRow = { position: number; name: string; value: number; id?: number };

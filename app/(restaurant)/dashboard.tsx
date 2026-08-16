@@ -23,6 +23,7 @@ import PromotionService from "../../services/promotion.service";
 import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import { useTheme } from "../../contexts/ThemeContext";
 const platosBg = require("../../assets/dashboard/platos.png");
 const promocionesBg = require("../../assets/dashboard/promociones.png");
 const menusBg = require("../../assets/dashboard/menus.png");
@@ -30,7 +31,11 @@ const galeriaBg = require("../../assets/dashboard/galeria.png");
 const heroBg = require("../../assets/dashboard/hero-restaurante.png");
 const menuReminderCharacter = require("../../assets/characters/niñoPensando.png");
 
-const { width } = Dimensions.get("screen");
+// Se limita a un ancho "de celular" para el cálculo de las grillas de 2
+// columnas: en tablets, sin esto, cada card terminaba enorme y estirada
+// porque (width - 44) / 2 usaba el ancho real de la pantalla completa.
+const { width: rawScreenWidth } = Dimensions.get("screen");
+const width = Math.min(rawScreenWidth, 480);
 
 // ============================================================
 // DATA — mockeada, pero con el shape que ya esperarías del
@@ -162,6 +167,7 @@ function getGreeting(): string {
 
 export default function RestaurantDashboard() {
   const insets = useSafeAreaInsets();
+  const { isDark } = useTheme();
   const greeting = getGreeting();
   // Arranca en null ("todavía no sabemos") para no mostrar ni el estado
   // publicado ni el de "falta publicar" hasta tener la respuesta real.
@@ -359,6 +365,11 @@ export default function RestaurantDashboard() {
       style={styles.dashboardBackground}
       imageStyle={styles.dashboardBackgroundImage}
     >
+      {/* En Dark Mode se oscurece la imagen hero con un scrim casi
+          opaco para que el dashboard se sienta negro, sin tener que
+          sacar la imagen de fondo (identidad visual del rol restaurante). */}
+      {isDark && <View style={styles.dashboardDarkOverlay} pointerEvents="none" />}
+
       {/* Todo el dashboard vive sobre la imagen hero de fondo. */}
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -845,6 +856,12 @@ const styles = StyleSheet.create({
   dashboardBackgroundImage: {
     width: "100%",
     height: "100%",
+  },
+
+  dashboardDarkOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000000",
+    opacity: 0.88,
   },
 
 

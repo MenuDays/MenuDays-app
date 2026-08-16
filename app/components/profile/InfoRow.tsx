@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 export default function InfoRow({
   icon,
@@ -11,16 +12,18 @@ export default function InfoRow({
   label: string;
   value: string;
 }) {
+  const { colors } = useTheme();
+
   return (
     <View style={styles.infoRow}>
       <Ionicons
         name={icon as any}
         size={18}
-        color="#F5A800"
+        color={colors.primary}
         style={styles.infoIcon}
       />
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue} numberOfLines={2}>
+      <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={2}>
         {value}
       </Text>
     </View>
@@ -38,14 +41,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: "#757575",
     width: 90,
   },
   infoValue: {
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1A1A",
     textAlign: "right",
   },
 });

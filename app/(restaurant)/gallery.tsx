@@ -72,10 +72,12 @@ export default function GalleryScreen() {
       AppAlert.alert("Permiso necesario", "Necesitamos acceso a tus fotos.");
       return;
     }
+    // Sin editor nativo (ver FormImagePicker.tsx): su contraste no
+    // coincide con el diseño de MenuDays en algunos dispositivos.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.8,
-      allowsEditing: true,
+      allowsEditing: false,
     });
     if (result.canceled) return;
 

@@ -4,9 +4,7 @@ import {
   Text,
   StyleSheet,
   ImageBackground,
-  TouchableOpacity,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface SolicitudHeaderProps {
@@ -16,8 +14,6 @@ interface SolicitudHeaderProps {
   highlight: string;
   /** Texto chico debajo, con barra de acento a la izquierda */
   subtitle?: string;
-  /** Se llama al tocar el botón de menú (hamburguesa) arriba a la izquierda */
-  onMenuPress?: () => void;
 }
 
 // Alto "de diseño" del header, sin contar la barra de estado.
@@ -29,7 +25,6 @@ export default function SolicitudHeader({
   title,
   highlight,
   subtitle,
-  onMenuPress,
 }: SolicitudHeaderProps) {
   const insets = useSafeAreaInsets();
 
@@ -41,13 +36,6 @@ export default function SolicitudHeader({
       resizeMode="cover"
     >
       <View style={styles.overlay} />
-
-      <TouchableOpacity
-        style={[styles.menuButton, { top: insets.top + 16 }]}
-        onPress={onMenuPress}
-      >
-        <Ionicons name="menu" size={22} color="#FFFFFF" />
-      </TouchableOpacity>
 
       <View style={styles.content}>
         <Text style={styles.title}>{title}</Text>
@@ -72,16 +60,6 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(20,10,5,0.55)",
-  },
-  menuButton: {
-    position: "absolute",
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(120,50,20,0.85)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   content: {
     paddingHorizontal: 24,

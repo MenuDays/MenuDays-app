@@ -8,12 +8,22 @@ export interface Province {
 
 const STORAGE_KEY = "@MenuDays:selectedProvince";
 
+// Las provincias son datos de referencia casi estáticos (no cambian en
+// el uso normal de la app) -- se cachean en memoria para que volver a
+// entrar a la pantalla de selección no dependa de un round-trip de red
+// cada vez, y se sienta instantáneo.
+let provincesCache: Province[] | null = null;
+
 class ProvinceService {
     /**
-     * Obtiene todas las provincias desde el backend.
+     * Obtiene todas las provincias desde el backend (cacheadas en memoria
+     * después del primer fetch de la sesión).
      */
     async getAll(): Promise<Province[]> {
-        return await api<Province[]>("/locations/provincias");
+        if (provincesCache) return provincesCache;
+        const data = await api<Province[]>("/locations/provincias");
+        provincesCache = data;
+        return data;
     }
 
     /**

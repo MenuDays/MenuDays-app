@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -25,8 +26,15 @@ import InfoRow from "../components/profile/InfoRow";
 import EditableRow from "../components/profile/EditableRow";
 import Divider from "../components/profile/Divider";
 import { AppAlert } from "../components/common/AppAlert";
+import ThemeToggle from "../components/common/ThemeToggle";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
+import { usePreviewMode } from "../../contexts/PreviewModeContext";
 
 export default function PerfilScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { previewOrigin, exitPreview } = usePreviewMode();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -124,6 +132,7 @@ export default function PerfilScreen() {
             } catch (e) {
               console.log("Error en logout remoto, limpiando sesión local igual:", e);
             } finally {
+              exitPreview();
               router.replace("/(auth)/login");
             }
           },
@@ -141,10 +150,35 @@ export default function PerfilScreen() {
     router.push("/requestStatus");
   }
 
+  async function handleUploadPhoto() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      AppAlert.alert("Permiso requerido", "Necesitamos acceso a tu galería.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    try {
+      const response = await UserService.uploadPhoto(result.assets[0]);
+      setUser((prev) => (prev ? { ...prev, profilePhotoUrl: response.photoUrl } : prev));
+      if (user) await UserService.saveLocal({ ...user, profilePhotoUrl: response.photoUrl });
+      AppAlert.alert("¡Listo!", "Foto de perfil actualizada correctamente.");
+    } catch (e) {
+      console.log("Error subiendo foto de perfil:", e);
+      AppAlert.alert("Error", "No se pudo actualizar la foto de perfil.");
+    }
+  }
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#F5A800" />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -169,6 +203,7 @@ export default function PerfilScreen() {
           subtitle={user.email}
           photoUrl={user.profilePhotoUrl}
           initials={`${user.firstName[0]}${user.lastName[0]}`}
+          onPressCamera={handleUploadPhoto}
         />
 
         <View style={styles.content}>
@@ -178,7 +213,7 @@ export default function PerfilScreen() {
             headerRight={
               !isEditing && (
                 <TouchableOpacity style={styles.inlineEditTrigger} onPress={startEditing}>
-                  <Ionicons name="create-outline" size={16} color="#F5A800" />
+                  <Ionicons name="create-outline" size={16} color={colors.primary} />
                   <Text style={styles.inlineEditTriggerText}>Editar</Text>
                 </TouchableOpacity>
               )
@@ -241,12 +276,28 @@ export default function PerfilScreen() {
           >
             <View style={styles.menuRowLeft}>
               <View style={styles.menuRowIcon}>
-                <Ionicons name="heart-outline" size={20} color="#F5A800" />
+                <Ionicons name="heart-outline" size={20} color={colors.primary} />
               </View>
               <Text style={styles.menuRowText}>Favoritos</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#BDBDBD" />
+            <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
           </TouchableOpacity>
+
+          {!previewOrigin && (
+            <View style={styles.menuRow}>
+              <View style={styles.menuRowLeft}>
+                <View style={styles.menuRowIcon}>
+                  <Ionicons
+                    name={isDark ? "moon-outline" : "sunny-outline"}
+                    size={20}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={styles.menuRowText}>Tema oscuro</Text>
+              </View>
+              <ThemeToggle size={30} />
+            </View>
+          )}
 
           {!checkingRequest && (
             <TouchableOpacity
@@ -280,7 +331,7 @@ export default function PerfilScreen() {
           )}
 
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#F44336" />
+            <Ionicons name="log-out-outline" size={20} color={colors.error} />
             <Text style={styles.logoutText}>Cerrar sesión</Text>
           </TouchableOpacity>
 
@@ -346,10 +397,10 @@ function getRestaurantCardConfig(requestStatus: RestaurantRequestStatus | null) 
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
     paddingBottom: 30,
   },
   loadingContainer: {
@@ -358,7 +409,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   content: {
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     marginTop: -24,
@@ -374,7 +425,7 @@ const styles = StyleSheet.create({
   inlineEditTriggerText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#F5A800",
+    color: colors.primary,
   },
   editActionsRow: {
     flexDirection: "row",
@@ -388,14 +439,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#757575",
+    color: colors.textSecondary,
   },
   saveButton: {
     flex: 1,
@@ -404,7 +455,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5A800",
+    backgroundColor: colors.primary,
     gap: 6,
   },
   saveButtonText: {
@@ -415,7 +466,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 10,
     marginTop: 4,
   },
@@ -423,12 +474,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -443,21 +494,21 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#FFF9EC",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
   menuRowText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   restaurantCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -473,7 +524,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#FFF9EC",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -483,17 +534,17 @@ const styles = StyleSheet.create({
   restaurantCardTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   restaurantCardSubtitle: {
     fontSize: 13,
-    color: "#F5A800",
+    color: colors.primary,
     marginTop: 2,
     fontWeight: "600",
   },
   restaurantCardBody: {
     fontSize: 14,
-    color: "#555555",
+    color: colors.textSecondary,
     lineHeight: 21,
     marginBottom: 16,
   },
@@ -519,6 +570,6 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#F44336",
+    color: colors.error,
   },
 });

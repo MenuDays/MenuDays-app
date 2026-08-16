@@ -33,6 +33,16 @@ export interface GetReviewsOptions {
   limit?: number;
 }
 
+// Body que espera POST /reviews (CreateReviewDto en el back). El pedido
+// tiene que ser propio, estar "entregado" y no tener ya una reseña -- el
+// back valida las 3 cosas y tira 400/404/403 con un mensaje explicando
+// cuál falló.
+export interface CreateReviewInput {
+  pedidoId: number;
+  calificacion: number; // 1 a 5
+  comentario?: string;
+}
+
 class ReviewService {
   async getRestaurantReviews(
     restaurantId: string | number,
@@ -43,6 +53,14 @@ class ReviewService {
     if (options.limit != null) params.append("limit", String(options.limit));
     const qs = params.toString();
     return await api<Review[]>(`/restaurants/${restaurantId}/reviews${qs ? `?${qs}` : ""}`);
+  }
+
+  /** Dejar una reseña (estrellas + comentario opcional) sobre un pedido entregado. */
+  async create(input: CreateReviewInput): Promise<Review> {
+    return await api<Review>("/reviews", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   }
 }
 

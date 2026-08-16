@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RankingRow } from "./types";
 import { RANK_COLORS } from "./chartConfig";
 import { AppAlert } from "../common/AppAlert";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface RankingCardProps {
   title: string;
@@ -13,6 +15,10 @@ interface RankingCardProps {
   columnLabel: string;
   linkText: string;
   data: RankingRow[];
+  /** Mensaje mostrado cuando `data` viene vacío (se leyó la BD real y no hay filas todavía). */
+  emptyLabel: string;
+  onPressRow?: (id?: number) => void;
+  onPressLink?: () => void;
 }
 
 export default function RankingCard({
@@ -23,12 +29,26 @@ export default function RankingCard({
   columnLabel,
   linkText,
   data,
+  emptyLabel,
+  onPressRow,
+  onPressLink,
 }: RankingCardProps) {
-  function handlePressRow() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  function handlePressRow(id?: number) {
+    if (onPressRow) {
+      onPressRow(id);
+      return;
+    }
     AppAlert.alert("Próximamente", "El detalle de este restaurante estará disponible pronto.");
   }
 
   function handlePressLink() {
+    if (onPressLink) {
+      onPressLink();
+      return;
+    }
     AppAlert.alert("Próximamente", `${linkText} estará disponible pronto.`);
   }
 
@@ -48,6 +68,13 @@ export default function RankingCard({
       </View>
 
       <View style={styles.rankingBody}>
+        {data.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Ionicons name="file-tray-outline" size={22} color={colors.placeholder} />
+            <Text style={styles.emptyText}>{emptyLabel}</Text>
+          </View>
+        ) : (
+          <>
         <View style={styles.rankingTableHeader}>
           <Text style={styles.rankingTableHeaderCol}>POS.</Text>
           <Text style={[styles.rankingTableHeaderCol, styles.rankingNameCol]}>
@@ -64,7 +91,7 @@ export default function RankingCard({
               key={row.position}
               activeOpacity={0.75}
               style={[styles.rankingRow, isTopThree && styles.rankingRowHighlight]}
-              onPress={handlePressRow}
+              onPress={() => handlePressRow(row.id)}
             >
               <View style={styles.rankingPositionCell}>
                 <View
@@ -103,11 +130,13 @@ export default function RankingCard({
 
               <View style={styles.rankingValueWrap}>
                 <Text style={styles.rankingValue}>{row.value}</Text>
-                <Ionicons name="chevron-forward" size={14} color="#BDBDBD" />
+                <Ionicons name="chevron-forward" size={14} color={colors.placeholder} />
               </View>
             </TouchableOpacity>
           );
         })}
+          </>
+        )}
 
         <TouchableOpacity
           activeOpacity={0.7}
@@ -122,15 +151,15 @@ export default function RankingCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   rankingCard: {
     borderRadius: 19,
     overflow: "hidden",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
-    shadowColor: "#000",
+    borderColor: colors.divider,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 5 },
@@ -150,8 +179,10 @@ const styles = StyleSheet.create({
   rankingHeaderText: { fontSize: 13, fontWeight: "800", color: "#FFFFFF" },
   rankingHeaderSubtitle: { fontSize: 10, color: "rgba(255,255,255,0.78)", marginTop: 2 },
   rankingBody: { padding: 15 },
+  emptyWrap: { alignItems: "center", justifyContent: "center", paddingVertical: 26, gap: 8 },
+  emptyText: { fontSize: 12.5, color: colors.textSecondary, textAlign: "center" },
   rankingTableHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 5, marginBottom: 7 },
-  rankingTableHeaderCol: { fontSize: 8, fontWeight: "800", letterSpacing: 0.7, color: "#B0B0B0", width: 58 },
+  rankingTableHeaderCol: { fontSize: 8, fontWeight: "800", letterSpacing: 0.7, color: colors.textSecondary, width: 58 },
   rankingNameCol: { flex: 1, width: undefined },
   rankingRow: {
     flexDirection: "row",
@@ -159,21 +190,21 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 5,
     borderTopWidth: 1,
-    borderTopColor: "#F2F2F2",
+    borderTopColor: colors.divider,
   },
-  rankingRowHighlight: { backgroundColor: "#FFFCF5" },
+  rankingRowHighlight: { backgroundColor: colors.surfaceSecondary },
   rankingPositionCell: { flexDirection: "row", alignItems: "center", gap: 7, width: 58 },
   rankingBadge: { width: 24, height: 24, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   firstPlaceBadge: { width: 28, height: 28, borderRadius: 9 },
   rankingBadgeNumber: { fontSize: 10, fontWeight: "800", color: "#FFFFFF" },
-  rankingPositionText: { fontSize: 11, color: "#757575", fontWeight: "600" },
-  firstPlaceText: { fontWeight: "900", color: "#1A1A1A" },
+  rankingPositionText: { fontSize: 11, color: colors.textSecondary, fontWeight: "600" },
+  firstPlaceText: { fontWeight: "900", color: colors.text },
   rankingNameWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 7, minWidth: 0 },
-  rankingName: { flexShrink: 1, fontSize: 12, color: "#1A1A1A", fontWeight: "600" },
+  rankingName: { flexShrink: 1, fontSize: 12, color: colors.text, fontWeight: "600" },
   topBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, backgroundColor: "#FFF1C9" },
   topBadgeText: { fontSize: 7, fontWeight: "900", color: "#C98600" },
   rankingValueWrap: { width: 68, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
-  rankingValue: { fontSize: 13, fontWeight: "900", color: "#1A1A1A" },
+  rankingValue: { fontSize: 13, fontWeight: "900", color: colors.text },
   rankingLinkButton: {
     flexDirection: "row",
     alignItems: "center",

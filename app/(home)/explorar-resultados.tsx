@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,33 +8,38 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Image,
+  ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
-import {
-  MockFoodItem,
-  MOCK_PLATOS,
-  MOCK_MENUS,
-  MOCK_PROMOCIONES,
-  PROVINCES,
-  CITIES_BY_PROVINCE,
-} from "./mockRestaurants";
+
+import PublicDishService, { PublicDish } from "../../services/public-dish.service";
+import PublicMenuService, { PublicMenu } from "../../services/public-menu.service";
+import PublicPromotionService, { PublicPromotion } from "../../services/public-promotion.service";
+import ProvinceService, { Province } from "../../services/province.service";
+import LocationService, { City } from "../../services/location.service";
+import UserService from "../../services/user.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // ==========================================================================
-// TODO: mock a propósito (a pedido, sin conexión a backend todavía).
-// Cuando se conecte: Platos -> GET /explore/platos (o similar),
-// Menús -> GET /explore/menus-del-dia, Promociones ->
-// GET /explore/promociones, todos con los mismos filtros de abajo
-// como querystring. PROVINCES/CITIES -> LocationService.
+// Se llega acá desde la grilla de categorías (explorar.tsx) o desde el
+// carrusel de categorías de Inicio (index.tsx), que mandan `categoria`
+// (nombre, solo para el título) y `categoriaId` por param. Esa categoría
+// queda fija: acá no se puede cambiar, hay que volver a la grilla para
+// elegir otra.
 //
-// OJO: en el schema actual `menus_del_dia` y `promociones` no tienen
-// categoria_id, así que el filtro por categoría para esos dos tabs es
-// puramente de mock hasta que se resuelva eso del lado del backend.
-//
-// Se llega acá desde la grilla de categorías (explorar.tsx), que manda
-// la categoría elegida por param. Esa categoría queda fija: acá no se
-// puede cambiar, hay que volver a la grilla para elegir otra.
+// Conectado a datos reales:
+// - Platos  -> GET /public/dishes  (PublicDishService)
+// - Menús   -> GET /public/menus   (PublicMenuService)
+// - Promociones -> GET /public/promotions (PublicPromotionService)
+// Los tres aceptan los mismos filtros de ubicación que Explore
+// (provinceId/cityId/radius+lat+lng) más categoriaId. "search" solo
+// existe en el back para platos y menús (filtra por el nombre del
+// plato/menú); las promociones no lo soportan todavía, por eso no hay
+// buscador en esa pestaña.
 // ==========================================================================
 
 type Tab = "platos" | "menus" | "promociones";
@@ -49,78 +54,213 @@ const TAB_LABELS: Record<Tab, string> = {
   promociones: "Promociones",
 };
 
-const DATA_BY_TAB: Record<Tab, MockFoodItem[]> = {
-  platos: MOCK_PLATOS,
-  menus: MOCK_MENUS,
-  promociones: MOCK_PROMOCIONES,
-};
+// Forma común a la que se mapean los 3 tipos de resultado (plato / menú /
+// promoción) para poder compartir una sola UI de lista.
+interface ResultItem {
+  id: string;
+  nombre: string;
+  imagenUrl: string | null;
+  restauranteId: string;
+  restauranteNombre: string;
+  calificacion: number;
+  cantidadResenas: number;
+  distanciaKm: number | null;
+  abierto: boolean;
+  precio: number;
+}
+
+function mapDish(d: PublicDish): ResultItem {
+  return {
+    id: d.id,
+    nombre: d.nombre,
+    imagenUrl: d.plato_imagenes?.[0]?.url ?? null,
+    restauranteId: d.restaurante_id,
+    restauranteNombre: d.restaurante.nombre_comercial,
+    calificacion: d.restaurante.calificacion_promedio,
+    cantidadResenas: d.restaurante.cantidad_resenas,
+    distanciaKm: d.distancia ?? null,
+    abierto: d.restaurante.estado_operativo === "abierto",
+    precio: d.precio,
+  };
+}
+
+function mapMenu(m: PublicMenu): ResultItem {
+  return {
+    id: m.id,
+    nombre: m.nombre,
+    imagenUrl: m.foto_url,
+    restauranteId: m.restaurante_id,
+    restauranteNombre: m.restaurante.nombre_comercial,
+    calificacion: m.restaurante.calificacion_promedio,
+    cantidadResenas: m.restaurante.cantidad_resenas,
+    distanciaKm: m.distancia ?? null,
+    abierto: m.restaurante.estado_operativo === "abierto",
+    precio: m.precio,
+  };
+}
+
+function mapPromotion(p: PublicPromotion): ResultItem {
+  return {
+    id: p.id,
+    nombre: p.titulo,
+    imagenUrl: p.imagen_url,
+    restauranteId: p.restaurante_id,
+    restauranteNombre: p.restaurante.nombre_comercial,
+    calificacion: p.restaurante.calificacion_promedio,
+    cantidadResenas: p.restaurante.cantidad_resenas,
+    distanciaKm: p.distancia ?? null,
+    abierto: p.restaurante.estado_operativo === "abierto",
+    precio: p.precio,
+  };
+}
 
 export default function ExplorarResultadosScreen() {
-  const { categoria } = useLocalSearchParams<{ categoria?: string }>();
-  const category = categoria || "Todas";
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
+  const { categoria, categoriaId } = useLocalSearchParams<{ categoria?: string; categoriaId?: string }>();
+  const categoryLabel = categoria || "Explorar";
 
   const [tab, setTab] = useState<Tab>("platos");
   const [search, setSearch] = useState("");
-  const [province, setProvince] = useState("Todas");
-  const [city, setCity] = useState("Todas");
+
+  const [provinces, setProvinces] = useState<Province[]>([]);
+  const [province, setProvince] = useState<Province | null>(null);
+  const [cities, setCities] = useState<City[]>([]);
+  const [city, setCity] = useState<City | null>(null);
+
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [maxDistance, setMaxDistance] = useState(0); // 0 = sin límite
+
   const [estado, setEstado] = useState<Estado>("todos");
   const [sortBy, setSortBy] = useState<SortBy>("cercania");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const cityOptions = CITIES_BY_PROVINCE[province] ?? ["Todas"];
+  const [results, setResults] = useState<ResultItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Ubicación guardada del perfil (para el filtro de distancia) y listado
+  // de provincias, una sola vez al entrar.
+  useEffect(() => {
+    UserService.getMe()
+      .then((u) => {
+        if (u.latitude != null && u.longitude != null) {
+          setUserCoords({ lat: u.latitude, lng: u.longitude });
+        }
+      })
+      .catch((e) => console.log("[ExplorarResultados] no se pudo obtener ubicación:", e));
+
+    ProvinceService.getAll()
+      .then(setProvinces)
+      .catch((e) => console.log("[ExplorarResultados] no se pudieron cargar provincias:", e));
+  }, []);
+
+  // Ciudades de la provincia elegida (se resetea la ciudad al cambiar de
+  // provincia, igual que en el picker de ubicación del onboarding).
+  useEffect(() => {
+    if (!province) {
+      setCities([]);
+      setCity(null);
+      return;
+    }
+    LocationService.getCitiesByProvince(province.id)
+      .then(setCities)
+      .catch((e) => console.log("[ExplorarResultados] no se pudieron cargar ciudades:", e));
+  }, [province]);
 
   const activeFilterCount =
-    (province !== "Todas" ? 1 : 0) +
-    (city !== "Todas" ? 1 : 0) +
-    (maxDistance !== 0 ? 1 : 0) +
-    (estado !== "todos" ? 1 : 0);
+    (province ? 1 : 0) + (city ? 1 : 0) + (maxDistance !== 0 ? 1 : 0) + (estado !== "todos" ? 1 : 0);
 
-  const results = useMemo(() => {
-    let data = DATA_BY_TAB[tab].filter((item) => {
-      if (category !== "Todas" && item.categoria !== category) return false;
-      if (
-        search.trim() &&
-        !item.nombre.toLowerCase().includes(search.trim().toLowerCase())
-      ) {
-        return false;
+  const fetchResults = useCallback(async () => {
+    setError(null);
+    try {
+      const useDistance = maxDistance !== 0 && userCoords != null;
+      const baseFilters = {
+        categoriaId: categoriaId || undefined,
+        provinceId: province?.id,
+        cityId: city?.id,
+        radius: useDistance ? maxDistance : undefined,
+        latitude: useDistance ? userCoords!.lat : undefined,
+        longitude: useDistance ? userCoords!.lng : undefined,
+      };
+
+      let items: ResultItem[];
+      if (tab === "platos") {
+        const data = await PublicDishService.findAvailable({
+          ...baseFilters,
+          search: search.trim() || undefined,
+        });
+        items = data.map(mapDish);
+      } else if (tab === "menus") {
+        const data = await PublicMenuService.findAvailable({
+          ...baseFilters,
+          search: search.trim() || undefined,
+        });
+        items = data.map(mapMenu);
+      } else {
+        const data = await PublicPromotionService.findAvailable(baseFilters);
+        items = data.map(mapPromotion);
       }
-      if (province !== "Todas" && item.provincia !== province) return false;
-      if (city !== "Todas" && item.ciudad !== city) return false;
-      if (maxDistance !== 0 && item.distanciaKm > maxDistance) return false;
-      if (estado === "abierto" && !item.abierto) return false;
-      return true;
-    });
+      setResults(items);
+    } catch (e: any) {
+      setError(e.message || "No se pudieron cargar los resultados.");
+    } finally {
+      setLoading(false);
+    }
+  }, [tab, search, categoriaId, province, city, maxDistance, userCoords]);
 
+  // Debounce simple para no pegarle al back en cada tecla, igual que
+  // restaurantes.tsx/menus.tsx.
+  useEffect(() => {
+    setLoading(true);
+    const timeout = setTimeout(fetchResults, 350);
+    return () => clearTimeout(timeout);
+  }, [fetchResults]);
+
+  // "Abierto ahora" y el orden son puramente de cliente: ya vienen los
+  // resultados del radio/categoría elegidos, esto solo reordena/filtra
+  // esa misma lista.
+  const displayedResults = useMemo(() => {
+    let data = results;
+    if (estado === "abierto") {
+      data = data.filter((item) => item.abierto);
+    }
     data = [...data].sort((a, b) => {
-      if (sortBy === "cercania") return a.distanciaKm - b.distanciaKm;
+      if (sortBy === "cercania") {
+        if (a.distanciaKm == null && b.distanciaKm == null) return 0;
+        if (a.distanciaKm == null) return 1;
+        if (b.distanciaKm == null) return -1;
+        return a.distanciaKm - b.distanciaKm;
+      }
       return b.calificacion - a.calificacion;
     });
-
     return data;
-  }, [tab, category, search, province, city, maxDistance, estado, sortBy]);
+  }, [results, estado, sortBy]);
 
-  function handleSelectProvince(p: string) {
+  function handleSelectProvince(p: Province | null) {
     setProvince(p);
-    setCity("Todas");
+    setCity(null);
   }
 
   function handleClearFilters() {
-    setProvince("Todas");
-    setCity("Todas");
+    setProvince(null);
+    setCity(null);
     setMaxDistance(0);
     setEstado("todos");
+  }
+
+  function goToRestaurant(item: ResultItem) {
+    router.push({ pathname: "/(home)/restaurante-detalle", params: { id: item.restauranteId } });
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="arrow-back" size={22} color="#3E2723" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>
-          {category !== "Todas" ? category : "Explorar"}
-        </Text>
+        <Text style={styles.title}>{categoryLabel}</Text>
         <View style={{ width: 22 }} />
       </View>
 
@@ -132,7 +272,10 @@ export default function ExplorarResultadosScreen() {
             <TouchableOpacity
               key={t}
               style={[styles.segment, active && styles.segmentActive]}
-              onPress={() => setTab(t)}
+              onPress={() => {
+                setTab(t);
+                setLoading(true);
+              }}
               activeOpacity={0.85}
             >
               <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
@@ -143,22 +286,25 @@ export default function ExplorarResultadosScreen() {
         })}
       </View>
 
-      {/* Buscador */}
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color="#9E9E9E" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={`Buscar ${TAB_LABELS[tab].toLowerCase()}...`}
-          placeholderTextColor="#B0B0B0"
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={18} color="#B0B0B0" />
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Buscador -- las promociones no soportan búsqueda por nombre
+          todavía del lado del back. */}
+      {tab !== "promociones" && (
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color={colors.placeholder} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={`Buscar ${TAB_LABELS[tab].toLowerCase()}...`}
+            placeholderTextColor={colors.placeholder}
+            value={search}
+            onChangeText={setSearch}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Ionicons name="close-circle" size={18} color={colors.placeholder} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Filtros + orden */}
       <View style={styles.toolbarRow}>
@@ -167,7 +313,7 @@ export default function ExplorarResultadosScreen() {
           onPress={() => setFiltersOpen(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="options-outline" size={16} color="#3E2723" />
+          <Ionicons name="options-outline" size={16} color={colors.text} />
           <Text style={styles.filtersButtonText}>Filtros</Text>
           {activeFilterCount > 0 && (
             <View style={styles.filtersBadge}>
@@ -184,7 +330,7 @@ export default function ExplorarResultadosScreen() {
             <Ionicons
               name="navigate-outline"
               size={13}
-              color={sortBy === "cercania" ? "#FFFFFF" : "#3E2723"}
+              color={sortBy === "cercania" ? "#FFFFFF" : colors.text}
             />
             <Text style={[styles.sortChipText, sortBy === "cercania" && styles.sortChipTextActive]}>
               Cercanía
@@ -197,7 +343,7 @@ export default function ExplorarResultadosScreen() {
             <Ionicons
               name="star-outline"
               size={13}
-              color={sortBy === "calificacion" ? "#FFFFFF" : "#3E2723"}
+              color={sortBy === "calificacion" ? "#FFFFFF" : colors.text}
             />
             <Text
               style={[styles.sortChipText, sortBy === "calificacion" && styles.sortChipTextActive]}
@@ -209,61 +355,76 @@ export default function ExplorarResultadosScreen() {
       </View>
 
       {/* Resultados */}
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.resultsList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Ionicons name="fast-food-outline" size={36} color="#D9D9D9" />
-            <Text style={styles.emptyText}>
-              No encontramos {TAB_LABELS[tab].toLowerCase()} con esos filtros.
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.9}>
-            <View style={[styles.thumb, styles.thumbPlaceholder]}>
-              <Ionicons name="fast-food-outline" size={20} color="#BDBDBD" />
-            </View>
-
-            <View style={styles.cardInfo}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardName} numberOfLines={1}>
-                  {item.nombre}
-                </Text>
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: item.abierto ? "#43A047" : "#E53935" },
-                  ]}
-                />
-              </View>
-
-              <Text style={styles.cardMeta} numberOfLines={1}>
-                {item.restaurante} · {item.ciudad}
+      {loading ? (
+        <View style={styles.centerWrap}>
+          <ActivityIndicator size="large" color={colors.primaryDark} />
+        </View>
+      ) : error ? (
+        <View style={styles.centerWrap}>
+          <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
+          <Text style={styles.emptyText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchResults}>
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={displayedResults}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.resultsList}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Ionicons name="fast-food-outline" size={36} color={colors.placeholder} />
+              <Text style={styles.emptyText}>
+                No encontramos {TAB_LABELS[tab].toLowerCase()} con esos filtros.
               </Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => goToRestaurant(item)}>
+              {item.imagenUrl ? (
+                <Image source={{ uri: item.imagenUrl }} style={styles.thumb} />
+              ) : (
+                <View style={[styles.thumb, styles.thumbPlaceholder]}>
+                  <Ionicons name="fast-food-outline" size={20} color={colors.placeholder} />
+                </View>
+              )}
 
-              <View style={styles.cardBottomRow}>
-                <View style={styles.ratingWrap}>
-                  <Ionicons name="star" size={13} color="#F5A800" />
-                  <Text style={styles.ratingText}>{item.calificacion.toFixed(1)}</Text>
-                  <Text style={styles.reviewsText}>({item.cantidadResenas})</Text>
-                  <Text style={styles.distanceText}> · {item.distanciaKm.toFixed(1)} km</Text>
+              <View style={styles.cardInfo}>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardName} numberOfLines={1}>
+                    {item.nombre}
+                  </Text>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: item.abierto ? "#43A047" : "#E53935" },
+                    ]}
+                  />
                 </View>
 
-                <View style={styles.priceWrap}>
-                  {item.precioOriginal ? (
-                    <Text style={styles.priceOriginal}>${item.precioOriginal.toFixed(2)}</Text>
-                  ) : null}
+                <Text style={styles.cardMeta} numberOfLines={1}>
+                  {item.restauranteNombre}
+                </Text>
+
+                <View style={styles.cardBottomRow}>
+                  <View style={styles.ratingWrap}>
+                    <Ionicons name="star" size={13} color="#F5A800" />
+                    <Text style={styles.ratingText}>{item.calificacion.toFixed(1)}</Text>
+                    <Text style={styles.reviewsText}>({item.cantidadResenas})</Text>
+                    {item.distanciaKm != null && (
+                      <Text style={styles.distanceText}> · {item.distanciaKm.toFixed(1)} km</Text>
+                    )}
+                  </View>
+
                   <Text style={styles.price}>${item.precio.toFixed(2)}</Text>
                 </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        )}
-      />
+            </TouchableOpacity>
+          )}
+        />
+      )}
 
       {/* Modal de filtros */}
       <Modal
@@ -273,7 +434,7 @@ export default function ExplorarResultadosScreen() {
         onRequestClose={() => setFiltersOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(24, insets.bottom + 12) }]}>
             <View style={styles.modalHandle} />
 
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -286,19 +447,27 @@ export default function ExplorarResultadosScreen() {
 
               <Text style={styles.modalSectionTitle}>Provincia</Text>
               <View style={styles.optionsWrap}>
-                {PROVINCES.map((p) => (
+                <TouchableOpacity
+                  style={[styles.optionChip, !province && styles.optionChipActive]}
+                  onPress={() => handleSelectProvince(null)}
+                >
+                  <Text style={[styles.optionChipText, !province && styles.optionChipTextActive]}>
+                    Todas
+                  </Text>
+                </TouchableOpacity>
+                {provinces.map((p) => (
                   <TouchableOpacity
-                    key={p}
-                    style={[styles.optionChip, province === p && styles.optionChipActive]}
+                    key={p.id}
+                    style={[styles.optionChip, province?.id === p.id && styles.optionChipActive]}
                     onPress={() => handleSelectProvince(p)}
                   >
                     <Text
                       style={[
                         styles.optionChipText,
-                        province === p && styles.optionChipTextActive,
+                        province?.id === p.id && styles.optionChipTextActive,
                       ]}
                     >
-                      {p}
+                      {p.nombre}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -306,40 +475,65 @@ export default function ExplorarResultadosScreen() {
 
               <Text style={styles.modalSectionTitle}>Ciudad</Text>
               <View style={styles.optionsWrap}>
-                {cityOptions.map((c) => (
+                <TouchableOpacity
+                  style={[styles.optionChip, !city && styles.optionChipActive]}
+                  onPress={() => setCity(null)}
+                  disabled={!province}
+                >
+                  <Text style={[styles.optionChipText, !city && styles.optionChipTextActive]}>
+                    Todas
+                  </Text>
+                </TouchableOpacity>
+                {cities.map((c) => (
                   <TouchableOpacity
-                    key={c}
-                    style={[styles.optionChip, city === c && styles.optionChipActive]}
+                    key={c.id}
+                    style={[styles.optionChip, city?.id === c.id && styles.optionChipActive]}
                     onPress={() => setCity(c)}
                   >
                     <Text
-                      style={[styles.optionChipText, city === c && styles.optionChipTextActive]}
+                      style={[styles.optionChipText, city?.id === c.id && styles.optionChipTextActive]}
                     >
-                      {c}
+                      {c.nombre}
                     </Text>
                   </TouchableOpacity>
                 ))}
+                {province && cities.length === 0 && (
+                  <Text style={styles.modalHintText}>Esta provincia todavía no tiene ciudades cargadas.</Text>
+                )}
               </View>
 
               <Text style={styles.modalSectionTitle}>Distancia máxima</Text>
               <View style={styles.optionsWrap}>
-                {DISTANCE_OPTIONS.map((d) => (
-                  <TouchableOpacity
-                    key={d}
-                    style={[styles.optionChip, maxDistance === d && styles.optionChipActive]}
-                    onPress={() => setMaxDistance(d)}
-                  >
-                    <Text
+                {DISTANCE_OPTIONS.map((d) => {
+                  const disabled = d !== 0 && userCoords == null;
+                  return (
+                    <TouchableOpacity
+                      key={d}
                       style={[
-                        styles.optionChipText,
-                        maxDistance === d && styles.optionChipTextActive,
+                        styles.optionChip,
+                        maxDistance === d && styles.optionChipActive,
+                        disabled && styles.optionChipDisabled,
                       ]}
+                      onPress={() => setMaxDistance(d)}
+                      disabled={disabled}
                     >
-                      {d === 0 ? "Cualquiera" : `${d} km`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          maxDistance === d && styles.optionChipTextActive,
+                        ]}
+                      >
+                        {d === 0 ? "Cualquiera" : `${d} km`}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
+              {userCoords == null && (
+                <Text style={styles.modalHintText}>
+                  Activá tu ubicación en tu perfil para poder filtrar por distancia.
+                </Text>
+              )}
 
               <Text style={styles.modalSectionTitle}>Estado del restaurante</Text>
               <View style={styles.optionsWrap}>
@@ -374,7 +568,7 @@ export default function ExplorarResultadosScreen() {
 
             <TouchableOpacity style={styles.applyButton} onPress={() => setFiltersOpen(false)}>
               <Text style={styles.applyButtonText}>
-                Ver {results.length} resultado{results.length === 1 ? "" : "s"}
+                Ver {displayedResults.length} resultado{displayedResults.length === 1 ? "" : "s"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -384,10 +578,8 @@ export default function ExplorarResultadosScreen() {
   );
 }
 
-const ORANGE = "#FB8C00";
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAFAFA", paddingHorizontal: 16 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16 },
 
   headerRow: {
     flexDirection: "row",
@@ -396,11 +588,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 14,
   },
-  title: { fontSize: 20, fontWeight: "bold", color: "#3E2723", textAlign: "center", flex: 1 },
+  title: { fontSize: 20, fontWeight: "bold", color: colors.text, textAlign: "center", flex: 1 },
 
   segmentedWrap: {
     flexDirection: "row",
-    backgroundColor: "#EFEFEF",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 16,
     padding: 4,
     marginBottom: 14,
@@ -411,22 +603,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
   },
-  segmentActive: { backgroundColor: ORANGE },
-  segmentText: { fontSize: 13, fontWeight: "700", color: "#3E2723" },
+  segmentActive: { backgroundColor: colors.primaryDark },
+  segmentText: { fontSize: 13, fontWeight: "700", color: colors.text },
   segmentTextActive: { color: "#FFFFFF" },
 
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.inputBackground,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 46,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.inputBorder,
   },
-  searchInput: { flex: 1, fontSize: 14, color: "#1A1A1A" },
+  searchInput: { flex: 1, fontSize: 14, color: colors.text },
 
   toolbarRow: {
     flexDirection: "row",
@@ -439,19 +631,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  filtersButtonText: { fontSize: 13, fontWeight: "700", color: "#3E2723" },
+  filtersButtonText: { fontSize: 13, fontWeight: "700", color: colors.text },
   filtersBadge: {
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: ORANGE,
+    backgroundColor: colors.primaryDark,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 3,
@@ -466,38 +658,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
   },
-  sortChipActive: { backgroundColor: ORANGE, borderColor: ORANGE },
-  sortChipText: { fontSize: 12, fontWeight: "600", color: "#3E2723" },
+  sortChipActive: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
+  sortChipText: { fontSize: 12, fontWeight: "600", color: colors.text },
   sortChipTextActive: { color: "#FFFFFF" },
+
+  centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
+  retryButton: {
+    marginTop: 4,
+    backgroundColor: colors.primaryDark,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+  },
+  retryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 
   resultsList: { paddingBottom: 120 },
   emptyWrap: { alignItems: "center", marginTop: 60, paddingHorizontal: 30, gap: 10 },
-  emptyText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
+  emptyText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
 
   card: {
     flexDirection: "row",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 12,
     marginBottom: 12,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  thumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: "#F0F0F0" },
+  thumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.surfaceSecondary },
   thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
   cardInfo: { flex: 1, justifyContent: "center" },
   cardHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardName: { fontSize: 15, fontWeight: "700", color: "#1A1A1A", flexShrink: 1 },
+  cardName: { fontSize: 15, fontWeight: "700", color: colors.text, flexShrink: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  cardMeta: { fontSize: 12, color: "#9E9E9E", marginTop: 2 },
+  cardMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   cardBottomRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -505,24 +707,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ratingWrap: { flexDirection: "row", alignItems: "center", gap: 3 },
-  ratingText: { fontSize: 13, fontWeight: "700", color: "#1A1A1A" },
-  reviewsText: { fontSize: 12, color: "#9E9E9E" },
-  distanceText: { fontSize: 12, color: "#9E9E9E" },
-  priceWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
-  priceOriginal: {
-    fontSize: 12,
-    color: "#B0B0B0",
-    textDecorationLine: "line-through",
-  },
-  price: { fontSize: 14, fontWeight: "700", color: ORANGE },
+  ratingText: { fontSize: 13, fontWeight: "700", color: colors.text },
+  reviewsText: { fontSize: 12, color: colors.textSecondary },
+  distanceText: { fontSize: 12, color: colors.textSecondary },
+  price: { fontSize: 14, fontWeight: "700", color: colors.primaryDark },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: colors.overlay,
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.modalBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -534,7 +730,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: colors.border,
     alignSelf: "center",
     marginBottom: 12,
   },
@@ -544,30 +740,32 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#3E2723" },
-  modalClearText: { fontSize: 13, fontWeight: "600", color: ORANGE },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
+  modalClearText: { fontSize: 13, fontWeight: "600", color: colors.primaryDark },
   modalSectionTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#3E2723",
+    color: colors.text,
     marginTop: 16,
     marginBottom: 8,
   },
+  modalHintText: { fontSize: 11.5, color: colors.textSecondary, marginTop: 2 },
   optionsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionChip: {
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 20,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.inputBackground,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
   },
-  optionChipActive: { backgroundColor: ORANGE, borderColor: ORANGE },
-  optionChipText: { fontSize: 13, fontWeight: "600", color: "#3E2723" },
+  optionChipActive: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
+  optionChipDisabled: { opacity: 0.4 },
+  optionChipText: { fontSize: 13, fontWeight: "600", color: colors.text },
   optionChipTextActive: { color: "#FFFFFF" },
 
   applyButton: {
-    backgroundColor: ORANGE,
+    backgroundColor: colors.primaryDark,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",

@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 
 import SolicitudHeader from "../components/admin/SolicitudHeader";
@@ -29,13 +30,18 @@ export default function SolicitudesScreen() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    RestaurantApplicationsAdminService.getCounts().then(setCounts);
-  }, []);
-
-  useEffect(() => {
-    loadPage(status, 1);
-  }, [status]);
+  // Se recarga cada vez que la pantalla vuelve a tener foco (no solo al
+  // montar) -- así, al volver de solicitud-detalle.tsx después de
+  // aprobar/rechazar una solicitud, tanto los contadores de las tabs
+  // como el listado de la tab actual reflejan el estado real sin
+  // necesidad de cerrar y volver a abrir la app.
+  useFocusEffect(
+    useCallback(() => {
+      RestaurantApplicationsAdminService.getCounts().then(setCounts);
+      loadPage(status, 1);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status])
+  );
 
   async function loadPage(
     targetStatus: AdminApplicationStatus,

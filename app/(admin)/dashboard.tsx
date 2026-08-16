@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,14 @@ import {
   Easing,
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import WaveTop from "../components/home/WaveTop";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import OverviewCard from "../components/admin/OverviewCard";
@@ -23,8 +26,22 @@ import RankingCard from "../components/admin/RankingCard";
 import AdminDashboardService, {
   AdminDashboardViewModel,
 } from "../../services/adminDashboard.service";
+import NotificationService from "../../services/notification.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get("screen");
+
+// Orden fijo de las 4 stat cards devueltas por AdminDashboardService
+// (Restaurantes, Comensales, Solicitudes, Reportes) -- ver stats[] en
+// services/adminDashboard.service.ts. "Comensales" no tiene pantalla
+// propia todavía, por eso queda sin ruta (undefined = card no tappable).
+const STAT_CARD_ROUTES: (string | undefined)[] = [
+  "/(admin)/restaurantes",
+  undefined,
+  "/(admin)/solicitudes",
+  "/(admin)/moderacion",
+];
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -35,12 +52,27 @@ function getGreeting(): string {
 
 export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const greeting = getGreeting();
 
   const [dashboard, setDashboard] = useState<AdminDashboardViewModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Se recarga cada vez que el dashboard vuelve a tener foco (ej. al
+  // volver de la pantalla de notificaciones después de leer alguna),
+  // así el badge nunca queda desactualizado sin depender de un refresh
+  // manual ni de cerrar y volver a abrir la app.
+  useFocusEffect(
+    useCallback(() => {
+      NotificationService.getUnreadCount()
+        .then(setUnreadCount)
+        .catch(() => {});
+    }, [])
+  );
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
@@ -183,6 +215,21 @@ export default function AdminDashboard() {
               style={StyleSheet.absoluteFill}
             />
 
+            <TouchableOpacity
+              style={[styles.notificationButton, { top: insets.top + 12 }]}
+              onPress={() => router.push("/(admin)/notificaciones" as any)}
+              hitSlop={10}
+            >
+              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText} numberOfLines={1}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
             <Animated.View style={{ opacity: headerFadeAnim, gap: 4 }}>
               <Text style={styles.headerBrand}>MenuDays</Text>
               <Text style={styles.headerGreeting}>{greeting}</Text>
@@ -204,7 +251,7 @@ export default function AdminDashboard() {
             </View>
           ) : error ? (
             <View style={styles.stateContainer}>
-              <Ionicons name="cloud-offline-outline" size={32} color="#BDBDBD" />
+              <Ionicons name="cloud-offline-outline" size={32} color={colors.placeholder} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : dashboard ? (
@@ -239,6 +286,7 @@ export default function AdminDashboard() {
                     stat={stat}
                     opacity={cardAnims[i].opacity}
                     translateY={cardAnims[i].translateY}
+                    onPress={STAT_CARD_ROUTES[i] ? () => router.push(STAT_CARD_ROUTES[i] as any) : undefined}
                   />
                 ))}
               </View>
@@ -259,6 +307,15 @@ export default function AdminDashboard() {
                   columnLabel="Reportes"
                   linkText="Ver todos los reportes"
                   data={dashboard.topReportes}
+                  emptyLabel="Todavía no hay reportes registrados."
+                  onPressRow={(id) =>
+                    id &&
+                    router.push({
+                      pathname: "/(admin)/restaurante-admin-detalle",
+                      params: { id: String(id) },
+                    } as any)
+                  }
+                  onPressLink={() => router.push("/(admin)/moderacion" as any)}
                 />
               </Animated.View>
 
@@ -273,6 +330,15 @@ export default function AdminDashboard() {
                   columnLabel="Reseñas"
                   linkText="Ver todas las reseñas"
                   data={dashboard.topResenas}
+                  emptyLabel="Todavía no hay reseñas de restaurantes."
+                  onPressRow={(id) =>
+                    id &&
+                    router.push({
+                      pathname: "/(admin)/restaurante-admin-detalle",
+                      params: { id: String(id) },
+                    } as any)
+                  }
+                  onPressLink={() => router.push("/(admin)/restaurantes" as any)}
                 />
               </Animated.View>
             </>
@@ -285,8 +351,8 @@ export default function AdminDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: 100 },
   headerWrapper: { width: width, position: "relative" },
   waveWrapper: { position: "absolute", bottom: 0, left: 0, right: 0 },
@@ -294,6 +360,36 @@ const styles = StyleSheet.create({
   headerBrand: { fontSize: 15, fontWeight: "800", color: "rgba(255,255,255,0.85)", letterSpacing: 1 },
   headerGreeting: { fontSize: 15, color: "rgba(255,255,255,0.85)", fontWeight: "500", marginTop: 8 },
   headerWelcome: { fontSize: 26, fontWeight: "900", color: "#FFFFFF", letterSpacing: -0.3 },
+  notificationButton: {
+    position: "absolute",
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: "#E53935",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  notificationBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
   content: { paddingHorizontal: 16, paddingTop: 20 },
   sectionHeadingRow: {
     flexDirection: "row",
@@ -302,8 +398,8 @@ const styles = StyleSheet.create({
     marginBottom: 13,
   },
   sectionHeadingRowRanking: { marginTop: 8, marginBottom: 13 },
-  sectionEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: "#B0B0B0", marginBottom: 3 },
-  sectionTitle: { fontSize: 21, fontWeight: "900", color: "#1A1A1A" },
+  sectionEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: colors.textSecondary, marginBottom: 3 },
+  sectionTitle: { fontSize: 21, fontWeight: "900", color: colors.text },
   overviewPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -311,9 +407,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: "#FFF6E2",
+    backgroundColor: colors.surfaceSecondary,
   },
-  overviewPillText: { fontSize: 10, fontWeight: "800", color: "#F5A800" },
+  overviewPillText: { fontSize: 10, fontWeight: "800", color: colors.primary },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 25 },
   stateContainer: {
     alignItems: "center",
@@ -321,5 +417,5 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     gap: 10,
   },
-  errorText: { fontSize: 13, color: "#9E9E9E", textAlign: "center", paddingHorizontal: 20 },
+  errorText: { fontSize: 13, color: colors.textSecondary, textAlign: "center", paddingHorizontal: 20 },
 });

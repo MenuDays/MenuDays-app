@@ -6,7 +6,7 @@ import LocationService from "../../services/location.service";
 import MapLocationPicker, {
   MapLocationResult,
 } from "../components/map/MapLocationPicker";
-import { AppAlert } from "../components/common/AppAlert";
+import { showLocationError, isNetworkError } from "../utils/locationErrors";
 
 export default function MapScreen() {
   const [saving, setSaving] = useState(false);
@@ -57,9 +57,9 @@ export default function MapScreen() {
       if (error instanceof Error) {
         console.error("Mensaje:", error.message);
       }
-      AppAlert.alert(
-        "Error",
-        "No se pudo guardar tu ubicación. Intenta de nuevo."
+      showLocationError(
+        isNetworkError(error) ? "networkError" : "genericError",
+        () => handleConfirm(result)
       );
     } finally {
       setSaving(false);

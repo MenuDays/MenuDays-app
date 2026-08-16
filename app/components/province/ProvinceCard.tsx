@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
     StyleSheet,
     Text,
@@ -9,6 +9,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import { Province } from "../../../services/province.service";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface ProvinceCardProps {
     province: Province;
@@ -21,6 +23,9 @@ export default function ProvinceCard({
                                          selected,
                                          onPress,
                                      }: ProvinceCardProps) {
+    const { colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
+
     return (
         <TouchableOpacity
             activeOpacity={0.8}
@@ -45,22 +50,22 @@ export default function ProvinceCard({
             <Ionicons
                 name="chevron-forward"
                 size={22}
-                color={selected ? "#F5A800" : "#BDBDBD"}
+                color={selected ? colors.primary : colors.placeholder}
             />
         </TouchableOpacity>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
     card: {
         height: 58,
 
-        backgroundColor: "#FFFFFF",
+        backgroundColor: colors.card,
 
         borderRadius: 14,
 
         borderWidth: 1,
-        borderColor: "#EAEAEA",
+        borderColor: colors.border,
 
         paddingHorizontal: 16,
 
@@ -70,7 +75,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
 
-        shadowColor: "#000",
+        shadowColor: colors.shadow,
         shadowOpacity: 0.03,
         shadowRadius: 8,
         shadowOffset: {
@@ -82,8 +87,8 @@ const styles = StyleSheet.create({
     },
 
     cardSelected: {
-        borderColor: "#F5A800",
-        backgroundColor: "#FFF9EC",
+        borderColor: colors.primary,
+        backgroundColor: colors.surfaceSecondary,
     },
 
     leftContent: {
@@ -93,13 +98,10 @@ const styles = StyleSheet.create({
 
     title: {
         fontSize: 15,
-        color: "#242424",
-
-        // Cuando carguen Poppins:
-        // fontFamily: "Poppins_600SemiBold",
+        color: colors.text,
     },
 
     titleSelected: {
-        color: "#D87D00",
+        color: colors.primaryDark,
     },
 });

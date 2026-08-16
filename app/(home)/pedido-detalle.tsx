@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -20,13 +21,18 @@ import OrderService, {
   BackendDeliveryMethod,
 } from "../../services/order.service";
 import RestaurantService from "../../services/restaurant.service";
+import ReviewService from "../../services/review.service";
 import { AppAlert } from "../components/common/AppAlert";
 import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
-// Vista de SOLO LECTURA para el comensal: acá no hay ningún control para
-// cambiar el estado del pedido (eso es exclusivo del lado restaurante,
-// ver GET/PATCH /orders/restaurant/:id en el backend).
+// Vista de SOLO LECTURA para el comensal en cuanto al ESTADO del pedido:
+// acá no hay ningún control para cambiarlo (eso es exclusivo del lado
+// restaurante, ver GET/PATCH /orders/restaurant/:id en el backend). Sí
+// permite, una vez "entregado", dejar la reseña del pedido (POST /reviews
+// -- antes no existía ningún punto de entrada a ese endpoint en la app).
 
 const ESTADO_LABEL: Record<OrderStatus, string> = {
   pendiente: "Pendiente de confirmación",
@@ -65,12 +71,24 @@ const ENTREGA_ICON: Record<BackendDeliveryMethod, keyof typeof Ionicons.glyphMap
 };
 
 export default function PedidoDetalleScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [restaurantPhone, setRestaurantPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [contactLoading, setContactLoading] = useState(false);
+
+  // Reseña del pedido (solo aplica una vez "entregado"). No hay forma de
+  // saber de antemano si ya se dejó una -- GET /orders/:id no lo informa
+  // -- así que se intenta directo y, si el back responde que ya existe,
+  // se lo toma como "ya reseñado" en vez de mostrar un error genérico.
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewDone, setReviewDone] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -111,10 +129,38 @@ export default function PedidoDetalleScreen() {
     router.push(`/(home)/restaurante-detalle?id=${order.restaurante.id}`);
   }
 
+  async function handleEnviarResena() {
+    if (!order) return;
+    if (reviewStars === 0) {
+      AppAlert.alert("Elegí una calificación", "Tocá las estrellas para calificar tu pedido.");
+      return;
+    }
+    setReviewSubmitting(true);
+    try {
+      await ReviewService.create({
+        pedidoId: Number(order.id),
+        calificacion: reviewStars,
+        comentario: reviewComment.trim() || undefined,
+      });
+      setReviewDone(true);
+    } catch (e: any) {
+      const message: string = e.message || "No se pudo enviar la reseña.";
+      if (message.toLowerCase().includes("ya posee")) {
+        // Ya existía una reseña para este pedido -- se trata igual que
+        // "enviada", no como un error.
+        setReviewDone(true);
+      } else {
+        AppAlert.alert("Error", message);
+      }
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
+
   if (loading || !order) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#FB8C00" />
+        <ActivityIndicator size="large" color={colors.primaryDark} />
       </View>
     );
   }
@@ -127,7 +173,7 @@ export default function PedidoDetalleScreen() {
             <Image source={{ uri: order.restaurante.portada }} style={styles.cover} />
           ) : (
             <View style={[styles.cover, styles.coverPlaceholder]}>
-              <Ionicons name="receipt-outline" size={32} color="#C9C9C9" />
+              <Ionicons name="receipt-outline" size={32} color={colors.placeholder} />
             </View>
           )}
 
@@ -144,7 +190,7 @@ export default function PedidoDetalleScreen() {
               <Image source={{ uri: order.producto.imagen }} style={styles.productImage} />
             ) : (
               <View style={[styles.productImage, styles.productImagePlaceholder]}>
-                <Ionicons name="restaurant-outline" size={20} color="#BDBDBD" />
+                <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
               </View>
             )}
 
@@ -202,10 +248,61 @@ export default function PedidoDetalleScreen() {
               <Text style={styles.paragraph}>{order.pedido.observaciones}</Text>
             </View>
           ) : null}
+
+          {order.pedido.estado === "entregado" && (
+            <View style={styles.section}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="star-outline" size={18} color="#FB8C00" />
+                <Text style={styles.sectionTitle}>Tu reseña</Text>
+              </View>
+
+              {reviewDone ? (
+                <View style={styles.reviewDoneWrap}>
+                  <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                  <Text style={styles.reviewDoneText}>¡Gracias por tu reseña!</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.paragraph}>¿Cómo estuvo tu pedido de {order.restaurante.nombre}?</Text>
+                  <View style={styles.starsRow}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity key={star} onPress={() => setReviewStars(star)} hitSlop={6}>
+                        <Ionicons
+                          name={star <= reviewStars ? "star" : "star-outline"}
+                          size={30}
+                          color="#F5A800"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TextInput
+                    style={styles.reviewInput}
+                    placeholder="Contanos tu experiencia (opcional)"
+                    placeholderTextColor={colors.placeholder}
+                    value={reviewComment}
+                    onChangeText={setReviewComment}
+                    multiline
+                    maxLength={1000}
+                  />
+                  <TouchableOpacity
+                    style={[styles.reviewSubmitButton, reviewSubmitting && { opacity: 0.7 }]}
+                    onPress={handleEnviarResena}
+                    disabled={reviewSubmitting}
+                  >
+                    {reviewSubmitting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.reviewSubmitText}>Enviar reseña</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(20, insets.bottom + 12) }]}>
         <TouchableOpacity
           style={[styles.cta, contactLoading && { opacity: 0.7 }]}
           onPress={handleContactar}
@@ -236,10 +333,13 @@ function InfoRow({
   value: string;
   valueStyle?: object;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLabelWrap}>
-        <Ionicons name={icon} size={15} color="#9E9E9E" />
+        <Ionicons name={icon} size={15} color={colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
       <Text style={[styles.infoValue, valueStyle]}>{value}</Text>
@@ -261,11 +361,11 @@ function formatDateTime(iso: string): string {
   return `${datePart} · ${timePart}`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
 
-  coverWrap: { height: 160, backgroundColor: "#F5F5F5" },
+  coverWrap: { height: 160, backgroundColor: colors.surfaceSecondary },
   cover: { width: "100%", height: "100%" },
   coverPlaceholder: { alignItems: "center", justifyContent: "center" },
   coverOverlay: {
@@ -294,19 +394,42 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 16,
     borderWidth: 3,
-    borderColor: "#FFFFFF",
-    backgroundColor: "#FFFFFF",
+    borderColor: colors.background,
+    backgroundColor: colors.card,
   },
   productImagePlaceholder: { alignItems: "center", justifyContent: "center" },
-  productName: { fontSize: 17, fontWeight: "900", color: "#1A1A1A" },
-  restaurantLink: { fontSize: 13, fontWeight: "700", color: "#FB8C00", marginTop: 2 },
+  productName: { fontSize: 17, fontWeight: "900", color: colors.text },
+  restaurantLink: { fontSize: 13, fontWeight: "700", color: colors.primaryDark, marginTop: 2 },
 
   statusRow: { marginTop: 18 },
 
   section: { marginTop: 24 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
-  paragraph: { fontSize: 13, color: "#5C5C5C", lineHeight: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
+  paragraph: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
+
+  starsRow: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 14 },
+  reviewInput: {
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBackground,
+    borderRadius: 14,
+    padding: 12,
+    minHeight: 70,
+    textAlignVertical: "top",
+    fontSize: 13,
+    color: colors.text,
+  },
+  reviewSubmitButton: {
+    marginTop: 14,
+    backgroundColor: colors.primary,
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  reviewSubmitText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  reviewDoneWrap: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
+  reviewDoneText: { fontSize: 14, fontWeight: "700", color: colors.text },
 
   infoRow: {
     flexDirection: "row",
@@ -314,12 +437,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
   infoLabelWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
-  infoLabel: { fontSize: 13, color: "#9E9E9E", fontWeight: "600" },
-  infoValue: { fontSize: 13, color: "#1A1A1A", fontWeight: "700" },
-  totalValue: { fontSize: 15, color: "#FB8C00", fontWeight: "900" },
+  infoLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
+  infoValue: { fontSize: 13, color: colors.text, fontWeight: "700" },
+  totalValue: { fontSize: 15, color: colors.primaryDark, fontWeight: "900" },
 
   footer: {
     position: "absolute",
@@ -327,9 +450,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: 20,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: colors.divider,
   },
   cta: {
     flexDirection: "row",

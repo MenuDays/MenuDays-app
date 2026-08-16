@@ -20,6 +20,7 @@ import RestaurantApplicationsAdminService, {
 } from "../../services/restaurantApplicationsAdmin.service";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import InfoRow from "../components/admin/InfoRow";
+import ImageViewerModal from "../components/common/ImageViewerModal";
 
 function getStatusInfo(status: RestaurantApplicationDetail["status"]) {
   switch (status) {
@@ -37,6 +38,7 @@ export default function SolicitudDetalleScreen() {
   const [detail, setDetail] = useState<RestaurantApplicationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -194,13 +196,28 @@ export default function SolicitudDetalleScreen() {
 
         <Text style={styles.sectionLabel}>Documentos</Text>
         <View style={styles.docsRow}>
-          {detail.documents.map((doc) => (
-            <View key={doc.id} style={styles.docCol}>
-              <Image source={{ uri: doc.uri }} style={styles.docImage} />
+          {detail.documents.map((doc, index) => (
+            <TouchableOpacity
+              key={doc.id}
+              style={styles.docCol}
+              activeOpacity={0.85}
+              onPress={() => setViewerIndex(index)}
+            >
+              <Image source={{ uri: doc.uri }} style={styles.docImage} resizeMode="cover" />
+              <View style={styles.docZoomBadge}>
+                <Ionicons name="expand-outline" size={12} color="#FFFFFF" />
+              </View>
               <Text style={styles.docLabel}>{doc.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
+
+        <ImageViewerModal
+          visible={viewerIndex !== null}
+          images={detail.documents.map((doc) => ({ uri: doc.uri, label: doc.label }))}
+          initialIndex={viewerIndex ?? 0}
+          onClose={() => setViewerIndex(null)}
+        />
 
         {showActions && (
           <View style={styles.actionsRow}>
@@ -383,12 +400,24 @@ const styles = StyleSheet.create({
   docCol: {
     flex: 1,
     gap: 6,
+    position: "relative",
   },
   docImage: {
     width: "100%",
     height: 90,
     borderRadius: 10,
     backgroundColor: "#F0F0F0",
+  },
+  docZoomBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   docLabel: {
     fontSize: 11,

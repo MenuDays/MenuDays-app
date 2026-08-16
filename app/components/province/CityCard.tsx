@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   TouchableOpacity,
   Text,
@@ -7,6 +7,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { City } from "../../../services/location.service";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface CityCardProps {
   city: City;
@@ -15,6 +17,9 @@ interface CityCardProps {
 }
 
 export default function CityCard({ city, selected, onPress }: CityCardProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -25,7 +30,7 @@ export default function CityCard({ city, selected, onPress }: CityCardProps) {
         <Ionicons
           name="location-outline"
           size={18}
-          color={selected ? "#F5A800" : "#BDBDBD"}
+          color={selected ? colors.primary : colors.placeholder}
           style={styles.icon}
         />
         <Text
@@ -38,33 +43,33 @@ export default function CityCard({ city, selected, onPress }: CityCardProps) {
       <Ionicons
         name="chevron-forward"
         size={22}
-        color={selected ? "#F5A800" : "#BDBDBD"}
+        color={selected ? colors.primary : colors.placeholder}
       />
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     height: 58,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#EAEAEA",
+    borderColor: colors.border,
     paddingHorizontal: 16,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.03,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
   cardSelected: {
-    borderColor: "#F5A800",
-    backgroundColor: "#FFF9EC",
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSecondary,
   },
   leftContent: {
     flex: 1,
@@ -77,9 +82,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    color: "#242424",
+    color: colors.text,
   },
   titleSelected: {
-    color: "#D87D00",
+    color: colors.primaryDark,
   },
 });

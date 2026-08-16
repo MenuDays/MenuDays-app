@@ -1,8 +1,8 @@
-import React from "react";
-import { View, TextInput, StyleSheet, Dimensions } from "react-native";
+import React, { useMemo } from "react";
+import { View, TextInput, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
-const { width } = Dimensions.get("window");
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface ProvinceSearchProps {
   value: string;
@@ -15,43 +15,45 @@ export default function ProvinceSearch({
     onChangeText,
     placeholder = "Busca una provincia de Ecuador ...",
     }: ProvinceSearchProps) {
+    const { colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
+
     return (
         <View style={styles.container}>
         <Ionicons
             name="search-outline"
             size={22}
-            color="#A8A8A8"
+            color={colors.placeholder}
             style={styles.icon}
         />
         <TextInput
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
-            placeholderTextColor="#B7B7B7"
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
-            selectionColor="#F5A800"
+            selectionColor={colors.primary}
             clearButtonMode="while-editing"
         />
         </View>
     );
     }
 
-    const styles = StyleSheet.create({
+    const createStyles = (colors: ThemeColors) => StyleSheet.create({
     container: {
-        width: width * 0.92,
+        width: "100%",
         height: 56,
-        alignSelf: "center",
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#FFFFFF",
+        backgroundColor: colors.inputBackground,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "#E7E7E7",
+        borderColor: colors.inputBorder,
         paddingHorizontal: 16,
-        shadowColor: "#000",
+        shadowColor: colors.shadow,
         shadowOpacity: 0.04,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 2 },
@@ -63,7 +65,7 @@ export default function ProvinceSearch({
     input: {
         flex: 1,
         fontSize: 15,
-        color: "#1A1A1A",
+        color: colors.text,
         paddingVertical: 0,
     },
 });

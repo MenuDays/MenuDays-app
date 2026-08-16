@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import UserService, { User } from "../../services/user.service";
 import AuthService from "../../services/auth.service";
 import { AppAlert } from "../components/common/AppAlert";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
+import { usePreviewMode } from "../../contexts/PreviewModeContext";
 
 // Reutiliza los mismos componentes de perfil que el comensal
 // ((home)/perfil.tsx) -- un admin es solo una fila más de `usuarios`
@@ -30,6 +32,7 @@ import EditableRow from "../components/profile/EditableRow";
 import Divider from "../components/profile/Divider";
 
 export default function AdminPerfilScreen() {
+  const { enterPreview } = usePreviewMode();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,6 +93,36 @@ export default function AdminPerfilScreen() {
     }
   }
 
+  async function handleUploadPhoto() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      AppAlert.alert("Permiso requerido", "Necesitamos acceso a tu galería.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    try {
+      const response = await UserService.uploadPhoto(result.assets[0]);
+      setUser((prev) => (prev ? { ...prev, profilePhotoUrl: response.photoUrl } : prev));
+      if (user) await UserService.saveLocal({ ...user, profilePhotoUrl: response.photoUrl });
+      AppAlert.alert("¡Listo!", "Foto de perfil actualizada correctamente.");
+    } catch (e) {
+      console.log("Error subiendo foto de perfil:", e);
+      AppAlert.alert("Error", "No se pudo actualizar la foto de perfil.");
+    }
+  }
+
+  function handleViewAsComensal() {
+    enterPreview("administrador");
+    router.push("/(home)");
+  }
+
   function handleLogout() {
     AppAlert.alert(
       "Cerrar sesión",
@@ -133,6 +166,7 @@ export default function AdminPerfilScreen() {
           subtitle={user.email}
           photoUrl={user.profilePhotoUrl}
           initials={`${user.firstName[0]}${user.lastName[0]}`}
+          onPressCamera={handleUploadPhoto}
         />
 
         <View style={styles.content}>
@@ -194,6 +228,11 @@ export default function AdminPerfilScreen() {
               </TouchableOpacity>
             </View>
           )}
+
+          <TouchableOpacity style={styles.previewButton} onPress={handleViewAsComensal}>
+            <Ionicons name="eye-outline" size={18} color="#F5A800" />
+            <Text style={styles.previewButtonText}>Ver como comensal</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color="#F44336" />
@@ -292,6 +331,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  previewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 50,
+    gap: 8,
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#F5A800",
+  },
+  previewButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#F5A800",
   },
   logoutButton: {
     flexDirection: "row",

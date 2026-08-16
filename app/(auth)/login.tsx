@@ -4,6 +4,7 @@ import { Link, router } from "expo-router";
 import LottieView from 'lottie-react-native';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   ImageBackground,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthService from "../../services/auth.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get('window');
 
@@ -52,17 +54,26 @@ const CATEGORIES = [
 ];
 
 export default function LoginScreen() {
+  const { refreshRole } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loggingIn, setLoggingIn] = useState(false);
 
   async function handleLogin() {
+    if (loggingIn) return; // evita doble submit (doble tap mientras ya está en curso)
+    setLoggingIn(true);
     try {
       const response = await AuthService.login({
         email,
         password,
       });
+
+      // Dark Mode es solo para el rol comensal -- esto actualiza el lock
+      // de ThemeContext con el rol recién logueado antes de navegar al
+      // dashboard correspondiente.
+      refreshRole();
 
       const rol = response.user?.rol;
 
@@ -79,6 +90,10 @@ export default function LoginScreen() {
         "Error",
         error.message || "No se pudo iniciar sesión."
       );
+      // Solo se reactiva el botón si falló -- si tuvo éxito, la pantalla
+      // ya está navegando afuera y no hace falta (evita un flash del
+      // botón "habilitado" antes de que la navegación termine).
+      setLoggingIn(false);
     }
   }
 
@@ -181,16 +196,26 @@ export default function LoginScreen() {
 
         {/* Botón iniciar sesión */}
         <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, loggingIn && styles.buttonDisabled]}
               onPress={handleLogin}
+              disabled={loggingIn}
         >
           <LinearGradient
               colors={['#FFB74D', '#FB8C00']}
               style={styles.buttonGradient}
           >
-            <Text style={styles.buttonText}>
-              Iniciar sesión
-            </Text>
+            {loggingIn ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={[styles.buttonText, styles.buttonTextLoading]}>
+                  Ingresando...
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.buttonText}>
+                Iniciar sesión
+              </Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
@@ -316,15 +341,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 20,
   },
+  buttonDisabled: {
+    opacity: 0.85,
+  },
   buttonGradient: {
     height: 52,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  buttonTextLoading: {
+    fontSize: 15,
   },
   separator: {
     flexDirection: 'row',

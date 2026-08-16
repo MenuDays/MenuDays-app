@@ -9,8 +9,13 @@ import ProvinceHeader from "../components/province/ProvinceHeader";
 import ProvinceSearch from "../components/province/ProvinceSearch";
 
 import LocationService, { City } from "../../services/location.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
+import { showLocationError, isNetworkError } from "../utils/locationErrors";
 
 export default function CityScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { provinceId, provinceName } = useLocalSearchParams<{
     provinceId: string;
     provinceName: string;
@@ -32,6 +37,10 @@ export default function CityScreen() {
       setCities(data);
     } catch (error) {
       console.error("Error al cargar ciudades:", error);
+      showLocationError(
+        isNetworkError(error) ? "networkError" : "genericError",
+        loadCities
+      );
     }
   }
 
@@ -46,7 +55,10 @@ export default function CityScreen() {
   }, [search, cities]);
 
   async function handleContinue() {
-    if (!selectedCity) return;
+    if (!selectedCity) {
+      showLocationError("missingCity");
+      return;
+    }
     await LocationService.saveSelectedCity(selectedCity);
     router.push({
       pathname: "/(province)/map-province",
@@ -65,41 +77,42 @@ export default function CityScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ProvinceHeader
-        title={`¿En qué ciudad\nestás?`}
-        subtitle={`Ciudades de ${provinceName}`}
+      <CityList
+        cities={filteredCities}
+        selectedCity={selectedCity}
+        onSelectCity={setSelectedCity}
+        ListHeaderComponent={
+          <>
+            <ProvinceHeader
+              title={`¿En qué ciudad\nestás?`}
+              subtitle={`Ciudades de ${provinceName}`}
+            />
+            <View style={styles.searchWrap}>
+              <ProvinceSearch
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Busca tu ciudad..."
+              />
+            </View>
+          </>
+        }
       />
 
-      <View style={styles.content}>
-        <ProvinceSearch
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Busca tu ciudad..."
-        />
-
-        <CityList
-          cities={filteredCities}
-          selectedCity={selectedCity}
-          onSelectCity={setSelectedCity}
-        />
-
-        <ContinueButton
-          disabled={!selectedCity}
-          onPress={handleContinue}
-        />
-      </View>
+      <ContinueButton
+        disabled={!selectedCity}
+        onPress={handleContinue}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
   },
-  content: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
+  searchWrap: {
+    backgroundColor: colors.background,
     marginTop: -28,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,

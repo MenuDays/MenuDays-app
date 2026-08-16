@@ -25,16 +25,28 @@ export interface UserLocation {
 const CITY_STORAGE_KEY = "@MenuDays:selectedCity";
 const LOCATION_STORAGE_KEY = "@MenuDays:userLocation";
 
+// Mismo criterio que ProvinceService: las ciudades de una provincia son
+// datos de referencia casi estáticos, se cachean en memoria por
+// provincia para que la pantalla de ciudades se sienta instantánea al
+// volver a entrar en la misma sesión.
+const citiesCache = new Map<number, City[]>();
+
 class LocationService {
   /**
-   * Obtiene las ciudades de una provincia desde el backend.
+   * Obtiene las ciudades de una provincia desde el backend (cacheadas en
+   * memoria por provincia después del primer fetch de la sesión).
    */
   async getCitiesByProvince(
     provinceId: number
   ): Promise<City[]> {
-    return await api<City[]>(
+    const cached = citiesCache.get(provinceId);
+    if (cached) return cached;
+
+    const data = await api<City[]>(
       `/locations/provincias/${provinceId}/ciudades`
     );
+    citiesCache.set(provinceId, data);
+    return data;
   }
 
   /**

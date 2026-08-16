@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,12 +8,17 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppAlert } from "../common/AppAlert";
+import { showLocationError } from "../../utils/locationErrors";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 // Coordenadas por defecto de Ecuador
 const ECUADOR_DEFAULT: Region = {
@@ -61,6 +66,9 @@ export default function MapLocationPicker({
   cityCoords,
 }: MapLocationPickerProps) {
   const mapRef = useRef<MapView>(null);
+  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const startingPoint = initialLocation ?? cityCoords ?? ECUADOR_DEFAULT;
   const startingDelta = initialLocation
     ? { latitudeDelta: 0.005, longitudeDelta: 0.005 }
@@ -147,10 +155,13 @@ export default function MapLocationPicker({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        AppAlert.alert(
-          "Permiso denegado",
-          "No se pudo acceder a tu ubicación. Podés elegirla manualmente tocando el mapa."
-        );
+        showLocationError("permissionDenied");
+        return;
+      }
+
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        showLocationError("locationServicesDisabled");
         return;
       }
 
@@ -169,14 +180,18 @@ export default function MapLocationPicker({
       mapRef.current?.animateToRegion(newRegion, 600);
       await reverseGeocode(latitude, longitude);
     } catch (e) {
-      console.log("Error:", e);
+      console.log("Error obteniendo ubicación:", e);
+      showLocationError("locationUnavailable", handleMyLocation);
     } finally {
       setLocating(false);
     }
   }
 
   async function handleConfirm() {
-    if (!address.trim()) return;
+    if (!address.trim()) {
+      showLocationError("incompleteManualAddress");
+      return;
+    }
     setConfirming(true);
     try {
       await onConfirm({
@@ -190,11 +205,14 @@ export default function MapLocationPicker({
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>{title}</Text>
@@ -208,7 +226,7 @@ export default function MapLocationPicker({
       <View style={styles.mapContainer}>
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#F5A800" />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Cargando mapa...</Text>
           </View>
         ) : (
@@ -230,9 +248,9 @@ export default function MapLocationPicker({
           disabled={locating}
         >
           {locating ? (
-            <ActivityIndicator size="small" color="#F5A800" />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Ionicons name="locate" size={22} color="#F5A800" />
+            <Ionicons name="locate" size={22} color={colors.primary} />
           )}
         </TouchableOpacity>
 
@@ -240,7 +258,7 @@ export default function MapLocationPicker({
           <Ionicons
             name="information-circle-outline"
             size={14}
-            color="#757575"
+            color={colors.textSecondary}
           />
           <Text style={styles.hintText}>
             Tocá el mapa para ajustar tu ubicación
@@ -248,31 +266,42 @@ export default function MapLocationPicker({
         </View>
       </View>
 
-      {/* Panel inferior */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      {/* Panel inferior: contenido de altura fija y acotada (label + input +
+          hint + botón), nunca crece con el teclado. El que se achica es el
+          mapa de arriba (flex: 1), así este panel queda siempre visible
+          completo por encima del teclado -- ver KeyboardAvoidingView que
+          envuelve toda la pantalla, más abajo. */}
+      <ScrollView
         style={styles.bottomPanel}
+        contentContainerStyle={{
+          paddingHorizontal: 18,
+          paddingTop: 20,
+          paddingBottom: Math.max(28, insets.bottom),
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
       >
         <Text style={styles.addressLabel}>Dirección aproximada</Text>
         <View style={styles.addressInput}>
           <Ionicons
             name="location-outline"
             size={20}
-            color="#F5A800"
+            color={colors.primary}
             style={styles.addressIcon}
           />
           <TextInput
             value={address}
             onChangeText={setAddress}
             placeholder="Ej: Av. Amazonas N34-183"
-            placeholderTextColor="#B7B7B7"
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
             returnKeyType="done"
-            selectionColor="#F5A800"
+            selectionColor={colors.primary}
           />
           {address.length > 0 && (
             <TouchableOpacity onPress={() => setAddress("")}>
-              <Ionicons name="close-circle" size={18} color="#BDBDBD" />
+              <Ionicons name="close-circle" size={18} color={colors.placeholder} />
             </TouchableOpacity>
           )}
         </View>
@@ -281,7 +310,7 @@ export default function MapLocationPicker({
         </Text>
 
         <TouchableOpacity
-          disabled={!address.trim() || confirming}
+          disabled={confirming}
           onPress={handleConfirm}
           style={styles.confirmTouchable}
         >
@@ -303,15 +332,15 @@ export default function MapLocationPicker({
             )}
           </LinearGradient>
         </TouchableOpacity>
-      </KeyboardAvoidingView>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: "row",
@@ -319,13 +348,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -336,11 +365,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: "#757575",
+    color: colors.textSecondary,
     marginTop: 2,
   },
   mapContainer: {
@@ -358,7 +387,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: "#757575",
+    color: colors.textSecondary,
   },
   myLocationButton: {
     position: "absolute",
@@ -367,10 +396,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -382,7 +411,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: colors.card,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -390,16 +419,13 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 12,
-    color: "#757575",
+    color: colors.textSecondary,
   },
   bottomPanel: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 18,
-    paddingTop: 20,
-    paddingBottom: 28,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    shadowColor: "#000",
+    borderTopColor: colors.divider,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: -3 },
@@ -408,18 +434,18 @@ const styles = StyleSheet.create({
   addressLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 10,
   },
   addressInput: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E7E7E7",
+    borderColor: colors.inputBorder,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 52,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.inputBackground,
     marginBottom: 6,
   },
   addressIcon: {
@@ -428,12 +454,12 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: "#1A1A1A",
+    color: colors.text,
     paddingVertical: 0,
   },
   addressHint: {
     fontSize: 12,
-    color: "#A8A8A8",
+    color: colors.placeholder,
     marginBottom: 20,
     paddingLeft: 4,
   },

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppAlert } from '../components/common/AppAlert';
 
 const { width } = Dimensions.get('window');
 const SCREEN_WIDTH = Math.round(width);
@@ -77,6 +78,10 @@ export default function OnboardingScreen() {
     const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
     setActiveIndex(newIndex);
   };
+
+  function showPolicy(title: string, message: string) {
+    AppAlert.alert(title, message, [{ text: "Entendido" }]);
+  }
 
   return (
     <View style={styles.container}>
@@ -181,7 +186,7 @@ export default function OnboardingScreen() {
 
 
       {/* Dots + botón, fijos abajo, encima del carrusel */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { bottom: Math.max(32, insets.bottom + 24) }]}>
 
         <View style={styles.dotsRow}>
           {SLIDES.map((slide, index) => (
@@ -207,6 +212,34 @@ export default function OnboardingScreen() {
             →
           </Text>
         </TouchableOpacity>
+
+        <Text style={styles.policyText}>
+          Al continuar, aceptás nuestros{' '}
+          <Text
+            style={styles.policyLink}
+            onPress={() =>
+              showPolicy(
+                'Términos y Condiciones',
+                'Al usar MenuDays aceptás nuestras condiciones de uso: la app conecta comensales con restaurantes de Ecuador, y cada restaurante es responsable de la información de sus menús, precios y pedidos.'
+              )
+            }
+          >
+            Términos de Uso
+          </Text>
+          {' '}y nuestra{' '}
+          <Text
+            style={styles.policyLink}
+            onPress={() =>
+              showPolicy(
+                'Política de Privacidad',
+                'Usamos tu ubicación y datos de perfil únicamente para mostrarte restaurantes y menús cercanos, y para gestionar tus pedidos. No compartimos tu información con terceros sin tu consentimiento.'
+              )
+            }
+          >
+            Política de Privacidad
+          </Text>
+          .
+        </Text>
 
       </View>
 
@@ -301,6 +334,21 @@ const styles = StyleSheet.create({
     color: '#F7941D',
     fontSize: 16,
     fontWeight: '800',
+  },
+
+  policyText: {
+    marginTop: 16,
+    paddingHorizontal: 36,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: 'rgba(20,20,40,0.65)',
+    textAlign: 'center',
+  },
+
+  policyLink: {
+    fontWeight: '700',
+    color: '#141428',
+    textDecorationLine: 'underline',
   },
 
 });

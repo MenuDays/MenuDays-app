@@ -39,8 +39,10 @@ import { AppAlert } from "../components/common/AppAlert";
 import FormTextField from "../components/restaurant/FormTextField";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
+import { usePreviewMode } from "../../contexts/PreviewModeContext";
 
 export default function RestaurantProfileScreen() {
+  const { enterPreview } = usePreviewMode();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -314,6 +316,11 @@ async function handleUploadCover() {
     setSchedule((prev) => prev.map((d) => (d.id === dayId ? { ...d, ...patch } : d)));
   }
 
+  function handleViewAsComensal() {
+    enterPreview("restaurante");
+    router.push("/(home)");
+  }
+
   function handleLogout() {
     AppAlert.alert("Cerrar sesión", "¿Seguro que querés cerrar tu sesión?", [
       { text: "Cancelar", style: "cancel" },
@@ -474,6 +481,11 @@ onPressEditCover={handleUploadCover}
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Horarios de atención</Text>
             <ScheduleEditor schedule={schedule} onChange={handleScheduleChange} />
+
+            <TouchableOpacity style={styles.previewButton} onPress={handleViewAsComensal}>
+              <Ionicons name="eye-outline" size={18} color="#F5A800" />
+              <Text style={styles.previewButtonText}>Ver como comensal</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={18} color="#E53935" />
@@ -707,13 +719,29 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FB8C00",
   },
+  previewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 50,
+    gap: 8,
+    marginTop: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#F5A800",
+  },
+  previewButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#F5A800",
+  },
    logoutButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     height: 52,
     gap: 8,
-    marginTop: 28,
+    marginTop: 12,
     marginBottom: 20,
   },
   logoutButtonText: {

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
     View,
     Text,
@@ -8,51 +8,67 @@ import {
 
 import ProvinceCard from "./ProvinceCard";
 import { Province } from "../../../services/province.service";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface ProvinceListProps {
     provinces: Province[];
     selectedProvince: Province | null;
     onSelectProvince: (province: Province) => void;
+    /** Contenido que va ARRIBA de la lista (imagen + buscador) pero
+     * scrollea junto con ella -- así el header no queda fijo comiéndose
+     * espacio de la zona de opciones. */
+    ListHeaderComponent?: React.ReactElement | null;
 }
 
 export default function ProvinceList({
                                          provinces,
                                          selectedProvince,
                                          onSelectProvince,
+                                         ListHeaderComponent,
                                      }: ProvinceListProps) {
+    const { colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
+
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>
-                    Provincias de Ecuador
-                </Text>
+        <FlatList
+            style={styles.container}
+            data={provinces}
+            keyExtractor={(item) => item.id.toString()}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+                <>
+                    {ListHeaderComponent}
+                    <View style={styles.header}>
+                        <Text style={styles.title}>
+                            Provincias de Ecuador
+                        </Text>
 
-                <Text style={styles.counter}>
-                    {provinces.length} disponibles
-                </Text>
-            </View>
-
-            <FlatList
-                data={provinces}
-                keyExtractor={(item) => item.id.toString()}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => (
+                        <Text style={styles.counter}>
+                            {provinces.length} disponibles
+                        </Text>
+                    </View>
+                </>
+            }
+            renderItem={({ item }) => (
+                <View style={styles.cardWrap}>
                     <ProvinceCard
                         province={item}
                         selected={selectedProvince?.id === item.id}
                         onPress={() => onSelectProvince(item)}
                     />
-                )}
-            />
-        </View>
+                </View>
+            )}
+        />
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
     container: {
         flex: 1,
-        marginTop: 24,
+        backgroundColor: colors.background,
     },
 
     header: {
@@ -60,27 +76,29 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
 
+        marginTop: 24,
         marginBottom: 14,
-        paddingHorizontal: 4,
+        paddingHorizontal: 18,
     },
 
     title: {
         fontSize: 18,
         fontWeight: "700",
-        color: "#1A1A1A",
-
-        // fontFamily: "Poppins_700Bold",
+        color: colors.text,
     },
 
     counter: {
         fontSize: 12,
         fontWeight: "600",
-        color: "#F5A800",
+        color: colors.primary,
+    },
 
-        // fontFamily: "Poppins_600SemiBold",
+    cardWrap: {
+        paddingHorizontal: 18,
     },
 
     listContent: {
         paddingBottom: 20,
+        backgroundColor: colors.background,
     },
 });

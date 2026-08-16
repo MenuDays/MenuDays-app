@@ -127,12 +127,14 @@ class AdminDashboardService {
       position: i + 1,
       name: r.nombre ?? "Restaurante",
       value: r.reportes,
+      id: r.id,
     }));
 
     const topResenas: RankingRow[] = data.topResenas.map((r, i) => ({
       position: i + 1,
       name: r.nombre ?? "Restaurante",
       value: r.resenas,
+      id: r.id,
     }));
 
     return {

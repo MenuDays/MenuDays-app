@@ -63,6 +63,26 @@ class UserService {
   }
 
   /**
+   * Sube la foto de perfil (comensal o administrador, ambos son
+   * `usuarios` -- ver PATCH /users/profile/photo en el back).
+   */
+  async uploadPhoto(image: any): Promise<{ photoUrl: string; message: string }> {
+    const formData = new FormData();
+
+    formData.append("image", {
+      uri: image.uri,
+      name: image.fileName ?? "photo.jpg",
+      type: image.mimeType ?? image.type ?? "image/jpeg",
+    } as any);
+
+    return await api("/users/profile/photo", {
+      method: "PATCH",
+      body: formData,
+      headers: {},
+    });
+  }
+
+  /**
    * Guarda el usuario localmente.
    */
   async saveLocal(user: User): Promise<void> {

@@ -1,15 +1,15 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
     TouchableOpacity,
     Text,
     StyleSheet,
-    Dimensions,
+    useWindowDimensions,
     View,
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
-
-const { width } = Dimensions.get("window");
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface ContinueButtonProps {
     disabled: boolean;
@@ -20,11 +20,14 @@ export default function ContinueButton({
                                            disabled,
                                            onPress,
                                        }: ContinueButtonProps) {
+    const { colors } = useTheme();
+    const { width } = useWindowDimensions();
+    const styles = useMemo(() => createStyles(colors, width), [colors, width]);
+
     return (
         <View style={styles.container}>
             <TouchableOpacity
                 activeOpacity={0.92}
-                disabled={disabled}
                 onPress={onPress}
                 style={styles.touchable}
             >
@@ -47,13 +50,13 @@ export default function ContinueButton({
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, width: number) => StyleSheet.create({
     container: {
         width: "100%",
         paddingHorizontal: width * 0.07,
         paddingBottom: 28,
         paddingTop: 10,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: colors.background,
     },
 
     touchable: {

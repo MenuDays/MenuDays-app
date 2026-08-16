@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -15,9 +15,13 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
-const DRAWER_WIDTH = 300;
 const SCREEN_WIDTH = Dimensions.get("window").width;
+// Proporcional al ancho de pantalla, con 300 como techo: en celulares
+// angostos no ocupa casi toda la pantalla, y en tablets no queda chico.
+const DRAWER_WIDTH = Math.min(300, SCREEN_WIDTH * 0.82);
 
 // Zona invisible desde donde se puede iniciar el gesto.
 // Es suficientemente amplia para que sea fácil abrirlo con el dedo,
@@ -28,6 +32,8 @@ const SWIPE_CLOSE_THRESHOLD = 70;
 
 export default function RestaurantLayout() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [menuVisible, setMenuVisible] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -337,7 +343,7 @@ export default function RestaurantLayout() {
                   <Ionicons
                     name="storefront-outline"
                     size={20}
-                    color="#F5751A"
+                    color={colors.primary}
                   />
                 </View>
 
@@ -361,7 +367,7 @@ export default function RestaurantLayout() {
                 <Ionicons
                   name="close"
                   size={22}
-                  color="#777777"
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
@@ -486,6 +492,9 @@ function MenuItem({
   label,
   onPress,
 }: MenuItemProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <TouchableOpacity
       style={styles.menuItem}
@@ -496,7 +505,7 @@ function MenuItem({
         <Ionicons
           name={icon}
           size={20}
-          color="#F5751A"
+          color={colors.primary}
         />
       </View>
 
@@ -507,7 +516,7 @@ function MenuItem({
       <Ionicons
         name="chevron-forward"
         size={17}
-        color="#BDBDBD"
+        color={colors.placeholder}
       />
     </TouchableOpacity>
   );
@@ -517,138 +526,139 @@ function MenuItem({
 // ESTILOS
 // ============================================================
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  // Zona invisible para iniciar el swipe.
-  // No hay botón ni cuadrado visible.
-  edgeSwipeZone: {
-    position: "absolute",
-    left: 0,
-    width: EDGE_SWIPE_WIDTH,
-    zIndex: 999,
-  },
-
-  overlay: {
-    flex: 1,
-    flexDirection: "row",
-    backgroundColor: "transparent",
-  },
-
-  backdropContainer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
-  },
-
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(43, 33, 26, 0.18)",
-  },
-
-  drawer: {
-    width: DRAWER_WIDTH,
-    height: "100%",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 18,
-    elevation: 30,
-    shadowColor: "#000",
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 5,
-      height: 0,
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
     },
-    zIndex: 2,
-  },
 
-  drawerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    // Zona invisible para iniciar el swipe.
+    // No hay botón ni cuadrado visible.
+    edgeSwipeZone: {
+      position: "absolute",
+      left: 0,
+      width: EDGE_SWIPE_WIDTH,
+      zIndex: 999,
+    },
 
-  drawerBrand: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    overlay: {
+      flex: 1,
+      flexDirection: "row",
+      backgroundColor: "transparent",
+    },
 
-  drawerBrandIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFF5E8",
-    marginRight: 11,
-  },
+    backdropContainer: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+    },
 
-  drawerTitle: {
-    fontSize: 21,
-    fontWeight: "900",
-    color: "#2B211A",
-    letterSpacing: -0.4,
-  },
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+    },
 
-  drawerSubtitle: {
-    marginTop: 2,
-    fontSize: 11.5,
-    fontWeight: "500",
-    color: "#999999",
-  },
+    drawer: {
+      width: DRAWER_WIDTH,
+      height: "100%",
+      backgroundColor: colors.card,
+      paddingHorizontal: 18,
+      elevation: 30,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 18,
+      shadowOffset: {
+        width: 5,
+        height: 0,
+      },
+      zIndex: 2,
+    },
 
-  closeButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F8F8F8",
-  },
+    drawerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  divider: {
-    height: 1,
-    backgroundColor: "#EEEEEE",
-    marginVertical: 16,
-  },
+    drawerBrand: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
 
-  sectionTitle: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#A0A0A0",
-    letterSpacing: 1,
-    marginBottom: 7,
-    marginTop: 12,
-  },
+    drawerBrandIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceSecondary,
+      marginRight: 11,
+    },
 
-  menuContent: {
-    paddingBottom: 30,
-  },
+    drawerTitle: {
+      fontSize: 21,
+      fontWeight: "900",
+      color: colors.text,
+      letterSpacing: -0.4,
+    },
 
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 54,
-    paddingHorizontal: 4,
-    borderRadius: 14,
-    marginBottom: 4,
-  },
+    drawerSubtitle: {
+      marginTop: 2,
+      fontSize: 11.5,
+      fontWeight: "500",
+      color: colors.textSecondary,
+    },
 
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFF7E8",
-    marginRight: 12,
-  },
+    closeButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceSecondary,
+    },
 
-  menuItemText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#2B211A",
-  },
-});
+    divider: {
+      height: 1,
+      backgroundColor: colors.divider,
+      marginVertical: 16,
+    },
+
+    sectionTitle: {
+      fontSize: 10,
+      fontWeight: "800",
+      color: colors.textSecondary,
+      letterSpacing: 1,
+      marginBottom: 7,
+      marginTop: 12,
+    },
+
+    menuContent: {
+      paddingBottom: 30,
+    },
+
+    menuItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      minHeight: 54,
+      paddingHorizontal: 4,
+      borderRadius: 14,
+      marginBottom: 4,
+    },
+
+    iconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceSecondary,
+      marginRight: 12,
+    },
+
+    menuItemText: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.text,
+    },
+  });

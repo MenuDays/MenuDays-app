@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TextInput, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 export default function EditableRow({
   icon,
@@ -23,17 +24,23 @@ export default function EditableRow({
   multiline?: boolean;
   placeholder?: string;
 }) {
+  const { colors } = useTheme();
+
   return (
     <View style={[styles.infoRow, multiline && styles.infoRowMultiline]}>
       <Ionicons
         name={icon as any}
         size={18}
-        color="#F5A800"
+        color={colors.primary}
         style={styles.infoIcon}
       />
-      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
       <TextInput
-        style={[styles.infoInput, multiline && styles.infoInputMultiline]}
+        style={[
+          styles.infoInput,
+          { color: colors.text },
+          multiline && styles.infoInputMultiline,
+        ]}
         value={value}
         onChangeText={onChangeText}
         autoFocus={autoFocus}
@@ -41,7 +48,7 @@ export default function EditableRow({
         autoCapitalize={autoCapitalize}
         multiline={multiline}
         placeholder={placeholder}
-        placeholderTextColor="#BDBDBD"
+        placeholderTextColor={colors.placeholder}
       />
     </View>
   );
@@ -62,14 +69,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: "#757575",
     width: 90,
   },
   infoInput: {
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1A1A",
     textAlign: "right",
     paddingVertical: 0,
   },

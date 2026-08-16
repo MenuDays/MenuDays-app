@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 // Reemplazo de Alert.alert (react-native) con el mismo estilo visual del
 // resto de la app (header naranja, cards redondeadas, colores de
@@ -59,6 +61,8 @@ function inferVariant(title: string, buttons: AlertButton[]): AlertVariant {
 const DEFAULT_BUTTON: AlertButton = { text: "Aceptar" };
 
 export function AppAlertProvider({ children }: { children: React.ReactNode }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [visible, setVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState<string | undefined>(undefined);
@@ -142,85 +146,86 @@ export function AppAlertProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(20, 15, 10, 0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    paddingTop: 24,
-    paddingBottom: 18,
-    paddingHorizontal: 22,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-  iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#1A1A1A",
-    textAlign: "center",
-  },
-  message: {
-    fontSize: 13.5,
-    color: "#757575",
-    textAlign: "center",
-    marginTop: 8,
-    lineHeight: 19,
-  },
-  buttonsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 22,
-    width: "100%",
-  },
-  buttonsColumn: {
-    flexDirection: "column",
-  },
-  button: {
-    flex: 1,
-    height: 46,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FB8C00",
-    paddingHorizontal: 12,
-  },
-  buttonStacked: {
-    flex: undefined,
-    width: "100%",
-  },
-  buttonCancel: {
-    backgroundColor: "#F0F0F0",
-  },
-  buttonDestructive: {
-    backgroundColor: "#E53935",
-  },
-  buttonText: {
-    fontSize: 14.5,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    ...Platform.select({ android: { includeFontPadding: false } }),
-  },
-  buttonTextCancel: {
-    color: "#616161",
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 28,
+    },
+    card: {
+      width: "100%",
+      maxWidth: 340,
+      backgroundColor: colors.modalBackground,
+      borderRadius: 24,
+      paddingTop: 24,
+      paddingBottom: 18,
+      paddingHorizontal: 22,
+      alignItems: "center",
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.18,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
+    iconCircle: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 14,
+    },
+    title: {
+      fontSize: 17,
+      fontWeight: "800",
+      color: colors.text,
+      textAlign: "center",
+    },
+    message: {
+      fontSize: 13.5,
+      color: colors.textSecondary,
+      textAlign: "center",
+      marginTop: 8,
+      lineHeight: 19,
+    },
+    buttonsRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 22,
+      width: "100%",
+    },
+    buttonsColumn: {
+      flexDirection: "column",
+    },
+    button: {
+      flex: 1,
+      height: 46,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.primaryDark,
+      paddingHorizontal: 12,
+    },
+    buttonStacked: {
+      flex: undefined,
+      width: "100%",
+    },
+    buttonCancel: {
+      backgroundColor: colors.surfaceSecondary,
+    },
+    buttonDestructive: {
+      backgroundColor: colors.error,
+    },
+    buttonText: {
+      fontSize: 14.5,
+      fontWeight: "700",
+      color: "#FFFFFF",
+      ...Platform.select({ android: { includeFontPadding: false } }),
+    },
+    buttonTextCancel: {
+      color: colors.textSecondary,
+    },
+  });
