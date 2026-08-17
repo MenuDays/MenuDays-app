@@ -6,6 +6,7 @@ import PromotionService, { Promotion } from "../../services/promotion.service";
 import { AppAlert } from "../components/common/AppAlert";
 import EntityListCard from "../components/restaurant/EntityListCard";
 import FilterChips, { FilterChipOption } from "../components/restaurant/FilterChips";
+import PublishFab from "../components/restaurant/PublishFab";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
 import { StatusTone } from "../components/restaurant/StatusBadge";
@@ -118,8 +119,6 @@ export default function PromotionListScreen() {
       <ScreenHeader
         title="Promociones"
         showBack
-        rightIcon="add"
-        onRightPress={() => router.push("/(restaurant)/promociones/form")}
       />
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
@@ -163,6 +162,7 @@ export default function PromotionListScreen() {
         />
       )}
 
+      <PublishFab label="Nueva promoción" onPress={() => router.push("/(restaurant)/promociones/form")} />
       <RestaurantBottomNav />
     </View>
   );

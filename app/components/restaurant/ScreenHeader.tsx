@@ -32,10 +32,7 @@ export default function ScreenHeader({
           {showBack ? (
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={
-                onBack ??
-                (() => router.replace("/(restaurant)/dashboard"))
-              }
+              onPress={onBack ?? (() => router.back())}
               hitSlop={10}
             >
               <Ionicons

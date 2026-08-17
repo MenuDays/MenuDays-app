@@ -108,9 +108,18 @@ export default function RestaurantLayout() {
 
   const edgePanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: (_, gesture) => {
-        return gesture.x0 <= EDGE_SWIPE_WIDTH;
-      },
+      // OJO: esta zona invisible (edgeSwipeZone) se dibuja ENCIMA de toda
+      // la pantalla (zIndex 999), tapando también el botón "atrás" del
+      // header de cada pantalla (que vive justo en ese primer
+      // EDGE_SWIPE_WIDTH de la izquierda). Con onStartShouldSetPanResponder
+      // devolviendo true apenas se toca esa zona (sin esperar movimiento),
+      // CUALQUIER tap ahí -- incluido un tap plano sobre el botón atrás --
+      // quedaba capturado acá y el TouchableOpacity de abajo nunca recibía
+      // el press. Por eso no reclamamos nada en el "start": solo
+      // onMoveShouldSetPanResponder (que ya exige un arrastre horizontal
+      // real, gesture.dx > 5) puede quedarse con el gesto. Un tap simple
+      // (sin arrastre) nunca lo reclama y pasa de largo al botón de atrás.
+      onStartShouldSetPanResponder: () => false,
 
       onMoveShouldSetPanResponder: (_, gesture) => {
         if (menuVisible) return false;
@@ -452,7 +461,7 @@ export default function RestaurantLayout() {
                 icon="receipt-outline"
                 label="Mis pedidos"
                 onPress={() =>
-                  goTo("/(restaurant)/pedidos")
+                  goTo("/(restaurant)/mi-local")
                 }
               />
 

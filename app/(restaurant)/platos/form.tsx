@@ -39,7 +39,7 @@ export default function DishFormScreen() {
         if (cats.length === 0) {
           AppAlert.alert(
             "Sin categorías",
-            "Todavía no elegiste las categorías de tu restaurante. Andá a Mi perfil > Categorías para elegirlas antes de crear un plato."
+            "Todavía no elegiste las categorías de tu restaurante. Ve a Mi perfil > Categorías para elegirlas antes de crear un plato."
           );
         }
       })

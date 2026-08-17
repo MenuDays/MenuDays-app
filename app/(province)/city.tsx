@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import CityList from "../components/province/CityList";
 import ContinueButton from "../components/province/ContinueButton";
 import ProvinceHeader from "../components/province/ProvinceHeader";
@@ -77,6 +78,7 @@ export default function CityScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingScreen>
       <CityList
         cities={filteredCities}
         selectedCity={selectedCity}
@@ -84,14 +86,14 @@ export default function CityScreen() {
         ListHeaderComponent={
           <>
             <ProvinceHeader
-              title={`¿En qué ciudad\nestás?`}
-              subtitle={`Ciudades de ${provinceName}`}
+              title={`¿En qué cantón\nestás?`}
+              subtitle={`Cantones de ${provinceName}`}
             />
             <View style={styles.searchWrap}>
               <ProvinceSearch
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Busca tu ciudad..."
+                placeholder="Busca tu cantón..."
               />
             </View>
           </>
@@ -102,6 +104,7 @@ export default function CityScreen() {
         disabled={!selectedCity}
         onPress={handleContinue}
       />
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }

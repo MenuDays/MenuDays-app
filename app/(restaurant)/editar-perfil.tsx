@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocationService, { City } from "../../services/location.service";
 import ProvinceService, { Province } from "../../services/province.service";
 import RestaurantService, {
@@ -93,6 +94,7 @@ export default function EditarPerfilScreen() {
       setPhones(data.restaurante_telefonos ?? []);
       setSocialLinks(data.restaurante_redes_sociales ?? []);
       setSchedule(data.restaurante_horarios ?? []);
+      await populateDrafts(data);
     } catch (e) {
       console.log("Error cargando restaurante:", e);
     } finally {
@@ -100,30 +102,40 @@ export default function EditarPerfilScreen() {
     }
   }
 
-  async function startEditing() {
-    if (!restaurant) return;
-    setEditName(restaurant.nombre_comercial);
-    setEditDescription(restaurant.descripcion ?? "");
+  // Antes esto solo corría al tocar "Editar" (startEditing), así que si
+  // el usuario agregaba un teléfono/red social/horario -- editable
+  // siempre, sin pasar por el toggle de isEditing -- y tocaba "Guardar"
+  // sin haber entrado nunca al modo edición de los campos de arriba,
+  // editName/editCity/editLocation todavía estaban vacíos y el guardado
+  // fallaba con "Datos incompletos" aunque el restaurante sí tuviera
+  // nombre/ciudad/ubicación. Ahora se precarga apenas llega la data, así
+  // el botón "Guardar cambios" de abajo siempre tiene un draft válido
+  // para mandar, haya entrado o no al modo edición de arriba.
+  async function populateDrafts(data: Restaurant) {
+    setEditName(data.nombre_comercial);
+    setEditDescription(data.descripcion ?? "");
 
     setEditLocation(
-      restaurant.ubicacion_lat != null && restaurant.ubicacion_lng != null
+      data.ubicacion_lat != null && data.ubicacion_lng != null
         ? {
-            latitude: restaurant.ubicacion_lat,
-            longitude: restaurant.ubicacion_lng,
-            address: restaurant.direccion ?? "",
+            latitude: data.ubicacion_lat,
+            longitude: data.ubicacion_lng,
+            address: data.direccion ?? "",
           }
         : null
     );
 
-    const currentProvinceId = restaurant.ciudad?.provincia?.id;
-    const matchedProvince = provinces.find((p) => p.id === currentProvinceId) ?? null;
+    const currentProvinceId = data.ciudad?.provincia?.id;
+    const allProvinces = provinces.length > 0 ? provinces : await ProvinceService.getAll();
+    if (provinces.length === 0) setProvinces(allProvinces);
+    const matchedProvince = allProvinces.find((p) => p.id === currentProvinceId) ?? null;
     setEditProvince(matchedProvince);
 
     if (matchedProvince) {
       try {
         const cityList = await LocationService.getCitiesByProvince(matchedProvince.id);
         setCities(cityList);
-        setEditCity(cityList.find((c) => c.id === restaurant.ciudad?.id) ?? null);
+        setEditCity(cityList.find((c) => c.id === data.ciudad?.id) ?? null);
       } catch (e) {
         console.log("Error cargando ciudades:", e);
         setCities([]);
@@ -133,7 +145,9 @@ export default function EditarPerfilScreen() {
       setCities([]);
       setEditCity(null);
     }
+  }
 
+  function startEditing() {
     setIsEditing(true);
   }
 
@@ -185,7 +199,7 @@ export default function EditarPerfilScreen() {
       return;
     }
     if (!editCity) {
-      AppAlert.alert("Falta la ciudad", "Elige la provincia y ciudad de tu restaurante.");
+      AppAlert.alert("Falta el cantón", "Elige la provincia y el cantón de tu restaurante.");
       return;
     }
     if (!editLocation) {
@@ -349,8 +363,6 @@ export default function EditarPerfilScreen() {
           title="Configurar perfil"
           showBack
           onBack={() => router.back()}
-          rightIcon={!isEditing ? "create-outline" : undefined}
-          onRightPress={startEditing}
         />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -365,6 +377,13 @@ export default function EditarPerfilScreen() {
           </View>
 
           <View style={styles.content}>
+            {!isEditing && (
+              <TouchableOpacity style={styles.editProfileButton} onPress={startEditing} activeOpacity={0.88}>
+                <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.editProfileButtonText}>Editar perfil</Text>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Información del negocio</Text>
             </View>
@@ -387,7 +406,7 @@ export default function EditarPerfilScreen() {
               editable={isEditing}
             />
 
-            <Text style={styles.pickerLabel}>Provincia/ Ciudad</Text>
+            <Text style={styles.pickerLabel}>Provincia/ Cantón</Text>
             <TouchableOpacity
               style={[styles.pickerButton, !isEditing && styles.pickerButtonReadOnly]}
               onPress={isEditing ? openProvinceCityPicker : undefined}
@@ -401,8 +420,8 @@ export default function EditarPerfilScreen() {
                 ]}
               >
                 {isEditing
-                  ? editCityProvinceLabel ?? "Elige provincia y ciudad"
-                  : cityProvinceLabel ?? "Sin ciudad"}
+                  ? editCityProvinceLabel ?? "Elige provincia y cantón"
+                  : cityProvinceLabel ?? "Sin cantón"}
               </Text>
               {isEditing && <Ionicons name="chevron-down" size={16} color="#3E2723" />}
             </TouchableOpacity>
@@ -421,35 +440,12 @@ export default function EditarPerfilScreen() {
               {isEditing && <Ionicons name="chevron-down" size={16} color="#FB8C00" />}
             </TouchableOpacity>
 
-            {isEditing && (
-              <View style={styles.editActionsRow}>
-                <TouchableOpacity style={styles.cancelButton} onPress={cancelEditing} disabled={saving}>
-                  <Text style={styles.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.saveButton, saving && { opacity: 0.7 }]}
-                  onPress={saveEditing}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                      <Text style={styles.saveButtonText}>Guardar</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Teléfonos</Text>
-            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
+            <Text style={styles.disclaimerText}>Se guarda junto con el resto al tocar "Guardar cambios" abajo</Text>
             <PhoneListEditor phones={phones} onAdd={handleAddPhone} onRemove={handleRemovePhone} />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Redes Sociales</Text>
-            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
+            <Text style={styles.disclaimerText}>Se guarda junto con el resto al tocar "Guardar cambios" abajo</Text>
             <SocialLinksEditor
               links={socialLinks}
               onAdd={handleAddSocialLink}
@@ -457,8 +453,37 @@ export default function EditarPerfilScreen() {
             />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Horarios de atención</Text>
-            <Text style={styles.disclaimerText}>Los cambios acá todavía no quedan guardados</Text>
+            <Text style={styles.disclaimerText}>Se guarda junto con el resto al tocar "Guardar cambios" abajo</Text>
             <ScheduleEditor schedule={schedule} onChange={handleScheduleChange} />
+
+            {/* El de "Guardar" queda siempre visible acá abajo (no solo con
+                isEditing=true): Teléfonos/Redes/Horarios se editan solos,
+                sin pasar por ese toggle, así que tiene que haber una forma
+                de guardarlos aunque nunca se haya tocado "Editar perfil"
+                arriba. "Cancelar" sí queda atado a isEditing, porque es lo
+                único que tiene un estado "original" real al que volver. */}
+            <View style={styles.editActionsRow}>
+              {isEditing && (
+                <TouchableOpacity style={styles.cancelButton} onPress={cancelEditing} disabled={saving}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.saveButton, saving && { opacity: 0.7 }]}
+                onPress={saveEditing}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    <Text style={styles.saveButtonText}>Guardar cambios</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingScreen>
@@ -471,7 +496,10 @@ export default function EditarPerfilScreen() {
         onRequestClose={() => setProvincePickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          {/* KeyboardAvoidingView acá adentro: el Modal es su propia
+              jerarquía nativa y no hereda el manejo de teclado de la
+              pantalla de atrás. */}
+          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige la provincia</Text>
               <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
@@ -501,7 +529,7 @@ export default function EditarPerfilScreen() {
               )}
               ItemSeparatorComponent={() => <View style={styles.modalDivider} />}
             />
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -513,10 +541,10 @@ export default function EditarPerfilScreen() {
         onRequestClose={() => setCityPickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Elige la ciudad{editProvince ? ` (${editProvince.nombre})` : ""}
+                Elige el cantón{editProvince ? ` (${editProvince.nombre})` : ""}
               </Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#3E2723" />
@@ -527,7 +555,7 @@ export default function EditarPerfilScreen() {
               <Ionicons name="search-outline" size={18} color="#9E9E9E" style={styles.pickerIcon} />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="Buscar ciudad"
+                placeholder="Buscar cantón"
                 placeholderTextColor="#9E9E9E"
                 value={citySearch}
                 onChangeText={setCitySearch}
@@ -545,10 +573,10 @@ export default function EditarPerfilScreen() {
               )}
               ItemSeparatorComponent={() => <View style={styles.modalDivider} />}
               ListEmptyComponent={
-                <Text style={styles.emptyListText}>No hay ciudades para esta provincia</Text>
+                <Text style={styles.emptyListText}>No hay cantones para esta provincia</Text>
               }
             />
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -575,6 +603,26 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingBottom: 40,
+  },
+  editProfileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#F5A800",
+    borderRadius: 26,
+    height: 52,
+    marginBottom: 22,
+    shadowColor: "#F5A800",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  editProfileButtonText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   sectionHeaderRow: {
     flexDirection: "row",

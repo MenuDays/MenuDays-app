@@ -3,10 +3,21 @@ import { api } from "./api";
 // Igual al enum estado_publicacion de Prisma en el backend.
 export type MenuStatus = "programado" | "publicado" | "oculto" | "agotado";
 
+// Referencia mínima a la colección de menús a la que pertenece este menú
+// (ver menu-collection.service.ts). Concepto independiente de categoria_id
+// -- no confundir ambos.
+export interface MenuCollectionRef {
+  id: string;
+  nombre: string;
+  orden: number;
+}
+
 export interface Menu {
   id: string;
   restaurante_id: string;
   categoria_id: string | null;
+  coleccion_id: string | null;
+  menu_colecciones: MenuCollectionRef | null;
   nombre: string;
   descripcion: string | null;
   precio: number;
@@ -26,6 +37,9 @@ export interface MenuFormInput {
   fechaFin: string;
   // requerido por @IsInt @IsPositive en CreateMenuDto (sin @IsOptional)
   categoriaId: string;
+  // Colección de menús (Entradas/Sopas/etc.) -- opcional a propósito, ver
+  // coleccionId en CreateMenuDto del backend.
+  coleccionId?: string;
   // uri local de expo-image-picker. Requerida al crear (el backend
   // rechaza el POST sin imagen); opcional al editar (si no se manda,
   // el backend conserva la imagen actual).
@@ -40,6 +54,7 @@ function buildFormData(input: Partial<MenuFormInput>): FormData {
   if (input.fechaInicio) formData.append("fechaInicio", input.fechaInicio);
   if (input.fechaFin) formData.append("fechaFin", input.fechaFin);
   if (input.categoriaId !== undefined) formData.append("categoriaId", input.categoriaId);
+  if (input.coleccionId !== undefined) formData.append("coleccionId", input.coleccionId);
   if (input.imageUri) {
     formData.append("image", {
       uri: input.imageUri,

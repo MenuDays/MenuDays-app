@@ -6,6 +6,7 @@ import DishService, { Dish } from "../../services/dish.service";
 import { AppAlert } from "../components/common/AppAlert";
 import EntityListCard from "../components/restaurant/EntityListCard";
 import FilterChips, { FilterChipOption } from "../components/restaurant/FilterChips";
+import PublishFab from "../components/restaurant/PublishFab";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
 import { StatusTone } from "../components/restaurant/StatusBadge";
@@ -92,8 +93,6 @@ export default function DishListScreen() {
       <ScreenHeader
         title="Platos"
         showBack
-        rightIcon="add"
-        onRightPress={() => router.push("/(restaurant)/platos/form")}
       />
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
@@ -134,6 +133,7 @@ export default function DishListScreen() {
         />
       )}
 
+      <PublishFab label="Nuevo plato" onPress={() => router.push("/(restaurant)/platos/form")} />
       <RestaurantBottomNav />
     </View>
   );

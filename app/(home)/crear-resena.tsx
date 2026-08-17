@@ -6,8 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -15,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import ReviewService from "../../services/review.service";
 import { AppAlert } from "../components/common/AppAlert";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
 
@@ -69,10 +68,7 @@ export default function CrearResenaScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingScreen>
         <View style={styles.content}>
           {(restauranteNombre || productoNombre) && (
             <View style={styles.summaryCard}>
@@ -122,7 +118,7 @@ export default function CrearResenaScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }

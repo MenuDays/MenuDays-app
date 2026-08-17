@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { PanGestureHandler, State } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router, useNavigation } from "expo-router";
 import { EmptyState } from "../components/common/EmptyState";
@@ -339,6 +340,7 @@ export default function ExplorarResultadosScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <KeyboardAvoidingScreen>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
@@ -509,6 +511,7 @@ export default function ExplorarResultadosScreen() {
           )}
         />
       )}
+      </KeyboardAvoidingScreen>
 
       {/* Bottom sheet de filtros (sin <Modal> a propósito -- ver comentario
           arriba de sheetTranslateY). Se monta siempre que filtersOpen es

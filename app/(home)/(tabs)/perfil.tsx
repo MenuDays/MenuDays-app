@@ -12,23 +12,24 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import UserService, { User } from "../../services/user.service";
-import AuthService from "../../services/auth.service";
+import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import UserService, { User } from "../../../services/user.service";
+import AuthService from "../../../services/auth.service";
 import RestaurantRequestService, {
   RestaurantRequestStatus,
-} from "../../services/restaurant-request.service";
-import { useDeviceLocation } from "../../hooks/useDeviceLocation";
+} from "../../../services/restaurant-request.service";
+import { useDeviceLocation } from "../../../hooks/useDeviceLocation";
 
-import ProfileHero from "../components/profile/ProfileHero";
-import ProfileCard from "../components/profile/ProfileCard";
-import LocationCard from "../components/profile/LocationCard";
-import InfoRow from "../components/profile/InfoRow";
-import EditableRow from "../components/profile/EditableRow";
-import Divider from "../components/profile/Divider";
-import ThemeToggle from "../components/common/ThemeToggle";
-import { AppAlert } from "../components/common/AppAlert";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
+import ProfileHero from "../../components/profile/ProfileHero";
+import ProfileCard from "../../components/profile/ProfileCard";
+import LocationCard from "../../components/profile/LocationCard";
+import InfoRow from "../../components/profile/InfoRow";
+import EditableRow from "../../components/profile/EditableRow";
+import Divider from "../../components/profile/Divider";
+import ThemeToggle from "../../components/common/ThemeToggle";
+import { AppAlert } from "../../components/common/AppAlert";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 export default function PerfilScreen() {
   const { colors } = useTheme();
@@ -170,6 +171,7 @@ export default function PerfilScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingScreen>
       <ScrollView showsVerticalScrollIndicator={false}>
 
         <ProfileHero
@@ -186,8 +188,8 @@ export default function PerfilScreen() {
             title="Información personal"
             headerRight={
               !isEditing && (
-                <TouchableOpacity style={styles.inlineEditTrigger} onPress={startEditing}>
-                  <Ionicons name="create-outline" size={16} color="#F5A800" />
+                <TouchableOpacity style={styles.inlineEditTrigger} onPress={startEditing} activeOpacity={0.85}>
+                  <Ionicons name="create-outline" size={18} color="#FFFFFF" />
                   <Text style={styles.inlineEditTriggerText}>Editar</Text>
                 </TouchableOpacity>
               )
@@ -308,6 +310,7 @@ export default function PerfilScreen() {
 
         </View>
       </ScrollView>
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }
@@ -392,12 +395,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   inlineEditTrigger: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    backgroundColor: "#F5A800",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    shadowColor: "#F5A800",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   inlineEditTriggerText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#F5A800",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   editActionsRow: {
     flexDirection: "row",

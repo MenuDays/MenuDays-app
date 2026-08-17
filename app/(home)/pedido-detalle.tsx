@@ -250,7 +250,7 @@ export default function PedidoDetalleScreen() {
             <InfoRow
               icon="cash-outline"
               label="Total"
-              value={`$${order.pedido.total.toFixed(2)}`}
+              value={`$${order.pedido.total.toFixed(2)}${order.pedido.metodoEntrega === "DELIVERY" ? " + cargos" : ""}`}
               valueStyle={styles.totalValue}
             />
           </View>

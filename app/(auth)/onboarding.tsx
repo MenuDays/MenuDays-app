@@ -38,7 +38,7 @@ const SLIDES: Slide[] = [
   {
     key: 'slide2',
     title: 'Menú del día,\ntodos los días',
-    subtitle: 'Encuentra opciones deliciosas\ny a precios increíbles cerca de vos',
+    subtitle: 'Encuentra opciones deliciosas\ny a precios increíbles cerca de ti',
     image: require('../../assets/images/onboarding-2.png'),
     buttonLabel: 'Siguiente',
   },

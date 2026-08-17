@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView,
+  Linking,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppAlert } from "../common/AppAlert";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
@@ -64,6 +66,14 @@ export default function MapLocationPicker({
 }: MapLocationPickerProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // Los 2 usos de este componente (map-province.tsx,
+  // select-restaurant-location.tsx) envuelven la pantalla en un
+  // SafeAreaView con edges={["top"]} nada más -- el inset de ABAJO
+  // (barra de gestos/botones de Android) nunca se aplicaba, así que el
+  // botón "Confirmar ubicación" quedaba pegado o tapado por esa barra.
+  // Se resuelve acá adentro (no en cada pantalla que lo usa) para que
+  // funcione sin importar desde dónde se lo llame.
+  const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
   const startingPoint = initialLocation ?? cityCoords ?? ECUADOR_DEFAULT;
   const startingDelta = initialLocation
@@ -108,7 +118,7 @@ export default function MapLocationPicker({
   function promptLocationChoice() {
     AppAlert.alert(
       "¿Cómo quieres fijar tu ubicación?",
-      "Puedes usar tu ubicación actual o elegirla manualmente en el mapa.",
+      "Puedes usar tu ubicación actual al instante, o elegirla tú mismo tocando el mapa o escribiendo la dirección.",
       [
         {
           text: "Elegir en el mapa",
@@ -122,6 +132,13 @@ export default function MapLocationPicker({
     );
   }
 
+  // Sin alertas de "error" acá a propósito: si Google no logra resolver
+  // una dirección de texto para el punto (sea por el punto en sí, sea por
+  // la red), lo que de verdad importa -- el pin en el mapa -- ya quedó
+  // puesto. El campo de dirección es solo una ayuda visual y sigue
+  // editable siempre, así que si no se pudo autocompletar, el usuario
+  // simplemente la escribe él mismo sin que la app lo interrumpa con un
+  // cartel de error.
   async function reverseGeocode(lat: number, lng: number) {
     try {
       const results = await Location.reverseGeocodeAsync({
@@ -140,24 +157,10 @@ export default function MapLocationPicker({
         const resolved = streetLine || fallback;
         if (resolved) {
           setAddress(resolved);
-        } else {
-          AppAlert.alert(
-            "No se pudo detectar la dirección",
-            "Escribe la dirección manualmente para este punto."
-          );
         }
-      } else {
-        AppAlert.alert(
-          "No se pudo detectar la dirección",
-          "Escribe la dirección manualmente para este punto."
-        );
       }
     } catch (e) {
       console.log("Error en geocoding:", e);
-      AppAlert.alert(
-        "No se pudo obtener la dirección",
-        "Revisa tu conexión o escribe la dirección manualmente."
-      );
     }
   }
 
@@ -167,16 +170,55 @@ export default function MapLocationPicker({
     await reverseGeocode(latitude, longitude);
   }
 
+  // Antes, si el permiso de ubicación ya había sido denegado una vez,
+  // volver a tocar "Usar mi ubicación actual" mostraba el mismo cartel de
+  // "Permiso denegado" para siempre sin ninguna salida real. Ahora, si
+  // quedó denegado de forma permanente (canAskAgain: false), se ofrece ir
+  // directo a Ajustes para habilitarlo -- así se captura al instante la
+  // próxima vez, tal como pide el flujo de "activar ubicación del
+  // teléfono".
+  async function ensureLocationPermission(): Promise<boolean> {
+    const current = await Location.getForegroundPermissionsAsync();
+    if (current.granted) return true;
+
+    if (!current.canAskAgain) {
+      AppAlert.alert(
+        "Activa tu ubicación",
+        "Para capturarla al instante, habilita el permiso de ubicación en Ajustes. Mientras tanto, puedes elegirla tocando el mapa o escribiendo la dirección.",
+        [
+          { text: "Ahora no", style: "cancel" },
+          { text: "Abrir Ajustes", onPress: () => Linking.openSettings() },
+        ]
+      );
+      return false;
+    }
+
+    const requested = await Location.requestForegroundPermissionsAsync();
+    return requested.granted;
+  }
+
   async function handleMyLocation() {
     setLocating(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        AppAlert.alert(
-          "Permiso denegado",
-          "No se pudo acceder a tu ubicación. Puedes elegirla manualmente tocando el mapa."
-        );
-        return;
+      const hasPermission = await ensureLocationPermission();
+      if (!hasPermission) return;
+
+      // Si el GPS del teléfono está apagado (no el permiso de la app, el
+      // servicio de ubicación del sistema), Android puede ofrecer
+      // activarlo con su propio diálogo nativo sin salir de la app --
+      // así se captura la ubicación al instante en el mismo toque.
+      if (Platform.OS === "android") {
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!servicesEnabled) {
+          try {
+            await Location.enableNetworkProviderAsync();
+          } catch {
+            // El usuario cerró el diálogo sin activar la ubicación: se
+            // queda como estaba, sin alertas -- puede seguir eligiendo
+            // el punto a mano en el mapa.
+            return;
+          }
+        }
       }
 
       const location = await Location.getCurrentPositionAsync({
@@ -194,7 +236,7 @@ export default function MapLocationPicker({
       mapRef.current?.animateToRegion(newRegion, 600);
       await reverseGeocode(latitude, longitude);
     } catch (e) {
-      console.log("Error:", e);
+      console.log("Error obteniendo ubicación:", e);
     } finally {
       setLocating(false);
     }
@@ -240,6 +282,12 @@ export default function MapLocationPicker({
           <MapView
             ref={mapRef}
             style={styles.map}
+            // Explícito en vez de dejar que RN Maps infiera el provider:
+            // en Android SIEMPRE es Google Maps igual (no hay otra opción
+            // ahí), pero sin esto algunos dispositivos/OEM pueden
+            // comportarse distinto. En iOS, al no pasar PROVIDER_GOOGLE,
+            // usa Apple Maps nativo (no necesita API key ahí).
+            provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
             initialRegion={region}
             onPress={handleMapPress}
             showsUserLocation
@@ -273,16 +321,15 @@ export default function MapLocationPicker({
         </View>
       </View>
 
-      {/* Panel inferior */}
-      <KeyboardAvoidingView
-        // En Android, con android:windowSoftInputMode en "resize" (el default de
-        // Expo), el sistema ya achica la ventana cuando aparece el teclado.
-        // Si acá además usamos behavior="height", se descuenta el alto del
-        // teclado dos veces y el panel queda mal calculado (tapa el input).
-        // Por eso en Android no aplicamos ningún behavior extra.
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.bottomPanel}
-      >
+      {/* Panel inferior -- KeyboardStickyView (react-native-keyboard-controller)
+          en vez del KeyboardAvoidingView nativo de RN: éste último dependía
+          de android:windowSoftInputMode="resize" para funcionar en Android,
+          que en un build standalone con edgeToEdgeEnabled (ver app.json) no
+          siempre resizea la ventana como se espera, y el panel terminaba
+          tapado por el teclado. KeyboardStickyView sigue el alto real del
+          teclado nativo (vía reanimated) sin depender de eso, y funciona
+          igual en ambas plataformas. */}
+      <KeyboardStickyView style={[styles.bottomPanel, { paddingBottom: 28 + insets.bottom }]}>
         <Text style={styles.addressLabel}>Dirección aproximada</Text>
         <View style={styles.addressInput}>
           <Ionicons
@@ -333,7 +380,7 @@ export default function MapLocationPicker({
             )}
           </LinearGradient>
         </TouchableOpacity>
-      </KeyboardAvoidingView>
+      </KeyboardStickyView>
     </View>
   );
 }

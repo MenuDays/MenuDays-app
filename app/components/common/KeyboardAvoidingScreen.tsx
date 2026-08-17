@@ -1,5 +1,6 @@
 import React from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, ViewStyle } from "react-native";
+import { StyleSheet, ViewStyle } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 interface KeyboardAvoidingScreenProps {
   children: React.ReactNode;
@@ -13,13 +14,14 @@ interface KeyboardAvoidingScreenProps {
 // tape los inputs de más abajo. Se repetía en cada form.tsx (menu, platos,
 // promociones, register, login, perfil, etc.) así que se centraliza acá.
 //
-// Uso: envolver el <ScreenHeader/> + <ScrollView/> de la pantalla con
-// esto. El comportamiento difiere por plataforma porque así lo maneja
-// mejor cada SO:
-// - iOS: "padding" empuja el contenido hacia arriba.
-// - Android: normalmente el manifest ya tiene windowSoftInputMode
-//   adjustResize y no hace falta nada, pero "height" es un fallback
-//   seguro si algún layout no lo respeta.
+// Usa el KeyboardAvoidingView de react-native-keyboard-controller (no el
+// de React Native) en las dos plataformas: el nativo de RN, en Android,
+// dependía de que android:windowSoftInputMode="resize" (el default de
+// Expo) resizee la ventana -- pero con edgeToEdgeEnabled activado (ver
+// app.json) eso no siempre pasa en un build standalone, y los inputs
+// quedaban tapados por el teclado. Este sigue el alto real del teclado
+// nativo directamente (vía reanimated), así que funciona igual en ambas
+// plataformas sin depender de eso.
 export default function KeyboardAvoidingScreen({
   children,
   style,
@@ -28,7 +30,7 @@ export default function KeyboardAvoidingScreen({
   return (
     <KeyboardAvoidingView
       style={[styles.flex, style]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior="padding"
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
       {children}

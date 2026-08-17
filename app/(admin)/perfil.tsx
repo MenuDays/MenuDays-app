@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 import UserService, { User } from "../../services/user.service";
 import AuthService from "../../services/auth.service";
@@ -120,7 +121,7 @@ export default function AdminPerfilScreen() {
 
   function handleViewAsComensal() {
     enterPreview("administrador");
-    router.push("/(home)");
+    router.push("/(home)/(tabs)");
   }
 
   function handleLogout() {
@@ -158,6 +159,7 @@ export default function AdminPerfilScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <KeyboardAvoidingScreen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         <ProfileHero
@@ -180,8 +182,8 @@ export default function AdminPerfilScreen() {
             title="Información personal"
             headerRight={
               !isEditing && (
-                <TouchableOpacity style={styles.inlineEditTrigger} onPress={startEditing}>
-                  <Ionicons name="create-outline" size={16} color="#F5A800" />
+                <TouchableOpacity style={styles.inlineEditTrigger} onPress={startEditing} activeOpacity={0.85}>
+                  <Ionicons name="create-outline" size={18} color="#FFFFFF" />
                   <Text style={styles.inlineEditTriggerText}>Editar</Text>
                 </TouchableOpacity>
               )
@@ -241,6 +243,7 @@ export default function AdminPerfilScreen() {
 
         </View>
       </ScrollView>
+      </KeyboardAvoidingScreen>
 
       <AdminBottomNav />
     </SafeAreaView>
@@ -289,12 +292,21 @@ const styles = StyleSheet.create({
   inlineEditTrigger: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    backgroundColor: "#F5A800",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    shadowColor: "#F5A800",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   inlineEditTriggerText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#F5A800",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   editActionsRow: {
     flexDirection: "row",

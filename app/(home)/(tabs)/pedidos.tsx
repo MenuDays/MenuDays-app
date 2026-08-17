@@ -4,11 +4,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-import OrderService, { OrderHistoryItem, OrderStatus } from "../../services/order.service";
-import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
-import { AppAlert } from "../components/common/AppAlert";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
+import OrderService, { OrderHistoryItem, OrderStatus } from "../../../services/order.service";
+import StatusBadge, { StatusTone } from "../../components/restaurant/StatusBadge";
+import { AppAlert } from "../../components/common/AppAlert";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 const ESTADO_LABEL: Record<OrderStatus, string> = {
   pendiente: "Pendiente",
@@ -95,7 +95,12 @@ export default function PedidosScreen() {
                 <Text style={styles.cardSubtitle} numberOfLines={1}>
                   {order.restaurante.nombre}
                 </Text>
-                <Text style={styles.cardPrice}>${Number(order.total).toFixed(2)}</Text>
+                <Text style={styles.cardPrice}>
+                  ${Number(order.total).toFixed(2)}
+                  {order.metodoEntrega === "DELIVERY" && (
+                    <Text style={styles.cardPriceExtra}> + cargos</Text>
+                  )}
+                </Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -146,4 +151,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cardTitle: { flex: 1, fontSize: 14, fontWeight: "800", color: colors.text },
   cardSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   cardPrice: { fontSize: 13, fontWeight: "800", color: "#FB8C00", marginTop: 6 },
+  cardPriceExtra: { fontSize: 11, fontWeight: "600", color: colors.textSecondary },
 });

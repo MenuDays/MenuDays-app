@@ -12,9 +12,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-import CategoryService, { Category } from "../../services/category.service";
-import { EmptyState } from "../components/common/EmptyState";
-import { getCategoryIcon } from "../../constants/categoryIcons";
+import CategoryService, { Category } from "../../../services/category.service";
+import { EmptyState } from "../../components/common/EmptyState";
+import { getCategoryIcon } from "../../../constants/categoryIcons";
 
 // Perf: expo-image (ya es dependencia del proyecto) decodifica más rápido
 // que el <Image> de react-native y cachea en memoria+disco -- importa acá
@@ -64,7 +64,7 @@ export default function ExplorarCategoriasScreen() {
 
   return (
     <ImageBackground
-      source={require("../../assets/images/explorar-bg.png")}
+      source={require("../../../assets/images/explorar-bg.png")}
       style={styles.gradient}
       contentFit="cover"
     >
@@ -98,7 +98,7 @@ export default function ExplorarCategoriasScreen() {
             ListEmptyComponent={
               <View style={styles.emptyCard}>
                 <EmptyState
-                  mascot={require("../../assets/images/nene-brazos-cruzados.png")}
+                  mascot={require("../../../assets/images/nene-brazos-cruzados.png")}
                   text="Todavía no hay categorías cargadas."
                   size={120}
                 />

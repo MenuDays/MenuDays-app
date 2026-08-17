@@ -50,7 +50,7 @@ export default function MapScreen() {
         longitude: result.longitude,
       });
 
-      router.replace("/(home)");
+      router.replace("/(home)/(tabs)");
     } catch (error) {
       console.error("Error completo:", error);
 

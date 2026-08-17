@@ -114,7 +114,7 @@ export default function AdminNotificationsScreen() {
       ) : notifications.length === 0 ? (
         <View style={styles.centerWrap}>
           <Ionicons name="notifications-off-outline" size={36} color="#D9D9D9" />
-          <Text style={styles.emptyText}>No tenés notificaciones por ahora.</Text>
+          <Text style={styles.emptyText}>No tienes notificaciones por ahora.</Text>
         </View>
       ) : (
         <FlatList

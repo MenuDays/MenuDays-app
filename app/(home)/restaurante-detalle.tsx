@@ -7,6 +7,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -15,7 +16,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import { SafeAreaView } from "react-native-safe-area-context";
 // TODO: si el proyecto todavía no tiene "expo-clipboard" instalado,
 // correr `npx expo install expo-clipboard` (se usa para "Copiar dirección").
@@ -55,6 +58,13 @@ const restaurantId = previewRestaurantId ?? routeId;
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  // Sin esto, un toque en "Ver Menú" mientras la navegación todavía está
+  // resolviendo (que puede tardar si el back está "frío") no daba
+  // feedback visual, así que el usuario volvía a tocar 2-3 veces --
+  // cada toque empujaba OTRA instancia de restaurante-catalogo a la
+  // pila, y por eso hacía falta ir "para atrás" varias veces para que
+  // se sintiera normal otra vez.
+  const [openingMenu, setOpeningMenu] = useState(false);
   // Distancia calculada en el cliente a partir de la última ubicación
   // guardada del usuario (LocationService) + lat/lng del restaurante.
   // No hay endpoint que la devuelva calculada desde el back.
@@ -314,6 +324,7 @@ const restaurantId = previewRestaurantId ?? routeId;
 
   return (
     <View style={styles.container}>
+      <KeyboardAvoidingScreen>
       <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.coverWrap}>
           {restaurant.portadaUrl ? (
@@ -371,18 +382,19 @@ const restaurantId = previewRestaurantId ?? routeId;
             )}
 
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{restaurant.nombreComercial}</Text>
+              <Text style={styles.name} numberOfLines={2}>{restaurant.nombreComercial}</Text>
               <View style={styles.metaRow}>
-                <Ionicons name="star" size={13} color="#F5A800" />
-                <Text style={styles.metaText}>{restaurant.calificacionPromedio.toFixed(1)}</Text>
+                <View style={styles.metaRatingChip}>
+                  <Ionicons name="star" size={13} color="#F5A800" />
+                  <Text style={styles.metaText}>{restaurant.calificacionPromedio.toFixed(1)}</Text>
+                </View>
                 {restaurant.categorias.length > 0 && (
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    {" "}
+                  <Text style={styles.metaTextSecondary} numberOfLines={2}>
                     · {restaurant.categorias.map((c) => c.categoria.nombre).join(", ")}
                   </Text>
                 )}
                 {distanceKm != null && (
-                  <Text style={styles.metaText}> · {formatDistance(distanceKm)}</Text>
+                  <Text style={styles.metaTextSecondary}> · {formatDistance(distanceKm)}</Text>
                 )}
               </View>
             </View>
@@ -428,7 +440,10 @@ const restaurantId = previewRestaurantId ?? routeId;
             <TouchableOpacity
               style={styles.verMenuButton}
               activeOpacity={0.9}
-              onPress={() =>
+              disabled={openingMenu}
+              onPress={() => {
+                if (openingMenu) return;
+                setOpeningMenu(true);
                 router.push({
                   pathname: "/(home)/restaurante-catalogo",
                   params: {
@@ -438,8 +453,13 @@ const restaurantId = previewRestaurantId ?? routeId;
                     nombreDelivery: restaurant.nombreDelivery ?? "",
                     ownerPreview: String(!!ownerPreview),
                   },
-                })
-              }
+                });
+                // Se reactiva solo si el usuario vuelve a esta pantalla
+                // sin de verdad haber entrado (ej. la navegación tardó y
+                // canceló) -- si entró bien, esta pantalla puede quedar
+                // debajo en la pila sin que importe su estado.
+                setTimeout(() => setOpeningMenu(false), 1200);
+              }}
             >
               <LinearGradient
                 colors={["#FFB74D", "#FB8C00"]}
@@ -447,9 +467,15 @@ const restaurantId = previewRestaurantId ?? routeId;
                 end={{ x: 1, y: 0 }}
                 style={styles.verMenuGradient}
               >
-                <Ionicons name="restaurant" size={18} color="#FFFFFF" />
-                <Text style={styles.verMenuText}>Ver Menú</Text>
-                <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+                {openingMenu ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="restaurant" size={18} color="#FFFFFF" />
+                    <Text style={styles.verMenuText}>Ver Menú</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+                  </>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           )}
@@ -461,6 +487,7 @@ const restaurantId = previewRestaurantId ?? routeId;
               <View style={styles.mapWrap}>
                 <MapView
                   style={{ flex: 1 }}
+                  provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
                   scrollEnabled={false}
                   zoomEnabled={false}
                   pitchEnabled={false}
@@ -658,6 +685,7 @@ const restaurantId = previewRestaurantId ?? routeId;
           </View>
         </View>
       </ScrollView>
+      </KeyboardAvoidingScreen>
 
       <Modal
         visible={reportModalVisible}
@@ -666,7 +694,12 @@ const restaurantId = previewRestaurantId ?? routeId;
         onRequestClose={handleCloseReport}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          {/* KeyboardAvoidingView acá adentro: el Modal es su propia
+              jerarquía nativa y no hereda el manejo de teclado de la
+              pantalla de atrás -- sin esto, el textarea de "Descripción
+              adicional" (más abajo del todo en este bottom-sheet) quedaba
+              tapado por el teclado al enfocarlo. */}
+          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reportar restaurante</Text>
               <TouchableOpacity onPress={handleCloseReport} disabled={submittingReport} hitSlop={10}>
@@ -738,7 +771,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                 )}
               </TouchableOpacity>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -923,7 +956,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // negativo), pero el nombre va alineado abajo ("flex-end") en vez de
   // centrado con el logo -- así el texto queda debajo del solape, sin
   // mezclarse visualmente con la foto de portada.
-  headerRow: { flexDirection: "row", alignItems: "flex-end", gap: 12, marginTop: -36 },
+  // El solape con la portada va SOLO en el logo (marginTop negativo acá
+  // abajo), no en toda la fila -- antes ese margen negativo estaba en
+  // headerRow, así que el nombre se movía junto con el logo hacia arriba.
+  // En pantallas anchas (tablet), donde la portada de 220px de alto ocupa
+  // proporcionalmente mucho menos ancho visual, ese desplazamiento hacía
+  // que el nombre terminara pisando la imagen en vez de quedar debajo.
+  // Con el margen solo en el logo, el nombre siempre arranca justo al
+  // principio del área de contenido, sin importar el ancho de pantalla.
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   logo: {
     width: 64,
     height: 64,
@@ -931,11 +972,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.background,
     backgroundColor: colors.background,
+    marginTop: -36,
   },
   logoPlaceholder: { alignItems: "center", justifyContent: "center" },
   name: { fontSize: 19, fontWeight: "900", color: colors.text },
-  metaRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
+  // flexWrap: antes esta fila (estrella + calificación + categorías +
+  // distancia) era todo texto suelto en una sola línea sin wrap -- con
+  // varias categorías largas o pantallas angostas, el texto se cortaba
+  // y se iba fuera del borde derecho en vez de bajar de línea.
+  metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginTop: 4, rowGap: 4 },
+  metaRatingChip: { flexDirection: "row", alignItems: "center", gap: 3 },
   metaText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
+  metaTextSecondary: { fontSize: 12, color: colors.textSecondary, fontWeight: "600", flexShrink: 1 },
 
   actionsRow: {
   flexDirection: "row",

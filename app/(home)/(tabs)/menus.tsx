@@ -14,11 +14,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-import PublicMenuService, { PublicMenu } from "../../services/public-menu.service";
-import UserService from "../../services/user.service";
-import { EmptyState } from "../components/common/EmptyState";
-import { useTheme } from "../../contexts/ThemeContext";
-import type { ThemeColors } from "../../contexts/ThemeContext";
+import PublicMenuService, { PublicMenu } from "../../../services/public-menu.service";
+import UserService from "../../../services/user.service";
+import { EmptyState } from "../../components/common/EmptyState";
+import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 // Pestaña "Menús": todos los menús del día vigentes/publicados cerca del
 // comensal, entre restaurantes (a diferencia de "Menú del día" dentro de
@@ -100,15 +101,16 @@ export default function MenusScreen() {
     fetchMenus();
   }
 
-  function goToRestaurant(menu: PublicMenu) {
+  function goToMenuDetail(menu: PublicMenu) {
     router.push({
-      pathname: "/(home)/restaurante-detalle",
-      params: { id: menu.restaurante_id },
+      pathname: "/(home)/pedido-producto",
+      params: { id: menu.id, tipo: "menu_dia" },
     });
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <KeyboardAvoidingScreen>
       <Text style={styles.title}>Menús</Text>
 
       <View style={styles.searchBar}>
@@ -182,7 +184,7 @@ export default function MenusScreen() {
           }
           ListEmptyComponent={
             <EmptyState
-              mascot={require("../../assets/images/nene-brazos-cruzados.png")}
+              mascot={require("../../../assets/images/nene-brazos-cruzados.png")}
               text="No hay menús del día publicados cerca tuyo por ahora. Probá ampliar la distancia o vuelve más tarde."
             />
           }
@@ -193,7 +195,7 @@ export default function MenusScreen() {
               <TouchableOpacity
                 style={styles.card}
                 activeOpacity={0.9}
-                onPress={() => goToRestaurant(item)}
+                onPress={() => goToMenuDetail(item)}
               >
                 <View style={styles.imageWrap}>
                   {item.foto_url ? (
@@ -256,6 +258,7 @@ export default function MenusScreen() {
           }}
         />
       )}
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }

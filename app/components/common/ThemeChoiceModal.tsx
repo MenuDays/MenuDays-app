@@ -21,9 +21,9 @@ export default function ThemeChoiceModal({ visible, onChoose }: ThemeChoiceModal
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Text style={styles.title}>¿Cómo querés ver la app?</Text>
+          <Text style={styles.title}>¿Cómo quieres ver la app?</Text>
           <Text style={styles.subtitle}>
-            Podés cambiarlo cuando quieras desde tu perfil.
+            Puedes cambiarlo cuando quieras desde tu perfil.
           </Text>
 
           <View style={styles.optionsRow}>

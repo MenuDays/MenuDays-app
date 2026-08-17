@@ -4,14 +4,13 @@ import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Image,
-    KeyboardAvoidingView,
-    Platform,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import RestaurantService from "../../services/restaurant.service";
@@ -121,7 +120,7 @@ export default function ConfigurarDeliveryScreen() {
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <View style={styles.content}>
           {cameFromProfile && (

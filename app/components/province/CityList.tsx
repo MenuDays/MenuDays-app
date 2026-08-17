@@ -35,8 +35,8 @@ export default function CityList({
         <>
           {ListHeaderComponent}
           <View style={styles.header}>
-            <Text style={styles.title}>Ciudades disponibles</Text>
-            <Text style={styles.counter}>{cities.length} ciudades</Text>
+            <Text style={styles.title}>Cantones disponibles</Text>
+            <Text style={styles.counter}>{cities.length} cantones</Text>
           </View>
         </>
       }

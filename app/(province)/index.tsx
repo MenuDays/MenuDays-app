@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import ContinueButton from "../components/province/ContinueButton";
 import ProvinceHeader from "../components/province/ProvinceHeader";
 import ProvinceList from "../components/province/ProvinceList";
@@ -72,6 +73,7 @@ export default function ProvinceScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+            <KeyboardAvoidingScreen>
             <ProvinceList
                 provinces={filteredProvinces}
                 selectedProvince={selectedProvince}
@@ -93,6 +95,7 @@ export default function ProvinceScreen() {
                 disabled={!selectedProvince}
                 onPress={handleContinue}
             />
+            </KeyboardAvoidingScreen>
         </SafeAreaView>
     );
 }

@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 import RestaurantService, {
   PublicDish,
@@ -52,6 +53,18 @@ interface PlatoCategoryGroup {
   nombre: string;
   iconoUrl: string | null;
   platos: PublicDish[];
+}
+
+// Agrupa el menú del día por Colección (concepto independiente de las
+// categorías de plato -- ver menu-collection.service.ts). Se arma acá
+// mismo, en el contexto de UN restaurante, a partir de los menús que ya
+// vienen embebidos en RestaurantPublicDetail -- NO se usa en Home general
+// ni en la pestaña global de Menús, que mezclan varios restaurantes.
+interface MenuCollectionGroup {
+  id: string;
+  nombre: string;
+  orden: number;
+  menus: PublicMenuDelDia[];
 }
 
 export default function RestauranteCatalogoScreen() {
@@ -140,6 +153,39 @@ export default function RestauranteCatalogoScreen() {
     [restaurant, query]
   );
 
+  // Menús del día agrupados por Colección, con "Sin colección" como
+  // bucket final para los que todavía no tienen una asignada (mismo
+  // criterio que el fallback "Otros" de platos, más abajo).
+  const menusByCollection = useMemo<MenuCollectionGroup[]>(() => {
+    const withCollection = new Map<string, MenuCollectionGroup>();
+    const sinColeccion: PublicMenuDelDia[] = [];
+
+    for (const menu of filteredMenus) {
+      if (menu.menu_colecciones) {
+        const key = String(menu.menu_colecciones.id);
+        if (!withCollection.has(key)) {
+          withCollection.set(key, {
+            id: key,
+            nombre: menu.menu_colecciones.nombre,
+            orden: menu.menu_colecciones.orden,
+            menus: [],
+          });
+        }
+        withCollection.get(key)!.menus.push(menu);
+      } else {
+        sinColeccion.push(menu);
+      }
+    }
+
+    const groups = Array.from(withCollection.values()).sort((a, b) => a.orden - b.orden);
+
+    if (sinColeccion.length > 0) {
+      groups.push({ id: "sin-coleccion", nombre: "Sin colección", orden: Infinity, menus: sinColeccion });
+    }
+
+    return groups;
+  }, [filteredMenus]);
+
   const filteredPromos = useMemo(
     () => (restaurant ? restaurant.promociones.filter((p) => matchesQuery(p.titulo, p.descripcion)) : []),
     [restaurant, query]
@@ -161,8 +207,11 @@ export default function RestauranteCatalogoScreen() {
     [platosSinCategoria, query]
   );
 
+  // El dueño en "Vista previa" también puede tocar las cards para ver el
+  // detalle exacto que ve un comensal (antes esto no navegaba a ningún
+  // lado) -- lo único que se sigue evitando en ownerPreview es el botón
+  // "Realizar pedido" de esa pantalla, vía el param ownerPreview.
   function goToProduct(productId: number, tipo: "menu_dia" | "plato" | "promocion") {
-    if (isOwnerPreview) return;
     router.push({
       pathname: "/(home)/pedido-producto",
       params: {
@@ -170,6 +219,7 @@ export default function RestauranteCatalogoScreen() {
         tipo,
         ofreceDelivery: ofreceDelivery ?? "",
         nombreDelivery: nombreDelivery ?? "",
+        ownerPreview: String(isOwnerPreview),
       },
     });
   }
@@ -213,6 +263,7 @@ export default function RestauranteCatalogoScreen() {
         <View style={styles.roundButton} />
       </SafeAreaView>
 
+      <KeyboardAvoidingScreen>
       <View style={styles.segmentRow}>
         {TABS.map((t) => {
           const active = tab === t.key;
@@ -261,20 +312,8 @@ export default function RestauranteCatalogoScreen() {
       )}
 
       {tab === "menu" && (
-        <FlatList
-          data={filteredMenus}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <MenuCard
-              item={item}
-              colors={colors}
-              interactive={!isOwnerPreview}
-              onPress={() => goToProduct(item.id, "menu_dia")}
-            />
-          )}
-          ListEmptyComponent={
+        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+          {menusByCollection.length === 0 ? (
             <EmptyState
               mascot={require("../../assets/images/nene-pensando.png")}
               text={
@@ -283,8 +322,28 @@ export default function RestauranteCatalogoScreen() {
                   : "Este restaurante todavía no publicó su menú del día."
               }
             />
-          }
-        />
+          ) : (
+            menusByCollection.map((group) => (
+              <View key={group.id} style={styles.categoryGroup}>
+                <View style={styles.categoryHeaderRow}>
+                  <View style={[styles.categoryIcon, styles.categoryIconPlaceholder]}>
+                    <Ionicons name="albums-outline" size={16} color={colors.placeholder} />
+                  </View>
+                  <Text style={styles.categoryTitle}>{group.nombre}</Text>
+                </View>
+                {group.menus.map((item) => (
+                  <MenuCard
+                    key={item.id}
+                    item={item}
+                    colors={colors}
+                    interactive
+                    onPress={() => goToProduct(item.id, "menu_dia")}
+                  />
+                ))}
+              </View>
+            ))
+          )}
+        </ScrollView>
       )}
 
       {tab === "platos" && (
@@ -308,7 +367,7 @@ export default function RestauranteCatalogoScreen() {
                       key={plato.id}
                       item={plato}
                       colors={colors}
-                      interactive={!isOwnerPreview}
+                      interactive
                       onPress={() => goToProduct(plato.id, "plato")}
                     />
                   ))}
@@ -328,7 +387,7 @@ export default function RestauranteCatalogoScreen() {
                       key={plato.id}
                       item={plato}
                       colors={colors}
-                      interactive={!isOwnerPreview}
+                      interactive
                       onPress={() => goToProduct(plato.id, "plato")}
                     />
                   ))}
@@ -349,7 +408,7 @@ export default function RestauranteCatalogoScreen() {
             <PromoCard
               item={item}
               colors={colors}
-              interactive={!isOwnerPreview}
+              interactive
               onPress={() => goToProduct(item.id, "promocion")}
             />
           )}
@@ -387,6 +446,7 @@ export default function RestauranteCatalogoScreen() {
           }
         />
       )}
+      </KeyboardAvoidingScreen>
 
       <Modal
         visible={galleryIndex !== null}

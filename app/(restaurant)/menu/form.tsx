@@ -4,9 +4,11 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import CategoryService, { Category } from "../../../services/category.service";
 import MenuService, { Menu } from "../../../services/menu.service";
+import MenuCollectionService, { MenuCollection } from "../../../services/menu-collection.service";
 import { AppAlert } from "../../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
+import FormCollectionPicker from "../../components/restaurant/FormCollectionPicker";
 import FormDateField from "../../components/restaurant/FormDateField";
 import FormImagePicker from "../../components/restaurant/FormImagePicker";
 import FormTextField from "../../components/restaurant/FormTextField";
@@ -15,7 +17,10 @@ import ScreenHeader from "../../components/restaurant/ScreenHeader";
 const DESCRIPTION_MAX = 500; // @MaxLength(500) en CreateMenuDto
 
 export default function MenuFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  // coleccionId: viene del botón "+" de una colección en menu.tsx, para
+  // que el menú nazca ya asignado a esa colección (mismo formulario, sin
+  // duplicar nada -- ver CollectionSection en menu.tsx).
+  const { id, coleccionId } = useLocalSearchParams<{ id?: string; coleccionId?: string }>();
   const isEditing = !!id;
 
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -25,6 +30,7 @@ export default function MenuFormScreen() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [collectionId, setCollectionId] = useState<string | null>(coleccionId ?? null);
   const [publishOnSave, setPublishOnSave] = useState(true);
   const [currentEstado, setCurrentEstado] = useState<Menu["estado"] | null>(null);
   const [loading, setLoading] = useState(isEditing);
@@ -33,6 +39,16 @@ export default function MenuFormScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
+  const [collections, setCollections] = useState<MenuCollection[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(true);
+
+  useEffect(() => {
+    MenuCollectionService.getAll()
+      .then(setCollections)
+      .catch((e) => AppAlert.alert("Error", e.message || "No se pudieron cargar las colecciones."))
+      .finally(() => setCollectionsLoading(false));
+  }, []);
+
   useEffect(() => {
     CategoryService.getMyCategories()
       .then((cats) => {
@@ -40,7 +56,7 @@ export default function MenuFormScreen() {
         if (cats.length === 0) {
           AppAlert.alert(
             "Sin categorías",
-            "Todavía no elegiste las categorías de tu restaurante. Andá a Mi perfil > Categorías para elegirlas antes de crear un menú."
+            "Todavía no elegiste las categorías de tu restaurante. Ve a Mi perfil > Categorías para elegirlas antes de crear un menú."
           );
         }
       })
@@ -58,6 +74,7 @@ export default function MenuFormScreen() {
         setStartDate(menu.fecha_inicio.slice(0, 10));
         setEndDate(menu.fecha_fin.slice(0, 10));
         setCategoryId(menu.categoria_id);
+        setCollectionId(menu.coleccion_id);
         setImageUri(menu.foto_url);
         setCurrentEstado(menu.estado);
         setPublishOnSave(menu.estado === "publicado");
@@ -101,6 +118,7 @@ export default function MenuFormScreen() {
         fechaInicio: startDate.trim(),
         fechaFin: endDate.trim(),
         categoriaId: categoryId!,
+        coleccionId: collectionId ?? undefined,
         imageUri,
       };
 
@@ -181,6 +199,13 @@ export default function MenuFormScreen() {
             value={categoryId}
             onChange={setCategoryId}
             loading={categoriesLoading}
+          />
+
+          <FormCollectionPicker
+            collections={collections}
+            value={collectionId}
+            onChange={setCollectionId}
+            loading={collectionsLoading}
           />
 
           <Text style={styles.label}>Programar fechas</Text>

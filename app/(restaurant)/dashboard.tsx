@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
   Dimensions,
@@ -20,6 +21,7 @@ import {
 import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
+import QuickActionsFab from "../components/restaurant/QuickActionsFab";
 import { useTheme } from "../../contexts/ThemeContext";
 const platosBg = require("../../assets/dashboard/platos.png");
 const promocionesBg = require("../../assets/dashboard/promociones.png");
@@ -175,6 +177,19 @@ export default function RestaurantDashboard() {
   rating: 0,
 });
   const [showDashboardMenu, setShowDashboardMenu] = React.useState(false);
+
+  // El FAB de accesos rápidos guarda su estado "abierto/cerrado" adentro
+  // (QuickActionsFab). Si el usuario lo abre y navega por otro lado sin
+  // pasar por una de sus 4 acciones (ej. toca un tab del bottom nav), el
+  // dashboard puede quedar montado en la pila con el FAB todavía
+  // "abierto" en memoria. Cambiar esta key al reenfocar la pantalla
+  // fuerza un remount limpio -- vuelve a nacer cerrado, sin lógica extra.
+  const [fabKey, setFabKey] = React.useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      setFabKey((k) => k + 1);
+    }, [])
+  );
 
 
   // Platos registrados, promociones activas, pedidos pendientes, reseñas
@@ -677,6 +692,38 @@ export default function RestaurantDashboard() {
       </ScrollView>
 
       <RestaurantBottomNav />
+
+      <QuickActionsFab
+        key={fabKey}
+        actions={[
+          {
+            icon: "restaurant-outline",
+            label: "Menú",
+            // Mismo flujo actual de creación de menú (con Colecciones),
+            // sin colección preseleccionada -- igual que el FAB de
+            // menu.tsx cuando se crea "en general".
+            onPress: () => router.push("/(restaurant)/menu/form" as any),
+          },
+          {
+            icon: "pricetag-outline",
+            label: "Promoción",
+            onPress: () => router.push("/(restaurant)/promociones/form" as any),
+          },
+          {
+            icon: "fast-food-outline",
+            label: "Plato",
+            onPress: () => router.push("/(restaurant)/platos/form" as any),
+          },
+          {
+            icon: "images-outline",
+            label: "Galería",
+            // La galería no tiene una ruta de "agregar" separada: el
+            // "+" para subir una foto vive en la propia pantalla
+            // (ver ScreenHeader rightIcon="add" en gallery.tsx).
+            onPress: () => router.push("/(restaurant)/gallery" as any),
+          },
+        ]}
+      />
     </ImageBackground>
   );
 }

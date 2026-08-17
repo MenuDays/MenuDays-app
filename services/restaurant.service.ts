@@ -107,6 +107,15 @@ export interface PublicGalleryImage {
   orden: number;
 }
 
+// Referencia mínima a la colección de menús (Entradas/Sopas/etc.) --
+// concepto independiente de PublicRestaurantCategory (categorías de
+// cocina). Ver menu-collection.service.ts.
+export interface PublicMenuCollectionRef {
+  id: number;
+  nombre: string;
+  orden: number;
+}
+
 export interface PublicMenuDelDia {
   id: number;
   nombre: string;
@@ -114,6 +123,8 @@ export interface PublicMenuDelDia {
   precio: number;
   foto_url: string | null;
   estado: string;
+  coleccion_id: number | null;
+  menu_colecciones: PublicMenuCollectionRef | null;
 }
 
 export interface PublicDish {

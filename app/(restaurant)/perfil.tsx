@@ -48,7 +48,7 @@ export default function RestaurantProfileScreen() {
 
   function handleViewAsComensal() {
     enterPreview("restaurante");
-    router.push("/(home)");
+    router.push("/(home)/(tabs)");
   }
 
   function handleLogout() {

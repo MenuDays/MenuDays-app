@@ -9,13 +9,13 @@ import {
   Image,
   ImageBackground,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView, KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../services/api';
 import LocationService, { City } from '../../services/location.service';
@@ -230,7 +230,7 @@ export default function RegisterRestaurantScreen() {
 
   async function handleSubmit() {
     if (!restaurantName.trim() || !province || !city || !phone.trim()) {
-      AppAlert.alert('Campos incompletos', 'Completa nombre, provincia, ciudad y teléfono.');
+      AppAlert.alert('Campos incompletos', 'Completa nombre, provincia, cantón y teléfono.');
       return;
     }
 
@@ -336,7 +336,12 @@ export default function RegisterRestaurantScreen() {
   );
 
   return (
-    <ScrollView style={styles.container} bounces={false}>
+    <KeyboardAwareScrollView
+      style={styles.container}
+      bounces={false}
+      bottomOffset={20}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Parte superior */}
       <ImageBackground
         source={require('../../assets/images/splash.png')}
@@ -348,7 +353,7 @@ export default function RegisterRestaurantScreen() {
         <TouchableOpacity
           style={[styles.backButton, { top: insets.top + 12 }]}
           activeOpacity={0.85}
-          onPress={() => router.replace('/(home)/perfil')}
+          onPress={() => router.replace('/(home)/(tabs)/perfil')}
         >
           <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
@@ -407,8 +412,8 @@ export default function RegisterRestaurantScreen() {
           <Ionicons name="chevron-down" size={18} color={colors.text} />
         </TouchableOpacity>
 
-        {/* Ciudad */}
-        <Text style={styles.label}>Ciudad</Text>
+        {/* Cantón */}
+        <Text style={styles.label}>Cantón</Text>
         <TouchableOpacity
           style={[styles.inputContainer, !province && styles.inputDisabled]}
           onPress={openCityPicker}
@@ -416,7 +421,7 @@ export default function RegisterRestaurantScreen() {
         >
           <Ionicons name="location-outline" size={20} color={colors.primary} style={styles.inputIcon} />
           <Text style={[styles.input, !city && styles.placeholderText]}>
-            {city ? city.nombre : province ? 'Elige la  ciudad' : 'Elige primero la provincia'}
+            {city ? city.nombre : province ? 'Elige el cantón' : 'Elige primero la provincia'}
           </Text>
           <Ionicons name="chevron-down" size={18} color={colors.text} />
         </TouchableOpacity>
@@ -618,7 +623,10 @@ export default function RegisterRestaurantScreen() {
         onRequestClose={() => setProvincePickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          {/* KeyboardAvoidingView acá adentro: el Modal es su propia
+              jerarquía nativa y no hereda el manejo de teclado de la
+              pantalla de atrás. */}
+          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige la provincia</Text>
               <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
@@ -651,7 +659,7 @@ export default function RegisterRestaurantScreen() {
               )}
               ItemSeparatorComponent={() => <View style={styles.countryDivider} />}
             />
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -663,10 +671,10 @@ export default function RegisterRestaurantScreen() {
         onRequestClose={() => setCityPickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Elige la ciudad{province ? ` (${province.nombre})` : ''}
+                Elige el cantón{province ? ` (${province.nombre})` : ''}
               </Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
@@ -677,7 +685,7 @@ export default function RegisterRestaurantScreen() {
               <Ionicons name="search-outline" size={18} color={colors.placeholder} style={styles.inputIcon} />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="Buscar ciudad"
+                placeholder="Buscar cantón"
                 placeholderTextColor={colors.placeholder}
                 value={citySearch}
                 onChangeText={setCitySearch}
@@ -698,10 +706,10 @@ export default function RegisterRestaurantScreen() {
               )}
               ItemSeparatorComponent={() => <View style={styles.countryDivider} />}
               ListEmptyComponent={
-                <Text style={styles.emptyListText}>No hay ciudades para esta provincia</Text>
+                <Text style={styles.emptyListText}>No hay cantones para esta provincia</Text>
               }
             />
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -713,7 +721,7 @@ export default function RegisterRestaurantScreen() {
         onRequestClose={() => setCountryPickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige el país</Text>
               <TouchableOpacity onPress={() => setCountryPickerVisible(false)}>
@@ -752,10 +760,10 @@ export default function RegisterRestaurantScreen() {
               )}
               ItemSeparatorComponent={() => <View style={styles.countryDivider} />}
             />
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

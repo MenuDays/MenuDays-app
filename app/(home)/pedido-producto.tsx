@@ -8,6 +8,7 @@ import PublicMenuService from "../../services/public-menu.service";
 import PublicDishService from "../../services/public-dish.service";
 import PublicPromotionService from "../../services/public-promotion.service";
 import { OrderItemType } from "../../services/order.service";
+import ImageViewerModal from "../components/common/ImageViewerModal";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
 
@@ -32,6 +33,23 @@ interface ProductoNormalizado {
   precio: number;
   imagenUrl: string | null;
   restauranteNombre: string;
+  // Sólo menús del día y promociones tienen vigencia (fecha_fin); los
+  // platos no, así que queda null para tipo === "plato".
+  fechaFin: string | null;
+}
+
+// fechaFin viene como "YYYY-MM-DD" (columna @db.Date, sin hora). Se fuerza
+// timeZone "UTC" al formatear para no correr el día según la zona horaria
+// del dispositivo (si no, un device con offset negativo podría mostrar el
+// día anterior al guardado).
+function formatFechaFin(fechaFin: string): string {
+  const date = new Date(`${fechaFin}T00:00:00.000Z`);
+  const formatted = date.toLocaleDateString("es-EC", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
+  return `Disponible hasta el ${formatted}`;
 }
 
 export default function PedidoProductoScreen() {
@@ -51,14 +69,21 @@ export default function PedidoProductoScreen() {
     // ambas opciones como antes.
     ofreceDelivery?: string;
     nombreDelivery?: string;
+    // Viene en "true" cuando se llega desde la Vista previa del dueño
+    // (restaurante-catalogo.tsx con ownerPreview) -- ahí se puede ver el
+    // detalle igual que un comensal, pero no tiene sentido dejarlo
+    // "pedirse a sí mismo", así que se esconde el CTA de pedido.
+    ownerPreview?: string;
   }>();
 
   const productId = params.id ?? params.menuId;
   const tipo: OrderItemType = params.tipo ?? "menu_dia";
+  const isOwnerPreview = params.ownerPreview === "true";
 
   const [producto, setProducto] = useState<ProductoNormalizado | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
 
   // Esta pantalla vive dentro del stack de tabs "(home)", cuya tab bar
   // flota con position "absolute" (ver styles.tabBar en _layout.tsx:
@@ -93,6 +118,7 @@ export default function PedidoProductoScreen() {
         precio: dish.precio,
         imagenUrl: dish.plato_imagenes[0]?.url ?? null,
         restauranteNombre: dish.restaurante.nombre_comercial,
+        fechaFin: null,
       }));
     } else if (tipo === "promocion") {
       request = PublicPromotionService.findOne(productId).then((promo) => ({
@@ -101,6 +127,7 @@ export default function PedidoProductoScreen() {
         precio: promo.precio,
         imagenUrl: promo.imagen_url,
         restauranteNombre: promo.restaurante.nombre_comercial,
+        fechaFin: promo.fecha_fin,
       }));
     } else {
       request = PublicMenuService.findOne(productId).then((menu) => ({
@@ -109,6 +136,7 @@ export default function PedidoProductoScreen() {
         precio: menu.precio,
         imagenUrl: menu.foto_url,
         restauranteNombre: menu.restaurante.nombre_comercial,
+        fechaFin: menu.fecha_fin,
       }));
     }
 
@@ -167,7 +195,12 @@ export default function PedidoProductoScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.imageWrap}>
+        <TouchableOpacity
+          style={styles.imageWrap}
+          activeOpacity={producto.imagenUrl ? 0.9 : 1}
+          disabled={!producto.imagenUrl}
+          onPress={() => setImageViewerVisible(true)}
+        >
           {producto.imagenUrl ? (
             <Image source={{ uri: producto.imagenUrl }} style={styles.image} />
           ) : (
@@ -175,7 +208,7 @@ export default function PedidoProductoScreen() {
               <Ionicons name="restaurant-outline" size={32} color={colors.placeholder} />
             </View>
           )}
-        </View>
+        </TouchableOpacity>
 
         <Text style={styles.restaurante}>{producto.restauranteNombre}</Text>
         <View style={styles.topRow}>
@@ -183,13 +216,29 @@ export default function PedidoProductoScreen() {
           <Text style={styles.precio}>${producto.precio.toFixed(2)}</Text>
         </View>
         {producto.descripcion ? <Text style={styles.descripcion}>{producto.descripcion}</Text> : null}
+        {producto.fechaFin ? (
+          <View style={styles.vigenciaRow}>
+            <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
+            <Text style={styles.vigenciaText}>{formatFechaFin(producto.fechaFin)}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
-        <TouchableOpacity style={styles.cta} onPress={handleRealizarPedido}>
-          <Text style={styles.ctaText}>Realizar pedido</Text>
-        </TouchableOpacity>
-      </View>
+      {!isOwnerPreview && (
+        <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
+          <TouchableOpacity style={styles.cta} onPress={handleRealizarPedido}>
+            <Text style={styles.ctaText}>Realizar pedido</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {producto.imagenUrl && (
+        <ImageViewerModal
+          visible={imageViewerVisible}
+          images={[{ uri: producto.imagenUrl, label: producto.nombre }]}
+          onClose={() => setImageViewerVisible(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -218,6 +267,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   nombre: { flex: 1, fontSize: 22, fontWeight: "900", color: colors.text },
   precio: { fontSize: 18, fontWeight: "800", color: "#FB8C00" },
   descripcion: { fontSize: 14, color: colors.textSecondary, marginTop: 10, lineHeight: 20 },
+  vigenciaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14 },
+  vigenciaText: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   footer: {
     padding: 20,
     borderTopWidth: 1,

@@ -131,7 +131,7 @@ export default function LoginScreen() {
         // elegirla -- entra directo a Inicio. Solo la primera vez (o si
         // la borró desde Perfil) pasa por (province).
         const savedLocation = await LocationService.getUserLocation();
-        pendingDestination.current = savedLocation ? "/(home)" : "/(province)";
+        pendingDestination.current = savedLocation ? "/(home)/(tabs)" : "/(province)";
 
         // Solo comensal puede usar Dark Mode, así que el cartelito de
         // "¿claro u oscuro?" también es solo para comensal, y solo la
@@ -292,8 +292,12 @@ export default function LoginScreen() {
         </View>
       </View>
 
-      {/* Overlay con la mascota mientras se espera la respuesta del login */}
-      <Modal visible={loading} transparent animationType="fade">
+      {/* Overlay con la mascota mientras se espera la respuesta del login.
+          statusBarTranslucent: sin esto, en Android el Modal no se
+          extiende detrás de la status bar y queda un corte arriba (se ve
+          lo que hay atrás en vez del overlay negro cubriendo toda la
+          pantalla). */}
+      <Modal visible={loading} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.loadingOverlay}>
           <Image
             source={require('../../assets/images/login-nene.png')}

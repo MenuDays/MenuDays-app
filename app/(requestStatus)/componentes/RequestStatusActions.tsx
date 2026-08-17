@@ -56,7 +56,7 @@ export default function RequestStatusActions({
 
       case "pendiente":
       default:
-        router.replace("/(home)");
+        router.replace("/(home)/(tabs)");
         break;
     }
   }
@@ -88,7 +88,7 @@ export default function RequestStatusActions({
       <TouchableOpacity
         style={styles.secondaryButton}
         activeOpacity={0.85}
-        onPress={() => router.push("/(home)/perfil")}
+        onPress={() => router.push("/(home)/(tabs)/perfil")}
       >
         <Ionicons
           name="person-circle-outline"

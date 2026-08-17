@@ -13,7 +13,7 @@ import LocationService from '../../services/location.service';
 function routeForRole(rol: string | undefined, hasLocation: boolean): Href {
   if (rol === 'administrador') return '/(admin)/dashboard';
   if (rol === 'restaurante') return '/(restaurant)/dashboard';
-  return hasLocation ? '/(home)' : '/(province)';
+  return hasLocation ? '/(home)/(tabs)' : '/(province)';
 }
 
 export default function SplashScreen() {

@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
+  Dimensions,
   View,
   Text,
   StyleSheet,
@@ -14,28 +17,39 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import WaveBottom from '../components/home/WaveBottom';
-import WaveTop from '../components/home/WaveTop';
-import UserService, { User } from '../../services/user.service';
-import CategoryService, { Category } from '../../services/category.service';
-import ExploreService, { ExploreRestaurant } from '../../services/explore.service';
-import PublicMenuService, { PublicMenu } from '../../services/public-menu.service';
-import { useDeviceLocation } from '../../hooks/useDeviceLocation';
-import { getCategoryIcon } from '../../constants/categoryIcons';
-import { useTheme } from '../../contexts/ThemeContext';
-import type { ThemeColors } from '../../contexts/ThemeContext';
-import { AppAlert, AlertButton } from '../components/common/AppAlert';
+import KeyboardAvoidingScreen from '../../components/common/KeyboardAvoidingScreen';
+import WaveBottom from '../../components/home/WaveBottom';
+import WaveTop from '../../components/home/WaveTop';
+import UserService, { User } from '../../../services/user.service';
+import CategoryService, { Category } from '../../../services/category.service';
+import ExploreService, { ExploreRestaurant } from '../../../services/explore.service';
+import PublicMenuService, { PublicMenu } from '../../../services/public-menu.service';
+import { useDeviceLocation } from '../../../hooks/useDeviceLocation';
+import { getCategoryIcon } from '../../../constants/categoryIcons';
+import { useTheme } from '../../../contexts/ThemeContext';
+import type { ThemeColors } from '../../../contexts/ThemeContext';
+import { AppAlert, AlertButton } from '../../components/common/AppAlert';
 
 // Categorías: vienen del back (GET /categories), con el ícono en
-// item.iconos.url. El back las devuelve ordenadas alfabéticamente, así
-// que acá se buscan por nombre las 5 curadas para Inicio (mismas que
-// antes eran hardcodeadas) y se conservan en este orden. El resto de
-// las categorías se ve en la pantalla "Explorar" (grilla completa).
-const HOME_CATEGORY_NAMES = ['Ejecutivo', 'Mariscos', 'Parrillas', 'Sopas', 'Pollo'];
+// item.iconos.url. El back las devuelve ordenadas alfabéticamente. Antes
+// acá se mostraban solo 5 curadas -- ahora se muestran las 30 en un
+// carrusel con efecto "lente" (la de en medio se agranda al scrollear).
+const CATEGORY_ITEM_WIDTH = 58;
+const CATEGORY_ITEM_GAP = 14;
+const CATEGORY_STRIDE = CATEGORY_ITEM_WIDTH + CATEGORY_ITEM_GAP;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Padding a los costados para que CUALQUIER categoría (incluida la
+// primera y la última) pueda llegar al centro del carrusel y agrandarse
+// del todo con el efecto "lente" -- sin esto, los extremos nunca
+// alcanzan el centro de la pantalla.
+const CAROUSEL_SIDE_PADDING = (SCREEN_WIDTH - CATEGORY_ITEM_WIDTH) / 2;
 
-// Mismas opciones de radio que restaurantes.tsx/menus.tsx (0 = "cualquiera",
-// acá no se usa porque el pill de Inicio siempre filtra por un radio).
-const DISTANCE_OPTIONS = [1, 2, 5, 10];
+// Mismas opciones de radio que restaurantes.tsx/menus.tsx (0 = "cualquiera").
+// Antes Inicio no tenía la opción "cualquiera" -- pero con pocos
+// restaurantes cargados y lejos de la ubicación guardada, esto hacía que
+// Inicio se viera vacío sin ninguna forma de ampliar la búsqueda desde
+// acá (había que ir hasta la pestaña Menús para eso).
+const DISTANCE_OPTIONS = [1, 2, 5, 10, 0];
 
 // El header naranja usa el MISMO gradiente en Light y Dark (identidad de
 // marca, no cambia con el tema -- ver Colors.ts, primaryLight/primaryDark
@@ -60,6 +74,65 @@ export default function HomeScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  // Maneja el efecto "lente" del carrusel de categorías: cada item lee
+  // su escala interpolando contra esta posición de scroll compartida.
+  const categoryScrollX = useRef(new Animated.Value(0)).current;
+
+  // Drift horizontal sutil y continuo para los íconos de categorías, extra
+  // por encima del efecto "lente" (scale) que ya reacciona al scroll --
+  // este anda solo todo el tiempo, muy lento y de rango chico (±2.5px) para
+  // que se sienta "vivo" sin marear ni competir con el gesto de scroll ni
+  // con el touch del usuario (useNativeDriver, no toca el hilo de JS).
+  const iconDriftAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(iconDriftAnim, {
+          toValue: 1,
+          duration: 2800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(iconDriftAnim, {
+          toValue: 0,
+          duration: 2800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [iconDriftAnim]);
+  const iconDriftX = iconDriftAnim.interpolate({ inputRange: [0, 1], outputRange: [-2.5, 2.5] });
+
+  // Auto-scroll continuo del carrusel de categorías (derecha a izquierda,
+  // solo, sin que nadie lo toque) -- por encima de TODO lo que ya tenía
+  // (efecto lente + drift de íconos), no lo reemplaza: sigue siendo un
+  // scroll real, así que el usuario puede seguir arrastrándolo a mano en
+  // cualquier momento. Se pausa mientras hay un touch activo y retoma
+  // solo, un rato después de soltar, desde donde haya quedado.
+  const categoryListRef = useRef<Animated.FlatList<any>>(null);
+  const categoryAutoOffset = useRef(0);
+  const categoryContentWidth = useRef(0);
+  const categoryAutoPaused = useRef(false);
+  useEffect(() => {
+    if (categories.length === 0) return;
+    const interval = setInterval(() => {
+      if (categoryAutoPaused.current) return;
+      const maxOffset = categoryContentWidth.current - SCREEN_WIDTH;
+      if (maxOffset <= 0) return;
+      categoryAutoOffset.current += 0.5;
+      if (categoryAutoOffset.current >= maxOffset) {
+        categoryAutoOffset.current = 0;
+      }
+      categoryListRef.current?.scrollToOffset({
+        offset: categoryAutoOffset.current,
+        animated: false,
+      });
+    }, 30);
+    return () => clearInterval(interval);
+  }, [categories.length]);
 
   // "Restaurantes cercanos" -- GET /explore/restaurants, mismo endpoint
   // que restaurantes.tsx (ExploreService). Se guarda la respuesta
@@ -140,7 +213,7 @@ export default function HomeScreen() {
   async function loadRestaurants() {
     setRestaurantsLoading(true);
     try {
-      const useDistance = user?.latitude != null && user?.longitude != null;
+      const useDistance = radiusKm !== 0 && user?.latitude != null && user?.longitude != null;
       const data = await ExploreService.findRestaurants({
         radius: useDistance ? radiusKm : undefined,
         latitude: useDistance ? user!.latitude : undefined,
@@ -157,7 +230,7 @@ export default function HomeScreen() {
   async function loadMenus() {
     setMenusLoading(true);
     try {
-      const useDistance = user?.latitude != null && user?.longitude != null;
+      const useDistance = radiusKm !== 0 && user?.latitude != null && user?.longitude != null;
       const data = await PublicMenuService.findAvailable({
         radius: useDistance ? radiusKm : undefined,
         latitude: useDistance ? user!.latitude : undefined,
@@ -181,20 +254,13 @@ export default function HomeScreen() {
       'Elegí hasta qué distancia buscar restaurantes y menús cerca tuyo.',
       [
         ...DISTANCE_OPTIONS.map((km): AlertButton => ({
-          text: `${km} km`,
+          text: km === 0 ? 'Cualquier distancia' : `${km} km`,
           onPress: () => setRadiusKm(km),
         })),
         { text: 'Cancelar', style: 'cancel' },
       ]
     );
   }
-
-  // Las 5 curadas de Inicio, en el orden fijo de HOME_CATEGORY_NAMES
-  // (no las primeras 5 alfabéticas que devuelve el back). Si alguna
-  // todavía no existe en el back, simplemente no se muestra.
-  const homeCategories = HOME_CATEGORY_NAMES.map((name) =>
-    categories.find((c) => c.nombre.toLowerCase() === name.toLowerCase())
-  ).filter((c): c is Category => !!c);
 
   // Texto a mostrar en el pill: primero la dirección exacta reverse-geocodeada
   // a partir de la ubicación guardada en el perfil; si no hay coords guardadas
@@ -203,8 +269,11 @@ export default function HomeScreen() {
   const locationLabel =
     gpsAddress ?? user?.city?.name ?? (locationLoading ? 'Buscando...' : 'Ubicación');
 
+  const avatarInitials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '';
+
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingScreen>
       <ScrollView showsVerticalScrollIndicator={false}>
 
         {/* HEADER NARANJA -- compacto: pill de ubicación + carrusel de
@@ -213,77 +282,157 @@ export default function HomeScreen() {
 
           <View style={styles.headerContent}>
 
-            <View style={styles.headerTopRow}>
-              {/* Selector ubicación */}
+            {/* Ubicación + perfil, en una sola fila compacta. La marca
+                "MenuDays" ya no vive acá -- ahora aparece debajo de la
+                onda, ver más abajo. */}
+            <View style={styles.brandRow}>
               <TouchableOpacity
                 style={styles.locationPill}
+                activeOpacity={0.85}
                 onPress={() => router.push('/(province)')}
               >
-                <Ionicons name="location-outline" size={16} color={HEADER_PILL_TEXT} />
+                <Ionicons name="location-outline" size={14} color={HEADER_PILL_TEXT} />
                 <Text style={styles.locationText} numberOfLines={1}>
                   {locationLabel}
                 </Text>
-                <Ionicons name="chevron-down" size={14} color={HEADER_PILL_TEXT} />
+                <Ionicons name="chevron-down" size={12} color={HEADER_PILL_TEXT} />
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.verTodosButton}
-                onPress={() => router.push('/(home)/explorar')}
+                style={styles.avatarButton}
+                activeOpacity={0.85}
+                onPress={() => router.push('/(home)/(tabs)/perfil')}
               >
-                <Text style={styles.verTodosText}>Ver todas</Text>
+                {user?.profilePhotoUrl ? (
+                  <Image source={{ uri: user.profilePhotoUrl }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarInitials}>{avatarInitials}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
 
-            {/* Categorías -- carrusel horizontal real (FlatList, con
-                momentum/inercia nativa), no una grilla estática. */}
+            {/* Categorías -- carrusel horizontal con efecto "lente" premium:
+                cada ícono se agranda a medida que se acerca al centro de
+                la pantalla y se achica hacia los costados, con momentum
+                nativo (Animated.FlatList, useNativeDriver). */}
             {categoriesLoading ? (
               <View style={styles.categoriesLoadingWrap}>
                 <ActivityIndicator size="small" color={HEADER_PILL_TEXT} />
               </View>
             ) : (
               <View style={styles.categoriesCarouselWrapper}>
-              <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={homeCategories}
-                keyExtractor={(cat) => String(cat.id)}
-                contentContainerStyle={styles.categoriesCarousel}
-                snapToAlignment="start"
-                decelerationRate="fast"
-                renderItem={({ item: cat }) => (
-                  <TouchableOpacity
-                    style={styles.categoryItem}
-                    onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre, categoriaId: String(cat.id) } })}
-                  >
-                    <View style={styles.categoryCircle}>
-                      {getCategoryIcon(cat.nombre) ? (
-                        <Image
-                          source={getCategoryIcon(cat.nombre)!}
-                          style={styles.categoryImage}
-                        />
-                      ) : cat.iconos?.url ? (
-                        <Image
-                          source={{ uri: cat.iconos.url }}
-                          style={styles.categoryImage}
-                        />
-                      ) : (
-                        <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
-                          <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.categoryName} numberOfLines={1} ellipsizeMode="tail">
-                      {cat.nombre}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              />
+                <Animated.FlatList
+                  ref={categoryListRef}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={categories}
+                  keyExtractor={(cat) => String((cat as Category).id)}
+                  contentContainerStyle={styles.categoriesCarousel}
+                  onContentSizeChange={(w) => {
+                    categoryContentWidth.current = w;
+                  }}
+                  onScrollBeginDrag={() => {
+                    categoryAutoPaused.current = true;
+                  }}
+                  onScrollEndDrag={() => {
+                    // Retoma solo, un rato después de soltar -- no
+                    // inmediatamente, para no pelearse con el momentum
+                    // del gesto del usuario.
+                    setTimeout(() => {
+                      categoryAutoPaused.current = false;
+                    }, 2000);
+                  }}
+                  onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { x: categoryScrollX } } }],
+                    {
+                      useNativeDriver: true,
+                      listener: (e: any) => {
+                        // Mantiene sincronizado el offset "de verdad" (ref
+                        // plano) con lo que el usuario scrollea a mano,
+                        // para que el auto-scroll retome desde ahí y no
+                        // salte para atrás.
+                        categoryAutoOffset.current = e.nativeEvent.contentOffset.x;
+                      },
+                    }
+                  )}
+                  scrollEventThrottle={16}
+                  renderItem={({ item, index }) => {
+                    const cat = item as Category;
+                    const inputRange = [
+                      (index - 1) * CATEGORY_STRIDE,
+                      index * CATEGORY_STRIDE,
+                      (index + 1) * CATEGORY_STRIDE,
+                    ];
+                    const scale = categoryScrollX.interpolate({
+                      inputRange,
+                      outputRange: [0.8, 1.18, 0.8],
+                      extrapolate: 'clamp',
+                    });
+                    const opacity = categoryScrollX.interpolate({
+                      inputRange,
+                      outputRange: [0.65, 1, 0.65],
+                      extrapolate: 'clamp',
+                    });
+                    return (
+                      <TouchableOpacity
+                        style={styles.categoryItem}
+                        activeOpacity={0.85}
+                        onPress={() => router.push({ pathname: '/(home)/explorar-resultados', params: { categoria: cat.nombre, categoriaId: String(cat.id) } })}
+                      >
+                        <Animated.View style={[styles.categoryCircle, { transform: [{ scale }, { translateX: iconDriftX }], opacity }]}>
+                          {getCategoryIcon(cat.nombre) ? (
+                            <Image
+                              source={getCategoryIcon(cat.nombre)!}
+                              style={styles.categoryImage}
+                            />
+                          ) : cat.iconos?.url ? (
+                            <Image
+                              source={{ uri: cat.iconos.url }}
+                              style={styles.categoryImage}
+                            />
+                          ) : (
+                            <View style={[styles.categoryImage, styles.categoryImagePlaceholder]}>
+                              <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
+                            </View>
+                          )}
+                        </Animated.View>
+                        <Text style={styles.categoryName} numberOfLines={1} ellipsizeMode="tail">
+                          {cat.nombre}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
               </View>
             )}
+
+            {/* "Ver todas" -- reubicado más arriba, pegado al carrusel de
+                categorías, en vez de flotar sobre la onda como antes. */}
+            <View style={styles.verTodosRow}>
+              <TouchableOpacity
+                style={styles.verTodosButton}
+                activeOpacity={0.85}
+                onPress={() => router.push('/(home)/(tabs)/explorar')}
+              >
+                <Text style={styles.verTodosText}>Ver todas</Text>
+                <Ionicons name="arrow-forward" size={13} color={colors.primaryDark} />
+              </TouchableOpacity>
+            </View>
 
           </View>
 
           <WaveBottom />
+
+          {/* "MenuDays", con la tipografía fachera del wordmark, ahora
+              vive debajo de la onda (antes estaba arriba a la izquierda,
+              donde ahora está la ubicación). */}
+          <View style={styles.brandWordmarkWrap}>
+            <Text style={styles.brandWordmark} numberOfLines={1}>
+              Menu<Text style={styles.brandWordmarkAccent}>Days</Text>
+            </Text>
+          </View>
 
         </LinearGradient>
 
@@ -308,7 +457,7 @@ export default function HomeScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Restaurantes cercanos</Text>
               <TouchableOpacity style={styles.distancePill} onPress={openDistancePicker}>
-                <Text style={styles.distanceText}>{radiusKm} km</Text>
+                <Text style={styles.distanceText}>{radiusKm === 0 ? 'Cualquiera' : `${radiusKm} km`}</Text>
                 <Ionicons name="chevron-down" size={14} color={colors.text} />
               </TouchableOpacity>
             </View>
@@ -393,7 +542,7 @@ export default function HomeScreen() {
             {/* Menús disponibles hoy */}
             <View style={styles.menusSectionHeader}>
               <Text style={styles.sectionTitle}>Menús disponibles hoy</Text>
-              <TouchableOpacity onPress={() => router.push('/(home)/menus')}>
+              <TouchableOpacity onPress={() => router.push('/(home)/(tabs)/menus')}>
                 <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -413,7 +562,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     key={menu.id}
                     style={styles.menuCard}
-                    onPress={() => router.push({ pathname: '/(home)/restaurante-detalle', params: { id: menu.restaurante_id } })}
+                    onPress={() => router.push({ pathname: '/(home)/pedido-producto', params: { id: menu.id, tipo: 'menu_dia' } })}
                   >
                     <View style={styles.menuImageContainer}>
                       {menu.foto_url ? (
@@ -477,42 +626,80 @@ export default function HomeScreen() {
         </View>
       </View>
       </ScrollView>
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.primaryDark },
-  header: { paddingTop: 12, position: 'relative' },
+  header: { paddingTop: 10, position: 'relative' },
   headerContent: { paddingHorizontal: 16 },
-  headerTopRow: {
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
   },
+  // Letra "WOW pero premium" para el wordmark: sans bien pesada + tracking
+  // negativo (las letras un poco más juntas leen más como logo que como
+  // texto suelto), "Days" en un blanco apenas translúcido para separarlo
+  // visualmente de "Menu" sin meter un color nuevo a la paleta.
+  brandWordmark: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  brandWordmarkAccent: {
+    color: 'rgba(255,255,255,0.75)',
+  },
+  // Ahora vive debajo de WaveBottom (fuera de headerContent) -- negative
+  // marginTop chico para que se asiente en el "valle" de la onda en vez
+  // de quedar pegado justo debajo, sin llegar a superponerse.
+  brandWordmarkWrap: {
+    alignItems: 'center',
+    marginTop: -6,
+    paddingBottom: 14,
+  },
+  avatarButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.8)',
+    overflow: 'hidden',
+  },
+  avatarImage: { width: '100%', height: '100%' },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  avatarInitials: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
   locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    flexShrink: 1,
-    gap: 6,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: '78%',
+    gap: 5,
   },
-  locationText: { fontSize: 13.5, fontWeight: '600', color: HEADER_PILL_TEXT, flexShrink: 1 },
+  locationText: { fontSize: 12.5, fontWeight: '600', color: HEADER_PILL_TEXT, flexShrink: 1 },
   categoriesCarouselWrapper: {
     width: '100%',
     overflow: 'hidden',
   },
   categoriesCarousel: {
-    paddingTop: 12,
+    paddingTop: 10,
     paddingBottom: 4,
-    paddingRight: 4,
-    gap: 14,
+    paddingHorizontal: CAROUSEL_SIDE_PADDING,
+    gap: CATEGORY_ITEM_GAP,
   },
-  categoryItem: { alignItems: 'center', width: 58 },
+  categoryItem: { alignItems: 'center', width: CATEGORY_ITEM_WIDTH },
   categoryCircle: {
     width: 54,
     height: 54,
@@ -521,6 +708,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.55)',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   categoryImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   categoryImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSecondary },
@@ -532,11 +724,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: HEADER_PILL_TEXT,
     textAlign: 'center',
   },
+  // Ya no flota sobre la onda -- ahora es parte del flujo normal, pegado
+  // justo debajo del carrusel de categorías ("más arriba" que antes).
+  verTodosRow: {
+    alignItems: 'center',
+    marginTop: 12,
+  },
   verTodosButton: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.card,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
   },
   verTodosText: { color: colors.primaryDark, fontSize: 12.5, fontWeight: '700' },
   content: { backgroundColor: colors.background, paddingBottom: 100 },
