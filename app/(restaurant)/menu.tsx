@@ -137,6 +137,13 @@ export default function MenuListScreen() {
     });
   }
 
+  function toggleExpandAll() {
+    setExpandedIds((prev) => {
+      const allExpanded = groups.length > 0 && groups.every((g) => prev.has(g.id));
+      return allExpanded ? new Set() : new Set(groups.map((g) => g.id));
+    });
+  }
+
   function openCreateModal() {
     setNewCollectionName("");
     setCreateModalVisible(true);
@@ -194,6 +201,8 @@ export default function MenuListScreen() {
     return realGroups;
   }, [collections, filteredMenus]);
 
+  const allExpanded = groups.length > 0 && groups.every((g) => expandedIds.has(g.id));
+
   return (
     <View style={styles.container}>
       <ScreenHeader title="Menú del día" showBack />
@@ -213,7 +222,23 @@ export default function MenuListScreen() {
           {groups.length === 0 ? (
             <Text style={styles.emptyText}>No hay menús en esta categoría.</Text>
           ) : (
-            groups.map((group) => (
+            <>
+              <TouchableOpacity
+                style={styles.collapseAllButton}
+                activeOpacity={0.7}
+                onPress={toggleExpandAll}
+              >
+                <Ionicons
+                  name={allExpanded ? "contract-outline" : "expand-outline"}
+                  size={15}
+                  color="#B0793A"
+                />
+                <Text style={styles.collapseAllText}>
+                  {allExpanded ? "Colapsar todo" : "Expandir todo"}
+                </Text>
+              </TouchableOpacity>
+
+              {groups.map((group) => (
               <CollectionSection
                 key={group.id}
                 title={group.nombre}
@@ -247,7 +272,8 @@ export default function MenuListScreen() {
                   />
                 ))}
               </CollectionSection>
-            ))
+              ))}
+            </>
           )}
 
           <TouchableOpacity style={styles.addCollectionButton} activeOpacity={0.85} onPress={openCreateModal}>
@@ -396,6 +422,21 @@ const styles = StyleSheet.create({
     color: "#9E9E9E",
     fontSize: 14,
     marginTop: 40,
+  },
+
+  collapseAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  collapseAllText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#B0793A",
   },
 
   section: {

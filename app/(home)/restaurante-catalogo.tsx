@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
   Modal,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -41,6 +42,7 @@ import type { ThemeColors } from "../../contexts/ThemeContext";
 // entre pantallas sin serializar JSON gigante en la URL.
 
 type CatalogTab = "menu" | "platos" | "promos" | "galeria";
+const TABS_ORDER: CatalogTab[] = ["menu", "platos", "promos", "galeria"];
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const GALLERY_GAP = 8;
@@ -94,6 +96,43 @@ export default function RestauranteCatalogoScreen() {
     setTab(next);
     setSearch("");
   }
+
+  // Ref con el tab actual: el PanResponder se crea UNA sola vez (adentro
+  // de useRef), así que si sus handlers leyeran "tab" directo quedarían
+  // con el valor de la primera vez que se armó (closure vieja). Leyendo
+  // de este ref siempre tienen el valor más nuevo.
+  const tabRef = useRef(tab);
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
+
+  // Deslizar con el dedo para cambiar de pestaña (Menú/Platos/Promos/
+  // Galería), en cualquiera de las dos direcciones. Solo reclama el
+  // gesto ante un arrastre CLARAMENTE horizontal (dx bien mayor a dy) y
+  // recién después de moverse una distancia real -- así no compite con
+  // el scroll vertical normal de las listas de cada pestaña.
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5 && Math.abs(gesture.dx) > 14,
+      onPanResponderRelease: (_, gesture) => {
+        const SWIPE_THRESHOLD = 60;
+        if (Math.abs(gesture.dx) < SWIPE_THRESHOLD && Math.abs(gesture.vx) < 0.35) return;
+
+        const currentIndex = TABS_ORDER.indexOf(tabRef.current);
+        if (gesture.dx < 0) {
+          // Deslizó de derecha a izquierda -> avanza a la siguiente.
+          const nextIndex = Math.min(TABS_ORDER.length - 1, currentIndex + 1);
+          if (nextIndex !== currentIndex) changeTab(TABS_ORDER[nextIndex]);
+        } else {
+          // Deslizó de izquierda a derecha -> vuelve a la anterior.
+          const prevIndex = Math.max(0, currentIndex - 1);
+          if (prevIndex !== currentIndex) changeTab(TABS_ORDER[prevIndex]);
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (!id) {
@@ -273,6 +312,7 @@ export default function RestauranteCatalogoScreen() {
               style={[styles.segment, active && styles.segmentActive]}
               onPress={() => changeTab(t.key)}
               activeOpacity={0.85}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
             >
               <Ionicons
                 name={t.icon}
@@ -287,6 +327,12 @@ export default function RestauranteCatalogoScreen() {
         })}
       </View>
 
+      {/* Todo lo de acá abajo (buscador + contenido de la pestaña) vive
+          dentro de esta zona con el PanResponder del swipe -- así deslizar
+          en cualquier parte del contenido cambia de pestaña, sin competir
+          con el segmentRow de arriba (los botones siguen siendo taps
+          normales) ni con el scroll vertical de cada lista. */}
+      <View style={{ flex: 1 }} {...swipePanResponder.panHandlers}>
       {(tab === "menu" || tab === "platos" || tab === "promos") && (
         <View style={styles.searchBar}>
           <Ionicons name="search" size={17} color={colors.placeholder} />
@@ -446,6 +492,7 @@ export default function RestauranteCatalogoScreen() {
           }
         />
       )}
+      </View>
       </KeyboardAvoidingScreen>
 
       <Modal

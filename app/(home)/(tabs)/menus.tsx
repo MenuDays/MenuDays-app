@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 
 import PublicMenuService, { PublicMenu } from "../../../services/public-menu.service";
 import UserService from "../../../services/user.service";
@@ -59,15 +60,22 @@ export default function MenusScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    UserService.getMe()
-      .then((u) => {
-        if (u.latitude != null && u.longitude != null) {
-          setUserCoords({ lat: u.latitude, lng: u.longitude });
-        }
-      })
-      .catch((e) => console.log("[MenusScreen] no se pudo obtener ubicación:", e));
-  }, []);
+  // useFocusEffect (no useEffect de solo-montaje): esta pantalla es un
+  // tab y queda montada en memoria una vez visitada, así que sin esto la
+  // ubicación quedaba pegada a la primera vez que se abrió esta pestaña
+  // en toda la sesión, sin enterarse de cambios posteriores -- mismo bug
+  // y mismo arreglo que en index.tsx (Home).
+  useFocusEffect(
+    useCallback(() => {
+      UserService.getMe()
+        .then((u) => {
+          if (u.latitude != null && u.longitude != null) {
+            setUserCoords({ lat: u.latitude, lng: u.longitude });
+          }
+        })
+        .catch((e) => console.log("[MenusScreen] no se pudo obtener ubicación:", e));
+    }, [])
+  );
 
   const fetchMenus = useCallback(async () => {
     setError(null);

@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppAlertProvider } from "./components/common/AppAlert";
 import IPhonePreview from "./preview/IPhonePreview";
@@ -20,19 +21,30 @@ export default function RootLayout() {
   if (Platform.OS !== "web") {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <ThemeProvider>
-            <PreviewModeProvider>
-              <AppAlertProvider>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                  }}
-                />
-              </AppAlertProvider>
-            </PreviewModeProvider>
-          </ThemeProvider>
-        </SafeAreaProvider>
+        {/* KeyboardProvider a nivel raíz: antes solo envolvía las
+            pantallas de (auth), así que TODO KeyboardAvoidingView /
+            KeyboardAwareScrollView / KeyboardStickyView de
+            react-native-keyboard-controller usado fuera de (auth) --
+            en (home), (restaurant), (province), etc. -- corría sin
+            contexto real. La librería lo advierte explícitamente: sin
+            KeyboardProvider, sus componentes quedan inertes (altura de
+            teclado fija en 0), así que ninguno de esos ajustes de
+            teclado hacía nada en la práctica. */}
+        <KeyboardProvider>
+          <SafeAreaProvider>
+            <ThemeProvider>
+              <PreviewModeProvider>
+                <AppAlertProvider>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                    }}
+                  />
+                </AppAlertProvider>
+              </PreviewModeProvider>
+            </ThemeProvider>
+          </SafeAreaProvider>
+        </KeyboardProvider>
       </GestureHandlerRootView>
     );
   }

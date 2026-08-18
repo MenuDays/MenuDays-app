@@ -176,7 +176,6 @@ export default function RestaurantDashboard() {
   name: "",
   rating: 0,
 });
-  const [showDashboardMenu, setShowDashboardMenu] = React.useState(false);
 
   // El FAB de accesos rápidos guarda su estado "abierto/cerrado" adentro
   // (QuickActionsFab). Si el usuario lo abre y navega por otro lado sin
@@ -384,73 +383,6 @@ export default function RestaurantDashboard() {
           { paddingTop: insets.top + 22 },
         ]}
       >
-        <View style={styles.dashboardMenuWrapper}>
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => setShowDashboardMenu((prev) => !prev)}
-            style={styles.dashboardMenuButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons
-              name={showDashboardMenu ? "close" : "menu-outline"}
-              size={25}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-
-          {showDashboardMenu && (
-            <View style={styles.dashboardDropdown}>
-              <TouchableOpacity
-                activeOpacity={0.75}
-                style={styles.dashboardDropdownItem}
-                onPress={() => {
-                  setShowDashboardMenu(false);
-                  router.push("/(restaurant)/menu" as any);
-                }}
-              >
-                <Ionicons name="restaurant-outline" size={18} color="#F5751A" />
-                <Text style={styles.dashboardDropdownText}>Menús del día</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.75}
-                style={styles.dashboardDropdownItem}
-                onPress={() => {
-                  setShowDashboardMenu(false);
-                  router.push("/(restaurant)/platos" as any);
-                }}
-              >
-                <Ionicons name="fast-food-outline" size={18} color="#F5751A" />
-                <Text style={styles.dashboardDropdownText}>Platos</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.75}
-                style={styles.dashboardDropdownItem}
-                onPress={() => {
-                  setShowDashboardMenu(false);
-                  router.push("/(restaurant)/promociones" as any);
-                }}
-              >
-                <Ionicons name="pricetag-outline" size={18} color="#F5751A" />
-                <Text style={styles.dashboardDropdownText}>Promociones</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.75}
-                style={styles.dashboardDropdownItem}
-                onPress={() => {
-                  setShowDashboardMenu(false);
-                  router.push("/(restaurant)/gallery" as any);
-                }}
-              >
-                <Ionicons name="images-outline" size={18} color="#F5751A" />
-                <Text style={styles.dashboardDropdownText}>Galería</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
         <Animated.View
           style={[
             styles.content,
@@ -906,54 +838,6 @@ const styles = StyleSheet.create({
 dashboardScrollContent: {
   paddingBottom: 110,
 },
-  // ============================================================
-  // MENÚ DESPLEGABLE — SOLO DASHBOARD
-  // ============================================================
-
-  dashboardMenuWrapper: {
-    position: "absolute",
-    top: 16,
-    right: 18,
-    zIndex: 50,
-    alignItems: "flex-end",
-  },
-
-  dashboardMenuButton: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  dashboardDropdown: {
-    width: 174,
-    marginTop: 7,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.97)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.95)",
-    shadowColor: "#000",
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-  },
-
-  dashboardDropdownItem: {
-    minHeight: 42,
-    paddingHorizontal: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  dashboardDropdownText: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    color: "#2A2A2A",
-  },
-
   // ============================================================
   // HERO / HEADER NUEVO
   // ============================================================

@@ -10,7 +10,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import RestaurantService from "../../services/restaurant.service";
@@ -118,11 +118,13 @@ export default function ConfigurarDeliveryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollView
         style={styles.keyboard}
-        behavior="padding"
+        contentContainerStyle={styles.content}
+        bottomOffset={20}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.content}>
           {cameFromProfile && (
             <TouchableOpacity
               style={styles.closeButton}
@@ -363,8 +365,7 @@ export default function ConfigurarDeliveryScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -385,8 +386,9 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 22,
+    paddingVertical: 24,
     justifyContent: "center",
   },
 

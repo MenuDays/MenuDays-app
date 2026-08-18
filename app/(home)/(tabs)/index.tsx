@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardAvoidingScreen from '../../components/common/KeyboardAvoidingScreen';
 import WaveBottom from '../../components/home/WaveBottom';
@@ -175,9 +176,26 @@ export default function HomeScreen() {
   const gpsAddress = [street, cityProvince].filter(Boolean).join(', ') || null;
 
   useEffect(() => {
-    loadUser();
     loadCategories();
   }, []);
+
+  // loadUser() en useFocusEffect (NO en un useEffect de solo-montaje):
+  // esta pantalla es un tab, así que React Navigation la mantiene montada
+  // en memoria una vez visitada (no hay unmountOnBlur en el Tabs de
+  // (home)/(tabs)/_layout.tsx) -- con un useEffect([]) de una sola vez,
+  // loadUser() corría UNA VEZ en toda la sesión, así que si el usuario
+  // cambiaba de ubicación después (Perfil o el pill de ubicación ->
+  // /(province) -> vuelve acá con router.replace) el back ya tenía la
+  // ubicación nueva guardada, pero esta pantalla seguía usando el
+  // user.latitude/longitude viejo del primer mount para siempre -- por
+  // eso los restaurantes/menús "cercanos" nunca reflejaban la ubicación
+  // actualizada por más veces que se cambiara. Ahora se re-pide cada vez
+  // que la pantalla vuelve a tener foco.
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+    }, [])
+  );
 
   // Las tiras de restaurantes/menús dependen de la ubicación guardada del
   // usuario para poder filtrar por radio (igual que restaurantes.tsx y
@@ -429,7 +447,7 @@ export default function HomeScreen() {
               vive debajo de la onda (antes estaba arriba a la izquierda,
               donde ahora está la ubicación). */}
           <View style={styles.brandWordmarkWrap}>
-            <Text style={styles.brandWordmark} numberOfLines={1}>
+            <Text style={styles.brandWordmark}>
               Menu<Text style={styles.brandWordmarkAccent}>Days</Text>
             </Text>
           </View>
@@ -642,24 +660,36 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   // Letra "WOW pero premium" para el wordmark: sans bien pesada + tracking
   // negativo (las letras un poco más juntas leen más como logo que como
-  // texto suelto), "Days" en un blanco apenas translúcido para separarlo
-  // visualmente de "Menu" sin meter un color nuevo a la paleta.
+  // texto suelto). "Menu" y "Days" van del mismo blanco sólido -- antes
+  // "Days" tenía un blanco translúcido para diferenciarlo, pero se veía
+  // gris/apagado en vez de premium.
   brandWordmark: {
     fontSize: 22,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -0.5,
+    // Sombra sutil: asegura contraste sin importar contra qué parte del
+    // degradé de la onda (que va de naranja fuerte a durazno clarito)
+    // termine cayendo el texto.
+    textShadowColor: 'rgba(0,0,0,0.18)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   brandWordmarkAccent: {
-    color: 'rgba(255,255,255,0.75)',
+    color: '#FFFFFF',
   },
-  // Ahora vive debajo de WaveBottom (fuera de headerContent) -- negative
-  // marginTop chico para que se asiente en el "valle" de la onda en vez
-  // de quedar pegado justo debajo, sin llegar a superponerse.
+  // Vive debajo de WaveBottom (fuera de headerContent), todavía dentro
+  // del LinearGradient naranja. Padding mínimo a propósito -- pegado a la
+  // onda, lo más cerca posible de "Ver todas" (que queda justo arriba de
+  // la onda), para que el header en general sea más bajo. OJO:
+  // contentWrapper (el área blanca de abajo) tiene marginTop:-20 para
+  // meterse debajo de la onda -- este paddingBottom no puede bajar de
+  // esos 20px, si no ese solape tapa el texto (así se rompió la primera
+  // vez); 22 deja apenas 2px de margen de seguridad.
   brandWordmarkWrap: {
     alignItems: 'center',
-    marginTop: -6,
-    paddingBottom: 14,
+    paddingTop: 0,
+    paddingBottom: 22,
   },
   avatarButton: {
     width: 34,

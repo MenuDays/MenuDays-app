@@ -32,6 +32,7 @@ interface ProductoNormalizado {
   descripcion: string | null;
   precio: number;
   imagenUrl: string | null;
+  restauranteId: string;
   restauranteNombre: string;
   // Sólo menús del día y promociones tienen vigencia (fecha_fin); los
   // platos no, así que queda null para tipo === "plato".
@@ -117,6 +118,7 @@ export default function PedidoProductoScreen() {
         descripcion: dish.descripcion,
         precio: dish.precio,
         imagenUrl: dish.plato_imagenes[0]?.url ?? null,
+        restauranteId: dish.restaurante.id,
         restauranteNombre: dish.restaurante.nombre_comercial,
         fechaFin: null,
       }));
@@ -126,6 +128,7 @@ export default function PedidoProductoScreen() {
         descripcion: promo.descripcion,
         precio: promo.precio,
         imagenUrl: promo.imagen_url,
+        restauranteId: promo.restaurante.id,
         restauranteNombre: promo.restaurante.nombre_comercial,
         fechaFin: promo.fecha_fin,
       }));
@@ -135,6 +138,7 @@ export default function PedidoProductoScreen() {
         descripcion: menu.descripcion,
         precio: menu.precio,
         imagenUrl: menu.foto_url,
+        restauranteId: menu.restaurante.id,
         restauranteNombre: menu.restaurante.nombre_comercial,
         fechaFin: menu.fecha_fin,
       }));
@@ -156,6 +160,14 @@ export default function PedidoProductoScreen() {
         ofreceDelivery: params.ofreceDelivery,
         nombreDelivery: params.nombreDelivery,
       },
+    });
+  }
+
+  function handleVerRestaurante() {
+    if (!producto) return;
+    router.push({
+      pathname: "/(home)/restaurante-detalle",
+      params: { id: producto.restauranteId },
     });
   }
 
@@ -224,13 +236,17 @@ export default function PedidoProductoScreen() {
         ) : null}
       </ScrollView>
 
-      {!isOwnerPreview && (
-        <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
+      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
+        {!isOwnerPreview && (
           <TouchableOpacity style={styles.cta} onPress={handleRealizarPedido}>
             <Text style={styles.ctaText}>Realizar pedido</Text>
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+        <TouchableOpacity style={styles.verRestauranteButton} onPress={handleVerRestaurante}>
+          <Ionicons name="storefront-outline" size={17} color="#FB8C00" />
+          <Text style={styles.verRestauranteText}>Ver restaurante</Text>
+        </TouchableOpacity>
+      </View>
 
       {producto.imagenUrl && (
         <ImageViewerModal
@@ -281,4 +297,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
   },
   ctaText: { color: "#FFFFFF", fontWeight: "800", fontSize: 15 },
+  verRestauranteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingVertical: 13,
+    marginTop: 10,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "#FFA726",
+  },
+  verRestauranteText: { color: "#FB8C00", fontWeight: "800", fontSize: 14 },
 });
