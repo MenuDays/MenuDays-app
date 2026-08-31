@@ -11,6 +11,7 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  RefreshControl,
 } from "react-native";
 import { PanGestureHandler, State } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,6 +21,7 @@ import { useLocalSearchParams, router, useNavigation } from "expo-router";
 import { EmptyState } from "../components/common/EmptyState";
 import { AppAlert } from "../components/common/AppAlert";
 import LocationService from "../../services/location.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import PublicDishService, { PublicDish } from "../../services/public-dish.service";
 import PublicMenuService, { PublicMenu } from "../../services/public-menu.service";
 import PublicPromotionService, { PublicPromotion } from "../../services/public-promotion.service";
@@ -87,6 +89,12 @@ interface ResultItem {
   cantidadResenas: number;
   distanciaKm: number | null;
   abierto: boolean;
+  // Solo tiene sentido para platos (menús/promociones no tienen este
+  // concepto) -- badge "Destacado"/"Oferta" en la card, mismo lenguaje
+  // visual que el carrusel de la home.
+  destacado?: boolean;
+  enOferta?: boolean;
+  precioOferta?: number | null;
 }
 
 function normalizeDish(dish: PublicDish): ResultItem {
@@ -101,6 +109,9 @@ function normalizeDish(dish: PublicDish): ResultItem {
     cantidadResenas: dish.restaurante.cantidad_resenas,
     distanciaKm: dish.distancia ?? null,
     abierto: dish.restaurante.estado_operativo === "abierto",
+    destacado: dish.destacado,
+    enOferta: dish.en_oferta,
+    precioOferta: dish.precio_oferta,
   };
 }
 
@@ -137,12 +148,17 @@ function normalizePromotion(promotion: PublicPromotion): ResultItem {
 export default function ExplorarResultadosScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { categoria } = useLocalSearchParams<{ categoria?: string }>();
+  const { categoria, tag } = useLocalSearchParams<{ categoria?: string; tag?: string }>();
   const category = categoria || "Todas";
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
-  const [tab, setTab] = useState<Tab>("platos");
+  // Si se llega acá tocando un chip de palabra clave (desde explorar.tsx),
+  // el filtro `tag` sólo existe en menus_del_dia -- se fuerza la pestaña
+  // "Menús" y se oculta el segmentado, no tiene sentido mostrar
+  // platos/promociones sin filtrar bajo el título de esa palabra clave.
+  const [tab, setTab] = useState<Tab>(tag ? "menus" : "platos");
+  const activeTab: Tab = tag ? "menus" : tab;
   const [search, setSearch] = useState("");
   const [maxDistance, setMaxDistance] = useState(0); // 0 = sin límite
   const [estado, setEstado] = useState<Estado>("todos");
@@ -152,6 +168,10 @@ export default function ExplorarResultadosScreen() {
   const [items, setItems] = useState<ResultItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // Se incrementa desde el pull-to-refresh para volver a disparar el
+  // useEffect de carga (de abajo) sin tener que cambiar de pestaña.
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const activeFilterCount =
     (maxDistance !== 0 ? 1 : 0) +
@@ -177,11 +197,14 @@ export default function ExplorarResultadosScreen() {
           : {};
 
         let normalized: ResultItem[];
-        if (tab === "platos") {
+        if (activeTab === "platos") {
           const data = await PublicDishService.findAvailable(locationFilters);
           normalized = data.map(normalizeDish);
-        } else if (tab === "menus") {
-          const data = await PublicMenuService.findAvailable(locationFilters);
+        } else if (activeTab === "menus") {
+          const data = await PublicMenuService.findAvailable({
+            ...locationFilters,
+            ...(tag ? { tag } : {}),
+          });
           normalized = data.map(normalizeMenu);
         } else {
           const data = await PublicPromotionService.findAvailable(locationFilters);
@@ -196,7 +219,10 @@ export default function ExplorarResultadosScreen() {
           AppAlert.alert("Error", msg);
         }
       } finally {
-        if (active) setLoadingData(false);
+        if (active) {
+          setLoadingData(false);
+          setRefreshing(false);
+        }
       }
     }
 
@@ -204,7 +230,12 @@ export default function ExplorarResultadosScreen() {
     return () => {
       active = false;
     };
-  }, [tab]);
+  }, [activeTab, tag, refreshTrigger]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    setRefreshTrigger((n) => n + 1);
+  }
 
   const results = useMemo(() => {
     let data = items.filter((item) => {
@@ -346,36 +377,40 @@ export default function ExplorarResultadosScreen() {
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>
-          {category !== "Todas" ? category : "Explorar"}
+          {tag ? `#${tag}` : category !== "Todas" ? category : "Explorar"}
         </Text>
         <View style={{ width: 22 }} />
       </View>
 
-      {/* Segmentado Platos / Menús / Promociones */}
-      <View style={styles.segmentedWrap}>
-        {(Object.keys(TAB_LABELS) as Tab[]).map((t) => {
-          const active = t === tab;
-          return (
-            <TouchableOpacity
-              key={t}
-              style={[styles.segment, active && styles.segmentActive]}
-              onPress={() => setTab(t)}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                {TAB_LABELS[t]}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {/* Segmentado Platos / Menús / Promociones -- oculto cuando se llega
+          filtrando por una palabra clave (tag), porque ese filtro solo
+          aplica a menús. */}
+      {!tag && (
+        <View style={styles.segmentedWrap}>
+          {(Object.keys(TAB_LABELS) as Tab[]).map((t) => {
+            const active = t === tab;
+            return (
+              <TouchableOpacity
+                key={t}
+                style={[styles.segment, active && styles.segmentActive]}
+                onPress={() => setTab(t)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                  {TAB_LABELS[t]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {/* Buscador */}
       <View style={styles.searchBar}>
         <Ionicons name="search" size={18} color={colors.placeholder} />
         <TextInput
           style={styles.searchInput}
-          placeholder={`Buscar ${TAB_LABELS[tab].toLowerCase()}...`}
+          placeholder={`Buscar ${TAB_LABELS[activeTab].toLowerCase()}...`}
           placeholderTextColor={colors.placeholder}
           value={search}
           onChangeText={setSearch}
@@ -446,13 +481,14 @@ export default function ExplorarResultadosScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.resultsList}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
           ListEmptyComponent={
             <EmptyState
               mascot={require("../../assets/images/buscando-nene.png")}
               text={
                 loadError
                   ? loadError
-                  : `No encontramos ${TAB_LABELS[tab].toLowerCase()} con esos filtros.`
+                  : `No encontramos ${TAB_LABELS[activeTab].toLowerCase()} con esos filtros.`
               }
             />
           }
@@ -463,17 +499,31 @@ export default function ExplorarResultadosScreen() {
               onPress={() =>
                 router.push({
                   pathname: "/(home)/pedido-producto",
-                  params: { id: item.id, tipo: TAB_TO_TIPO[tab] },
+                  params: { id: item.id, tipo: TAB_TO_TIPO[activeTab] },
                 })
               }
             >
-              {item.imageUrl ? (
-                <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
-              ) : (
-                <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                  <Ionicons name="fast-food-outline" size={20} color={colors.placeholder} />
-                </View>
-              )}
+              <View style={styles.thumbWrap}>
+                {item.imageUrl ? (
+                  <Image source={{ uri: optimizedImageUri(item.imageUrl, "thumb") }} style={styles.thumb} />
+                ) : (
+                  <View style={[styles.thumb, styles.thumbPlaceholder]}>
+                    <Ionicons name="fast-food-outline" size={20} color={colors.placeholder} />
+                  </View>
+                )}
+                {/* Mismo lenguaje visual que el carrusel de la home --
+                    solo platos tienen destacado/enOferta. */}
+                {(item.enOferta || item.destacado) && (
+                  <View
+                    style={[
+                      styles.resultBadge,
+                      { backgroundColor: item.enOferta ? "#E64A19" : "#F5A800" },
+                    ]}
+                  >
+                    <Ionicons name={item.enOferta ? "pricetag" : "star"} size={9} color="#FFFFFF" />
+                  </View>
+                )}
+              </View>
 
               <View style={styles.cardInfo}>
                 <View style={styles.cardHeaderRow}>
@@ -503,7 +553,14 @@ export default function ExplorarResultadosScreen() {
                   </View>
 
                   <View style={styles.priceWrap}>
-                    <Text style={styles.price}>${item.precio.toFixed(2)}</Text>
+                    {item.enOferta && item.precioOferta != null ? (
+                      <>
+                        <Text style={styles.priceOld}>${item.precio.toFixed(2)}</Text>
+                        <Text style={styles.price}>${item.precioOferta.toFixed(2)}</Text>
+                      </>
+                    ) : (
+                      <Text style={styles.price}>${item.precio.toFixed(2)}</Text>
+                    )}
                   </View>
                 </View>
               </View>
@@ -721,8 +778,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  thumbWrap: { position: "relative" },
   thumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.surfaceSecondary },
   thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
+  resultBadge: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.card,
+  },
   cardInfo: { flex: 1, justifyContent: "center" },
   cardHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   cardName: { fontSize: 15, fontWeight: "700", color: colors.text, flexShrink: 1 },
@@ -738,8 +808,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   ratingText: { fontSize: 13, fontWeight: "700", color: colors.text },
   reviewsText: { fontSize: 12, color: colors.textSecondary },
   distanceText: { fontSize: 12, color: colors.textSecondary },
-  priceWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
+  priceWrap: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   price: { fontSize: 14, fontWeight: "700", color: ORANGE },
+  priceOld: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    textDecorationLine: "line-through",
+  },
 
   modalOverlay: {
     position: "absolute",

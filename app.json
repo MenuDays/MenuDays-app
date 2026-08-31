@@ -8,11 +8,7 @@
     "scheme": "menudaysapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    "backgroundColor": "#1A120B",
     "ios": {
       "supportsTablet": true
     },
@@ -20,7 +16,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F94301"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -43,15 +39,44 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Inter_400Regular.ttf",
+            "./assets/fonts/Inter_400Regular_Italic.ttf",
+            "./assets/fonts/Inter_500Medium.ttf",
+            "./assets/fonts/Inter_600SemiBold.ttf",
+            "./assets/fonts/Inter_700Bold.ttf",
+            "./assets/fonts/Inter_800ExtraBold.ttf",
+            "./assets/fonts/Inter_900Black.ttf"
+          ]
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1A120B",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#1A120B",
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 180,
+            "resizeMode": "contain"
+          }
+        }
+      ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Permití el acceso a tu ubicación para mostrarte restaurantes cercanos.",
-          "locationAlwaysAndWhenInUsePermission": "Permití el acceso a tu ubicación para mostrarte restaurantes cercanos."
+          "locationWhenInUsePermission": "Permite el acceso a tu ubicación para mostrarte restaurantes cercanos.",
+          "locationAlwaysAndWhenInUsePermission": "Permite el acceso a tu ubicación para mostrarte restaurantes cercanos."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

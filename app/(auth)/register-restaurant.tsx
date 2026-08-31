@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -21,7 +20,10 @@ import { api } from '../../services/api';
 import LocationService, { City } from '../../services/location.service';
 import ProvinceService, { Province } from '../../services/province.service';
 import RestaurantLocationPickerBridge from '../../services/restaurantLocationPicker.bridge';
+import { RestaurantSchedule } from '../../services/restaurant.service';
 import { AppAlert } from "../components/common/AppAlert";
+import { pickImageFromCamera, pickImageFromLibrary } from "../../utils/imagePicker";
+import ScheduleEditor from "../components/profile/ScheduleEditor";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
 
@@ -168,42 +170,43 @@ export default function RegisterRestaurantScreen() {
   );
 
   async function pickLogo() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      AppAlert.alert('Permiso necesario', 'Necesitamos acceso a tus fotos para el logo.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      aspect: [1, 1],
-      allowsEditing: true,
-    });
-    if (!result.canceled) setLogo(result.assets[0].uri);
+    const picked = await pickImageFromLibrary({ aspect: [1, 1], allowsEditing: true });
+    if (picked.ok && picked.asset) setLogo(picked.asset.uri);
   }
 
   async function pickDocument(side: 'front' | 'back') {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      AppAlert.alert('Permiso necesario', 'Necesitamos acceso a la cámara para la cédula.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled) {
-      if (side === 'front') setIdFront(result.assets[0].uri);
-      else setIdBack(result.assets[0].uri);
-    }
+    const picked = await pickImageFromCamera();
+    if (!picked.ok || !picked.asset) return;
+    if (side === 'front') setIdFront(picked.asset.uri);
+    else setIdBack(picked.asset.uri);
   }
 
-  function toggleDayClosed(day: number) {
-    setSchedules((prev) =>
-      prev.map((s) => (s.day === day ? { ...s, closed: !s.closed } : s))
-    );
-  }
+  // Adapta el shape local (day/closed/openingHour/closingHour, sin id
+  // real porque el restaurante todavía no existe) al que espera
+  // ScheduleEditor (RestaurantSchedule -- id/dia_semana/cerrado/
+  // hora_apertura/hora_cierre), reusando el mismo editor de "elegir
+  // días + completar una vez" que el de editar-perfil. Como id se
+  // manda el propio número de día: alcanza para identificar la fila
+  // dentro de este array de 7, no hace falta que sea un id real de DB.
+  const scheduleForEditor: RestaurantSchedule[] = schedules.map((s) => ({
+    id: s.day,
+    dia_semana: s.day,
+    hora_apertura: s.openingHour || null,
+    hora_cierre: s.closingHour || null,
+    cerrado: s.closed,
+  }));
 
-  function setDayHour(day: number, field: 'openingHour' | 'closingHour', value: string) {
+  function handleScheduleChange(dayId: number, patch: Partial<RestaurantSchedule>) {
     setSchedules((prev) =>
-      prev.map((s) => (s.day === day ? { ...s, [field]: value } : s))
+      prev.map((s) => {
+        if (s.day !== dayId) return s;
+        return {
+          ...s,
+          closed: patch.cerrado ?? s.closed,
+          openingHour: patch.hora_apertura !== undefined ? patch.hora_apertura ?? '' : s.openingHour,
+          closingHour: patch.hora_cierre !== undefined ? patch.hora_cierre ?? '' : s.closingHour,
+        };
+      })
     );
   }
 
@@ -464,7 +467,7 @@ export default function RegisterRestaurantScreen() {
         <View style={styles.textareaContainer}>
           <TextInput
             style={styles.textarea}
-            placeholder="Contanos sobre tu restaurante, especialidades, ambiente..."
+            placeholder="Cuéntanos sobre tu restaurante, especialidades, ambiente..."
             placeholderTextColor={colors.placeholder}
             value={description}
             onChangeText={(text) => setDescription(text.slice(0, DESCRIPTION_MAX))}
@@ -516,57 +519,11 @@ export default function RegisterRestaurantScreen() {
           />
         </View>
 
-        {/* Horarios */}
+        {/* Horarios -- mismo ScheduleEditor de "elegir días + completar
+            una vez" que usa editar-perfil, para que la experiencia sea
+            idéntica en el registro y después al editar el perfil. */}
         <Text style={styles.label}>Horarios de atención</Text>
-        <Text style={styles.optionalLabel}>Marca los días que abrís y las horas de atención</Text>
-
-        {schedules.map((s) => {
-          const dayLabel = DAYS_OF_WEEK.find((d) => d.day === s.day)?.label;
-          return (
-            <View key={s.day} style={styles.scheduleRow}>
-              <View style={styles.scheduleDayHeader}>
-                <Text style={styles.scheduleDayLabel}>{dayLabel}</Text>
-                <TouchableOpacity
-                  style={[styles.scheduleToggle, !s.closed && styles.scheduleToggleActive]}
-                  onPress={() => toggleDayClosed(s.day)}
-                >
-                  <Text
-                    style={[
-                      styles.scheduleToggleText,
-                      !s.closed && styles.scheduleToggleTextActive,
-                    ]}
-                  >
-                    {s.closed ? 'Cerrado' : 'Abierto'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {!s.closed && (
-                <View style={styles.scheduleHoursRow}>
-                  <TextInput
-                    style={styles.scheduleHourInput}
-                    placeholder="08:00"
-                    placeholderTextColor={colors.placeholder}
-                    value={s.openingHour}
-                    onChangeText={(v) => setDayHour(s.day, 'openingHour', v)}
-                    keyboardType="numbers-and-punctuation"
-                    maxLength={5}
-                  />
-                  <Text style={styles.scheduleHourSeparator}>a</Text>
-                  <TextInput
-                    style={styles.scheduleHourInput}
-                    placeholder="18:00"
-                    placeholderTextColor={colors.placeholder}
-                    value={s.closingHour}
-                    onChangeText={(v) => setDayHour(s.day, 'closingHour', v)}
-                    keyboardType="numbers-and-punctuation"
-                    maxLength={5}
-                  />
-                </View>
-              )}
-            </View>
-          );
-        })}
+        <ScheduleEditor schedule={scheduleForEditor} onChange={handleScheduleChange} />
 
         {/* Documentos */}
         <Text style={styles.label}>Documentos</Text>
@@ -620,13 +577,17 @@ export default function RegisterRestaurantScreen() {
         visible={provincePickerVisible}
         animationType="slide"
         transparent
+        statusBarTranslucent
         onRequestClose={() => setProvincePickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
           {/* KeyboardAvoidingView acá adentro: el Modal es su propia
               jerarquía nativa y no hereda el manejo de teclado de la
               pantalla de atrás. */}
-          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
+          <KeyboardAvoidingView
+            style={[styles.modalContent, { paddingBottom: insets.bottom + 24 }]}
+            behavior="padding"
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige la provincia</Text>
               <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
@@ -668,10 +629,14 @@ export default function RegisterRestaurantScreen() {
         visible={cityPickerVisible}
         animationType="slide"
         transparent
+        statusBarTranslucent
         onRequestClose={() => setCityPickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
+          <KeyboardAvoidingView
+            style={[styles.modalContent, { paddingBottom: insets.bottom + 24 }]}
+            behavior="padding"
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 Elige el cantón{province ? ` (${province.nombre})` : ''}
@@ -718,10 +683,14 @@ export default function RegisterRestaurantScreen() {
         visible={countryPickerVisible}
         animationType="slide"
         transparent
+        statusBarTranslucent
         onRequestClose={() => setCountryPickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
+          <KeyboardAvoidingView
+            style={[styles.modalContent, { paddingBottom: insets.bottom + 24 }]}
+            behavior="padding"
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige el país</Text>
               <TouchableOpacity onPress={() => setCountryPickerVisible(false)}>
@@ -773,7 +742,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    height: 280,
+    minHeight: 280,
+    paddingVertical: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -801,6 +771,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     letterSpacing: 4,
+    paddingHorizontal: 8,
     lineHeight: 48,
   },
   card: {
@@ -947,64 +918,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.placeholder,
     textAlign: 'right',
     marginTop: 4,
-  },
-  scheduleRow: {
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  scheduleDayHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  scheduleDayLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  scheduleToggle: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    backgroundColor: colors.surfaceSecondary,
-  },
-  scheduleToggleActive: {
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  scheduleToggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.placeholder,
-  },
-  scheduleToggleTextActive: {
-    color: colors.primaryDark,
-  },
-  scheduleHoursRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 10,
-  },
-  scheduleHourInput: {
-    flex: 1,
-    height: 42,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: colors.text,
-    backgroundColor: colors.inputBackground,
-  },
-  scheduleHourSeparator: {
-    fontSize: 13,
-    color: colors.placeholder,
   },
   documentsRow: {
     flexDirection: 'row',

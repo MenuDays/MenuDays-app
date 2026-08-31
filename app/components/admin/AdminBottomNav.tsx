@@ -5,6 +5,7 @@ import { router, usePathname } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
+import { getNavbarSideMargin } from "../../../utils/navbarLayout";
 
 interface NavItem {
   label: string;
@@ -32,12 +33,10 @@ export default function AdminBottomNav() {
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  // Mismo criterio responsive que el navbar del comensal: chico en
-  // celulares angostos, con tope para no flotar demasiado en tablets.
-  const sideMargin = Math.max(10, Math.min(26, width * 0.045));
+  const sideMargin = getNavbarSideMargin(width);
 
   return (
-    <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
+    <SafeAreaView edges={["bottom"]} style={styles.safeArea} pointerEvents="box-none">
       <View style={[styles.container, { marginHorizontal: sideMargin }]}>
         {ITEMS.map((item) => {
           const cleanRoute = stripGroups(item.route);
@@ -58,7 +57,10 @@ export default function AdminBottomNav() {
                   color={isActive ? colors.primary : (isDark ? colors.placeholder : "#9E9E9E")}
                 />
               </View>
-              <Text style={[styles.label, isActive && styles.labelActive]}>
+              <Text
+                style={[styles.label, isActive && styles.labelActive]}
+                numberOfLines={1}
+              >
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -82,8 +84,9 @@ const createStyles = (colors: ThemeColors) =>
       flexDirection: "row",
       backgroundColor: colors.navbarBackground,
       borderRadius: 20,
-      paddingVertical: 9,
-      paddingHorizontal: 8,
+      paddingTop: 8,
+      paddingBottom: 9,
+      paddingHorizontal: 4,
       marginBottom: 10,
       shadowColor: colors.shadow,
       shadowOpacity: 0.1,
@@ -95,11 +98,12 @@ const createStyles = (colors: ThemeColors) =>
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      gap: 2,
+      gap: 4,
+      paddingHorizontal: 2,
     },
     iconWrap: {
-      width: 38,
-      height: 28,
+      width: 40,
+      height: 26,
       borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
@@ -109,8 +113,10 @@ const createStyles = (colors: ThemeColors) =>
     },
     label: {
       fontSize: 10,
+      // lineHeight lo pone textDefaults (~fontSize*1.4) -> caja holgada
+      // para "Moderación" (ó) sin recorte, en cualquier Android.
       color: colors.textSecondary,
-      fontWeight: "500",
+      fontWeight: "600",
     },
     labelActive: {
       color: colors.primary,

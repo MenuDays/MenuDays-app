@@ -24,6 +24,11 @@ export interface Dish {
   precio: number;
   estado: DishStatus;
   activo: boolean;
+  // "Destacado" y "en oferta" son independientes entre sí -- ver
+  // getMenuComponentGroups-style carruseles en la home del comensal.
+  destacado: boolean;
+  en_oferta: boolean;
+  precio_oferta: number | null;
   created_at: string;
   updated_at: string;
   categorias: DishCategory;
@@ -39,6 +44,11 @@ export interface DishFormInput {
   categoriaId: string;
   estado?: DishStatus;
   activo?: boolean;
+  destacado?: boolean;
+  enOferta?: boolean;
+  // Precio con descuento -- solo tiene sentido si enOferta es true.
+  // null limpia el valor guardado (ver update-dish.dto en el back).
+  precioOferta?: number | null;
   // uri local de expo-image-picker. Requerida al crear (el backend
   // rechaza el POST sin imagen); opcional al editar (si no se manda,
   // el backend conserva la imagen actual).
@@ -53,6 +63,11 @@ function buildFormData(input: Partial<DishFormInput>): FormData {
   if (input.categoriaId !== undefined) formData.append("categoriaId", input.categoriaId);
   if (input.estado !== undefined) formData.append("estado", input.estado);
   if (input.activo !== undefined) formData.append("activo", String(input.activo));
+  if (input.destacado !== undefined) formData.append("destacado", String(input.destacado));
+  if (input.enOferta !== undefined) formData.append("enOferta", String(input.enOferta));
+  if (input.precioOferta !== undefined) {
+    formData.append("precioOferta", input.precioOferta === null ? "" : String(input.precioOferta));
+  }
   if (input.imageUri) {
     formData.append("image", {
       uri: input.imageUri,

@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import ScreenHeader from "../../components/restaurant/ScreenHeader";
 import StatusBadge, { StatusTone } from "../../components/restaurant/StatusBadge";
 import DishService, { Dish } from "../../../services/dish.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
+import { optimizedImageUri } from "../../../utils/imageUrl";
 
 function getStatusMeta(dish: Dish): { label: string; tone: StatusTone } {
   if (!dish.activo) return { label: "Inactivo", tone: "neutral" };
@@ -14,17 +17,33 @@ function getStatusMeta(dish: Dish): { label: string; tone: StatusTone } {
 }
 
 export default function DishDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [dish, setDish] = useState<Dish | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  function loadDish() {
     if (!id) return;
     DishService.getById(id)
       .then(setDish)
       .catch((e) => AppAlert.alert("Error", e.message || "No se pudo cargar el plato."))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    loadDish();
   }, [id]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadDish();
+  }
 
   function handleDelete() {
     if (!dish) return;
@@ -59,13 +78,16 @@ export default function DishDetailScreen() {
     <View style={styles.container}>
       <ScreenHeader title="Detalle del plato" showBack />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+      >
         <View style={styles.imageWrap}>
           {dish.plato_imagenes[0]?.url ? (
-            <Image source={{ uri: dish.plato_imagenes[0].url }} style={styles.image} />
+            <Image source={{ uri: optimizedImageUri(dish.plato_imagenes[0].url, "card") }} style={styles.image} />
           ) : (
             <View style={[styles.image, styles.imagePlaceholder]}>
-              <Ionicons name="image-outline" size={32} color="#C9C9C9" />
+              <Ionicons name="image-outline" size={32} color={colors.placeholder} />
             </View>
           )}
         </View>
@@ -77,7 +99,7 @@ export default function DishDetailScreen() {
 
         {dish.categorias?.nombre ? (
           <View style={styles.categoryRow}>
-            <Ionicons name="pricetags-outline" size={14} color="#9E9E9E" />
+            <Ionicons name="pricetags-outline" size={14} color={colors.textSecondary} />
             <Text style={styles.categoryText}>{dish.categorias.nombre}</Text>
           </View>
         ) : null}
@@ -104,19 +126,19 @@ export default function DishDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.screenSolid },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.screenSolid },
   content: { padding: 20, paddingBottom: 48 },
   imageWrap: { height: 180, borderRadius: 16, overflow: "hidden", marginBottom: 18 },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
+  imagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
-  name: { flex: 1, fontSize: 22, fontWeight: "900", color: "#1A1A1A" },
+  name: { flex: 1, fontSize: 22, fontWeight: "900", color: colors.text },
   categoryRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  categoryText: { fontSize: 13, color: "#9E9E9E", fontWeight: "600" },
+  categoryText: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
   price: { fontSize: 18, fontWeight: "800", color: "#FB8C00", marginTop: 10 },
-  description: { fontSize: 14, color: "#5C5C5C", marginTop: 10, lineHeight: 20 },
+  description: { fontSize: 14, color: colors.textSecondary, marginTop: 10, lineHeight: 20 },
   actionsRow: { flexDirection: "row", gap: 12, marginTop: 32 },
   editButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#FB8C00", borderRadius: 24, paddingVertical: 13 },
   editText: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },

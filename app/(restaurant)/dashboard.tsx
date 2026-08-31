@@ -1,18 +1,24 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Circle } from "react-native-svg";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
   Easing,
   Image,
   ImageBackground,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View
 } from "react-native";
 import {
@@ -22,19 +28,12 @@ import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import QuickActionsFab from "../components/restaurant/QuickActionsFab";
-import { useTheme } from "../../contexts/ThemeContext";
-const platosBg = require("../../assets/dashboard/platos.png");
-const promocionesBg = require("../../assets/dashboard/promociones.png");
-const menusBg = require("../../assets/dashboard/menus.png");
-const galeriaBg = require("../../assets/dashboard/galeria.png");
-const heroBg = require("../../assets/dashboard/hero-restaurante.png");
+import RestaurantOnboardingTour, { TourRect, TourTargetKey } from "../components/restaurant/RestaurantOnboardingTour";
+import { PENDING_RESTAURANT_ONBOARDING_KEY } from "../../constants/onboardingKeys";
+// El dashboard del restaurante queda fijo en look oscuro (ver comentario
+// más abajo) -> usa el mismo patrón "fondo_oscuro" que el resto de la app.
+const heroBg = require("../../assets/images/app-bg-dark.jpg");
 const menuReminderCharacter = require("../../assets/characters/niñoPensando.png");
-
-// Se limita a un ancho "de celular" para el cálculo de las grillas de 2
-// columnas: en tablets, sin esto, cada card terminaba enorme y estirada
-// porque (width - 44) / 2 usaba el ancho real de la pantalla completa.
-const { width: rawScreenWidth } = Dimensions.get("screen");
-const width = Math.min(rawScreenWidth, 480);
 
 // ============================================================
 // DATA — mockeada, pero con el shape que ya esperarías del
@@ -43,6 +42,38 @@ const width = Math.min(rawScreenWidth, 480);
 // resultado de la llamada; el JSX no debería necesitar cambios.
 // ============================================================
 
+// ============================================================
+// Paleta "premium" oscura -- SOLO visual, no toca lógica/datos.
+// El dashboard queda fijo en este look (no sigue el toggle de
+// tema claro/oscuro de la app) porque ahora vive sobre la foto de
+// fondoRestaurante: un dashboard mitad claro/mitad oscuro según el
+// tema del usuario se vería inconsistente contra esa imagen fija.
+// ============================================================
+const INK = "#0B0906";
+const GLASS_BG = "rgba(255,255,255,0.055)";
+const GLASS_BG_STRONG = "rgba(255,255,255,0.09)";
+const GLASS_BORDER = "rgba(255,255,255,0.12)";
+const GLASS_BORDER_SOFT = "rgba(255,255,255,0.08)";
+const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_SECONDARY = "rgba(255,255,255,0.62)";
+const TEXT_TERTIARY = "rgba(255,255,255,0.42)";
+const AMBER = "#FFC46B";
+
+// Escala de radios unificada -- antes cada card usaba un valor distinto
+// (22/20/24/18...) elegido "a ojo", lo que se termina notando como
+// inconsistencia visual. Una sola escala (cards grandes / chips chicos)
+// da un lenguaje de diseño coherente en todo el dashboard.
+const CARD_RADIUS = 20;
+const CHIP_RADIUS = 12;
+
+// Las grillas (stats y accesos rápidos) son SIEMPRE 2x2 -- en teléfono,
+// tablet o desktop -- para que el layout sea idéntico y predecible en
+// cualquier dispositivo. Lo único que cambia en pantallas grandes es que
+// el contenido se centra con un ancho máximo (contentWide más abajo),
+// para que las cards no se estiren de punta a punta ni queden gigantes.
+const WIDE_BREAKPOINT = 560;
+const WIDE_CONTENT_MAX_WIDTH = 480;
+const GRID_ITEM_WIDTH: `${number}%` = "48%";
 
 interface BreakdownItem {
   label: string;
@@ -50,6 +81,7 @@ interface BreakdownItem {
   max: number;
   display: string;
   gradient: [string, string];
+  icon: string;
 }
 
 interface StatItem {
@@ -66,7 +98,6 @@ interface QuickAccessItem {
   sub: string;
   route: string;
   gradient: [string, string];
-  image: any;
 }
 const STATS: StatItem[] = [
   {
@@ -106,20 +137,23 @@ const BREAKDOWN: BreakdownItem[] = [
     max: 5,
     display: "0.0",
     gradient: ["#FF9D42", "#F5751A"],
+    icon: "star",
   },
   {
     label: "Promociones activas",
     value: 0,
     max: 5,
     display: "0",
-    gradient: ["#FFC94D", "#F5A800"],
+    gradient: ["#42C8FF", "#1AA3F5"],
+    icon: "pricetag",
   },
   {
     label: "Platos registrados",
     value: 0,
     max: 20,
     display: "0",
-    gradient: ["#FFA94D", "#F5871A"],
+    gradient: ["#7ED957", "#2FB966"],
+    icon: "restaurant",
   },
 ];
 const QUICK_ACCESS: QuickAccessItem[] = [
@@ -129,7 +163,6 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     sub: "Gestionar platos",
     route: "/(restaurant)/platos",
     gradient: ["#FF9D42", "#F5751A"],
-    image: platosBg,
   },
   {
     icon: "pricetag-outline",
@@ -137,7 +170,6 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     sub: "Crear y administrar",
     route: "/(restaurant)/promociones",
     gradient: ["#FFC94D", "#F5A800"],
-    image: promocionesBg,
   },
   {
     icon: "restaurant-outline",
@@ -145,15 +177,13 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     sub: "Crear menús",
     route: "/(restaurant)/menu",
     gradient: ["#FF9D42", "#F5751A"],
-    image: menusBg,
   },
   {
     icon: "images-outline",
     label: "Galería",
     sub: "Fotos del local",
     route: "/(restaurant)/gallery",
-    gradient: ["#FF9D42", "#F5751A"],
-    image: galeriaBg,
+    gradient: ["#FFB74D", "#F5871A"],
   },
 ];
 
@@ -164,17 +194,26 @@ function getGreeting(): string {
   return "Buenas noches";
 }
 
+// Flag "tutorial pendiente" -- ver constants/onboardingKeys.ts.
+
 export default function RestaurantDashboard() {
   const insets = useSafeAreaInsets();
-  const { isDark } = useTheme();
   const greeting = getGreeting();
+  // Las grillas de stats y accesos rápidos son siempre 2x2 (ver
+  // GRID_ITEM_WIDTH) -- lo único responsive es centrar el contenido con
+  // un ancho máximo en pantallas grandes, para que no se estire.
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isWide = windowWidth >= WIDE_BREAKPOINT;
+
   // Arranca en null ("todavía no sabemos") para no mostrar ni el estado
   // publicado ni el de "falta publicar" hasta tener la respuesta real.
   const [menuPublished, setMenuPublished] = React.useState<boolean | null>(null);
   const [showMenuReminder, setShowMenuReminder] = React.useState(true);
   const [restaurant, setRestaurant] = React.useState({
+  id: "",
   name: "",
   rating: 0,
+  cantidadResenas: 0,
 });
 
   // El FAB de accesos rápidos guarda su estado "abierto/cerrado" adentro
@@ -187,6 +226,19 @@ export default function RestaurantDashboard() {
   useFocusEffect(
     useCallback(() => {
       setFabKey((k) => k + 1);
+
+      // Tutorial pendiente: lo deja login.tsx (cada inicio de sesión) o el
+      // botón "Repetir tutorial" de Mi perfil. Se chequea al enfocar --
+      // no solo al montar -- para que al volver de ese botón se dispare
+      // aunque el dashboard ya estuviera en la pila.
+      AsyncStorage.getItem(PENDING_RESTAURANT_ONBOARDING_KEY)
+        .then((pending) => {
+          if (pending) {
+            setOnboardingVisible(true);
+            AsyncStorage.removeItem(PENDING_RESTAURANT_ONBOARDING_KEY).catch(() => {});
+          }
+        })
+        .catch(() => {});
     }, [])
   );
 
@@ -200,17 +252,113 @@ export default function RestaurantDashboard() {
   // las animaciones no salten) y se pisa al llegar la respuesta real.
   const [stats, setStats] = React.useState<StatItem[]>(STATS);
   const [breakdown, setBreakdown] = React.useState<BreakdownItem[]>(BREAKDOWN);
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  useEffect(() => {
-    async function loadDashboard() {
+  // Onboarding interactivo (7 pasos) para restaurantes que abren su
+  // dashboard por primera vez. Se muestra solo si no hay flag guardado
+  // en AsyncStorage para ESTE restaurante (restaurante.id).
+  const [onboardingVisible, setOnboardingVisible] = React.useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const menuCardRef = useRef<View>(null);
+  const platosCardRef = useRef<View>(null);
+  const promocionesCardRef = useRef<View>(null);
+  const galeriaCardRef = useRef<View>(null);
+  const statsCardRef = useRef<View>(null);
+
+  function handleDashboardScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    scrollYRef.current = e.nativeEvent.contentOffset.y;
+  }
+
+  function getTourTargetRef(key: TourTargetKey) {
+    if (key === "menus") return menuCardRef;
+    if (key === "platos") return platosCardRef;
+    if (key === "promociones") return promocionesCardRef;
+    if (key === "galeria") return galeriaCardRef;
+    return statsCardRef;
+  }
+
+  function getQuickAccessCardRef(route: string) {
+    if (route === "/(restaurant)/menu") return menuCardRef;
+    if (route === "/(restaurant)/platos") return platosCardRef;
+    if (route === "/(restaurant)/promociones") return promocionesCardRef;
+    if (route === "/(restaurant)/gallery") return galeriaCardRef;
+    return undefined;
+  }
+
+  // Mide la posición real (en pantalla) del elemento objetivo. Si no
+  // está suficientemente visible, hace scroll programático del
+  // dashboard para acercarlo antes de medir de nuevo -- así el
+  // spotlight siempre cae sobre la UI real, sin importar el tamaño
+  // de pantalla ni cuánto haya que desplazarse.
+  function measureTourTarget(key: TourTargetKey): Promise<TourRect | null> {
+    return new Promise((resolve) => {
+      const ref = getTourTargetRef(key);
+      if (!ref.current) {
+        resolve(null);
+        return;
+      }
+      ref.current.measureInWindow((x, y, width, height) => {
+        if (!width && !height) {
+          resolve(null);
+          return;
+        }
+        const topBound = insets.top + 60;
+        const bottomBound = windowHeight - insets.bottom - 60;
+        let delta = 0;
+        if (y < topBound) {
+          delta = y - (insets.top + 110);
+        } else if (y + height > bottomBound) {
+          delta = y + height - (windowHeight - insets.bottom - 110);
+        }
+        if (Math.abs(delta) > 24 && scrollRef.current) {
+          const nextY = Math.max(0, scrollYRef.current + delta);
+          scrollRef.current.scrollTo({ y: nextY, animated: true });
+          setTimeout(() => {
+            ref.current?.measureInWindow((x2, y2, width2, height2) => {
+              resolve({ x: x2, y: y2, width: width2, height: height2 });
+            });
+          }, 420);
+        } else {
+          resolve({ x, y, width, height });
+        }
+      });
+    });
+  }
+
+  function handleOnboardingFinish() {
+    setOnboardingVisible(false);
+  }
+
+  // Recarga al enfocar (además del montaje inicial): así el contador de
+  // "Pedidos pendientes" -- y el resto de las stats -- refleja lo que pasó
+  // mientras el restaurante estaba en otra pantalla (ej. acaba de aceptar
+  // pedidos en Mi Local y vuelve al dashboard).
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [])
+  );
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadDashboard();
+  }
+
+  async function loadDashboard() {
       try {
         const data = await RestaurantService.getDashboard();
         const { resumen } = data;
 
         setRestaurant({
+          id: String(data.restaurante.id),
           name: data.restaurante.nombreComercial ?? "",
           rating: resumen.calificacionPromedio,
+          cantidadResenas: resumen.cantidadResenas,
         });
+
+        // El chequeo del tutorial pendiente vive en el useFocusEffect de
+        // arriba (se dispara al enfocar, no solo al cargar datos).
 
         setMenuPublished(resumen.menuPublicadoHoy);
 
@@ -261,11 +409,10 @@ export default function RestaurantDashboard() {
       } catch (e: any) {
         AppAlert.alert("Error", e.message || "No se pudieron cargar las estadísticas.");
         setMenuPublished(false);
+      } finally {
+        setRefreshing(false);
       }
-    }
-
-    loadDashboard();
-  }, []);
+  }
 
   // ------- Animaciones de entrada -------
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -293,7 +440,7 @@ export default function RestaurantDashboard() {
 
   const headerStatsAnim = useRef(new Animated.Value(0)).current;
 
-  
+
 
   useEffect(() => {
     Animated.parallel([
@@ -360,8 +507,44 @@ export default function RestaurantDashboard() {
       )
     ).start();
 
-    
+
   }, []);
+
+  // Cada card de estadística es un acceso directo a su pantalla real
+  // existente (no se crean pantallas nuevas):
+  //  - Platos registrados  -> listado de Platos
+  //  - Promociones activas -> listado de Promociones
+  //  - Pedidos pendientes  -> Mi Local, ya filtrado en "pendiente"
+  //  - Reseñas             -> reseñas de ESTE restaurante (mismo endpoint
+  //                           /restaurants/:id/reviews que usa el comensal)
+  function handleStatPress(label: string) {
+    switch (label) {
+      case "Platos registrados":
+        router.push("/(restaurant)/platos" as any);
+        break;
+      case "Promociones activas":
+        router.push("/(restaurant)/promociones" as any);
+        break;
+      case "Pedidos pendientes":
+        router.push("/(restaurant)/mi-local?estado=pendiente" as any);
+        break;
+      case "Reseñas":
+        if (!restaurant.id) return;
+        // Misma pantalla y mismo endpoint (/restaurants/:id/reviews) que usa
+        // el comensal -- se le pasa el id de ESTE restaurante, así muestra
+        // sus propias reseñas.
+        router.push({
+          pathname: "/restaurant-reviews",
+          params: {
+            id: restaurant.id,
+            nombre: restaurant.name,
+            promedio: String(restaurant.rating),
+            cantidad: String(restaurant.cantidadResenas),
+          },
+        } as any);
+        break;
+    }
+  }
 
   return (
     <ImageBackground
@@ -370,22 +553,33 @@ export default function RestaurantDashboard() {
       style={styles.dashboardBackground}
       imageStyle={styles.dashboardBackgroundImage}
     >
-      {/* En Dark Mode se oscurece la imagen hero con un scrim casi
-          opaco para que el dashboard se sienta negro, sin tener que
-          sacar la imagen de fondo (identidad visual del rol restaurante). */}
-      {isDark && <View style={styles.dashboardDarkOverlay} pointerEvents="none" />}
+      {/* Scrim oscuro sobre la foto -- da el look "premium oscuro" pedido
+          y garantiza contraste fuerte para el texto blanco de encima,
+          sin importar qué tan clara/colorida salga esa zona de la foto. */}
+      <LinearGradient
+        colors={["rgba(9,7,6,0.10)", "rgba(9,7,6,0.35)", "rgba(6,5,4,0.72)"]}
+        locations={[0, 0.45, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
 
       {/* Todo el dashboard vive sobre la imagen hero de fondo. */}
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!onboardingVisible}
+        onScroll={handleDashboardScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={[
           styles.dashboardScrollContent,
           { paddingTop: insets.top + 22 },
         ]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FFB74D" />}
       >
         <Animated.View
           style={[
             styles.content,
+            isWide && styles.contentWide,
             {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
@@ -412,7 +606,7 @@ export default function RestaurantDashboard() {
                 <Ionicons
                   name="star"
                   size={25}
-                  color="#F5751A"
+                  color={AMBER}
                 />
 
                 <Text style={styles.heroRatingValue}>
@@ -437,7 +631,14 @@ export default function RestaurantDashboard() {
                 },
               ]}
             >
-              <View style={styles.menuReminderGlow} />
+              {/* Glow con degradado (no un círculo de color plano) --
+                  se ve como una luz suave, no como un recorte sólido. */}
+              <LinearGradient
+                colors={["rgba(255,169,77,0.4)", "rgba(255,169,77,0)"]}
+                start={{ x: 1, y: 1 }}
+                end={{ x: 0.15, y: 0.15 }}
+                style={styles.menuReminderGlow}
+              />
 
               <View style={styles.menuReminderContent}>
                 <View style={styles.menuReminderCopy}>
@@ -445,7 +646,7 @@ export default function RestaurantDashboard() {
                     <Ionicons
                       name="restaurant-outline"
                       size={14}
-                      color="#F5751A"
+                      color={AMBER}
                     />
                     <Text style={styles.menuReminderBadgeText}>
                       MENÚ DE HOY
@@ -504,7 +705,10 @@ export default function RestaurantDashboard() {
             </Animated.View>
           )}
 
-          {/* STATS 2x2 */}
+          {/* STATS 2x2 (4x1 en tablet/desktop) -- protagonistas: números
+              grandes, glow de color, chip "ACTUAL". Cada card es un
+              BOTÓN: toda la superficie navega a su pantalla real, y el
+              chevron de abajo indica que es tocable. */}
           <View style={styles.statsGrid}>
             {stats.map((stat, i) => (
               <Animated.View
@@ -522,48 +726,72 @@ export default function RestaurantDashboard() {
                   },
                 ]}
               >
-                <View
-                  style={[
-                    styles.statGlow,
-                    { backgroundColor: stat.gradient[0] },
+                <Pressable
+                  onPress={() => handleStatPress(stat.label)}
+                  android_ripple={{ color: "rgba(255,255,255,0.08)" }}
+                  style={({ pressed }) => [
+                    styles.statCardInner,
+                    pressed && styles.statCardPressed,
                   ]}
-                />
-
-                <View style={styles.statTopRow}>
+                  accessibilityRole="button"
+                  accessibilityLabel={`${stat.label}: ${stat.value}. Abrir`}
+                >
+                  {/* Glow con degradado (no un círculo de color plano) --
+                      se ve como una luz suave, no como un recorte sólido. */}
                   <LinearGradient
-                    colors={stat.gradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.statIconBadge}
-                  >
-                    <Ionicons
-                      name={stat.icon as any}
-                      size={19}
-                      color="#FFFFFF"
-                    />
-                  </LinearGradient>
+                    colors={[`${stat.gradient[0]}66`, `${stat.gradient[0]}00`]}
+                    start={{ x: 1, y: 0 }}
+                    end={{ x: 0.2, y: 0.8 }}
+                    style={styles.statGlow}
+                    pointerEvents="none"
+                  />
 
-                  <View style={styles.statMiniLabel}>
-                    <View
-                      style={[
-                        styles.statMiniDot,
-                        { backgroundColor: stat.gradient[1] },
-                      ]}
-                    />
-                    <Text style={styles.statMiniLabelText}>ACTUAL</Text>
+                  <View style={styles.statTopRow}>
+                    <LinearGradient
+                      colors={stat.gradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.statIconBadge}
+                    >
+                      <Ionicons
+                        name={stat.icon as any}
+                        size={19}
+                        color="#FFFFFF"
+                      />
+                    </LinearGradient>
+
+                    <View style={styles.statMiniLabel}>
+                      <View
+                        style={[
+                          styles.statMiniDot,
+                          { backgroundColor: stat.gradient[1] },
+                        ]}
+                      />
+                      <Text style={styles.statMiniLabelText}>ACTUAL</Text>
+                    </View>
                   </View>
-                </View>
 
-                <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statValue}>{stat.value}</Text>
 
-                <Text style={styles.statLabel}>{stat.label}</Text>
+                  <View style={styles.statLabelRow}>
+                    <Text style={styles.statLabel} numberOfLines={1}>
+                      {stat.label}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={15}
+                      color={stat.gradient[1]}
+                      style={styles.statChevron}
+                    />
+                  </View>
 
-                <View
-                  style={[
-                    styles.statAccentLine,
-                    { backgroundColor: stat.gradient[1] },
-                  ]}
-                />
+                  <View
+                    style={[
+                      styles.statAccentLine,
+                      { backgroundColor: stat.gradient[1] },
+                    ]}
+                  />
+                </Pressable>
               </Animated.View>
             ))}
           </View>
@@ -592,15 +820,11 @@ export default function RestaurantDashboard() {
               },
             ]}
           >
-            <View style={styles.divider} />
-
-            {breakdown.map((item, i) => (
-              <BreakdownRow
-                key={i}
-                item={item}
-                delay={i * 90}
-              />
-            ))}
+            <View style={styles.gaugeRow} ref={statsCardRef} collapsable={false}>
+              {breakdown.map((item, i) => (
+                <StatGaugeWidget key={i} item={item} delay={i * 90} />
+              ))}
+            </View>
           </Animated.View>
 
           {/* ACCESOS RÁPIDOS */}
@@ -617,6 +841,7 @@ export default function RestaurantDashboard() {
                 item={item}
                 opacity={quickAnims[i].opacity}
                 translateY={quickAnims[i].translateY}
+                cardRef={getQuickAccessCardRef(item.route)}
               />
             ))}
           </View>
@@ -656,6 +881,12 @@ export default function RestaurantDashboard() {
           },
         ]}
       />
+
+      <RestaurantOnboardingTour
+        visible={onboardingVisible}
+        onFinish={handleOnboardingFinish}
+        measureTarget={measureTourTarget}
+      />
     </ImageBackground>
   );
 }
@@ -668,12 +899,19 @@ function QuickAccessCard({
   item,
   opacity,
   translateY,
+  cardRef,
 }: {
   item: QuickAccessItem;
   opacity: Animated.Value;
   translateY: Animated.Value;
+  cardRef?: React.Ref<View>;
 }) {
   const pressScale = useRef(new Animated.Value(1)).current;
+  // Solo tiene efecto real en la Device Preview web (mouse) -- en
+  // touch, onHoverIn/onHoverOut de Pressable nunca disparan, así que
+  // en la app nativa esto queda inerte sin ningún cambio de
+  // comportamiento.
+  const [hovered, setHovered] = useState(false);
 
   function onPressIn() {
     Animated.spring(pressScale, {
@@ -694,120 +932,157 @@ function QuickAccessCard({
 
   return (
   <Animated.View
-    style={{
-      opacity,
-      transform: [
-        { translateY },
-        { scale: pressScale },
-      ],
-    }}
+    ref={cardRef}
+    collapsable={false}
+    style={[
+      styles.quickCardWrap,
+      {
+        opacity,
+        transform: [
+          { translateY },
+          { scale: pressScale },
+        ],
+      },
+      hovered && styles.quickCardWrapHovered,
+    ]}
   >
-    <TouchableOpacity
+    <Pressable
       onPress={() => router.push(item.route as any)}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
-      activeOpacity={0.95}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={styles.quickCard}
     >
-      <ImageBackground
-        source={item.image}
-        style={styles.quickCard}
-        imageStyle={styles.quickBackgroundImage}
-        resizeMode="cover"
-      >
-        {/* Degradado para que el texto siempre se lea */}
+      {/* Reflejo sutil arriba -- típico de tarjetas "glass" en dashboards
+          premium, refuerza la sensación de superficie con profundidad. */}
+      <LinearGradient
+        colors={["rgba(255,255,255,0.10)", "rgba(255,255,255,0)"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.quickTopHighlight}
+        pointerEvents="none"
+      />
+
+      {/* Franja de color a la izquierda: refuerza que toda la card es
+          un botón tocable. */}
+      <View style={[styles.quickAccentBar, { backgroundColor: item.gradient[1] }]} />
+
+      <View style={styles.quickCardContent}>
         <LinearGradient
-          colors={[
-            "rgba(255,255,255,0.98)",
-            "rgba(255,255,255,0.88)",
-            "rgba(255,255,255,0.20)",
-          ]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.quickBackgroundImageStyle}
-        />
+          colors={item.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.quickIconBadge}
+        >
+          <Ionicons
+            name={item.icon as any}
+            size={22}
+            color="#FFFFFF"
+          />
+        </LinearGradient>
 
-        <View style={styles.quickCardContent}>
-          {/* Icono */}
-          <View style={styles.quickIconBadge}>
-            <Ionicons
-              name={item.icon as any}
-              size={22}
-              color="#F5751A"
-            />
-          </View>
+        <View style={styles.quickTextContainer}>
+          <Text style={styles.quickLabel}>
+            {item.label}
+          </Text>
 
-          {/* Textos */}
-          <View style={styles.quickTextContainer}>
-            <Text style={styles.quickLabel}>
-              {item.label}
-            </Text>
-
-            <Text style={styles.quickSub}>
-              {item.sub}
-            </Text>
-          </View>
+          <Text style={styles.quickSub}>
+            {item.sub}
+          </Text>
         </View>
-      </ImageBackground>
-    </TouchableOpacity>
+      </View>
+
+      {/* CTA en su propia franja abajo, ancho completo y centrada -- no
+          un pill chico en una esquina -- para que se lea sin dudas como
+          UN BOTÓN, distinto del resto de las cards informativas. */}
+      <LinearGradient
+        colors={item.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.quickCta}
+      >
+        <Text style={styles.quickCtaText}>Abrir</Text>
+        <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
+      </LinearGradient>
+    </Pressable>
   </Animated.View>
 );
 }
-function BreakdownRow({
+// Widget circular en vez de la barra lineal de antes -- con maximos
+// chicos (5, 20) una barra queda "llena" la mayoría del tiempo y no
+// dice nada útil de un vistazo. Un anillo con el número grande en el
+// centro se lee bien tenga el valor que tenga, y cada métrica usa su
+// propio color bien distinto (antes las 3 eran variantes de naranja).
+const GAUGE_SIZE = 78;
+const GAUGE_STROKE = 7;
+const GAUGE_RADIUS = (GAUGE_SIZE - GAUGE_STROKE) / 2;
+const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+function StatGaugeWidget({
   item,
   delay,
 }: {
   item: BreakdownItem;
   delay: number;
 }) {
-  const widthAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
-  const targetWidth =
+  const targetPct =
     item.max > 0
       ? Math.min(100, (item.value / item.max) * 100)
       : 0;
 
   useEffect(() => {
-    Animated.timing(widthAnim, {
-      toValue: targetWidth,
-      duration: 700,
+    Animated.timing(progressAnim, {
+      toValue: targetPct,
+      duration: 900,
       delay: 300 + delay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [targetWidth, delay]);
+  }, [targetPct, delay]);
+
+  const strokeDashoffset = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: [GAUGE_CIRCUMFERENCE, 0],
+  });
 
   return (
-    <View style={styles.breakdownRow}>
-      <View style={styles.breakdownLabelRow}>
-        <Text style={styles.breakdownLabel}>
-          {item.label}
-        </Text>
-
-        <Text style={styles.breakdownValue}>
-          {item.display}
-        </Text>
-      </View>
-
-      <View style={styles.breakdownTrack}>
-        <Animated.View
-          style={[
-            styles.breakdownFill,
-            {
-              width: widthAnim.interpolate({
-                inputRange: [0, 100],
-                outputRange: ["0%", "100%"],
-              }),
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={item.gradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={StyleSheet.absoluteFill}
+    <View style={styles.gaugeWidget}>
+      <View style={styles.gaugeRingWrap}>
+        <Svg width={GAUGE_SIZE} height={GAUGE_SIZE}>
+          <Circle
+            cx={GAUGE_SIZE / 2}
+            cy={GAUGE_SIZE / 2}
+            r={GAUGE_RADIUS}
+            stroke="rgba(255,255,255,0.10)"
+            strokeWidth={GAUGE_STROKE}
+            fill="none"
           />
-        </Animated.View>
+          <AnimatedCircle
+            cx={GAUGE_SIZE / 2}
+            cy={GAUGE_SIZE / 2}
+            r={GAUGE_RADIUS}
+            stroke={item.gradient[1]}
+            strokeWidth={GAUGE_STROKE}
+            fill="none"
+            strokeDasharray={`${GAUGE_CIRCUMFERENCE} ${GAUGE_CIRCUMFERENCE}`}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            rotation="-90"
+            origin={`${GAUGE_SIZE / 2}, ${GAUGE_SIZE / 2}`}
+          />
+        </Svg>
+        <View style={styles.gaugeCenter}>
+          <Ionicons name={item.icon as any} size={13} color={item.gradient[1]} />
+          <Text style={styles.gaugeValue}>{item.display}</Text>
+        </View>
       </View>
+      <Text style={styles.gaugeLabel} numberOfLines={2}>
+        {item.label}
+      </Text>
     </View>
   );
 }
@@ -820,18 +1095,12 @@ const styles = StyleSheet.create({
   dashboardBackground: {
     flex: 1,
     width: "100%",
-    backgroundColor: "transparent",
+    backgroundColor: INK,
   },
 
   dashboardBackgroundImage: {
     width: "100%",
     height: "100%",
-  },
-
-  dashboardDarkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#000000",
-    opacity: 0.88,
   },
 
 
@@ -842,53 +1111,63 @@ dashboardScrollContent: {
   // HERO / HEADER NUEVO
   // ============================================================
 
+  // Fila flex en vez de la posición absoluta de antes (heroRatingCard
+  // flotando con right/top a mano): así los dos bloques siempre quedan
+  // alineados y centrados verticalmente entre sí sin importar el largo
+  // del nombre del restaurante ni el ancho de pantalla -- antes, un
+  // nombre largo o una pantalla angosta podía hacer que el texto
+  // chocara contra la card de calificación.
   heroIntro: {
-  minHeight: 158,
-  marginBottom: 18,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 14,
+  marginBottom: 22,
   paddingHorizontal: 8,
-  position: "relative",
-  justifyContent: "center",
 },
 
 heroIntroText: {
-  paddingRight: 118,
+  flex: 1,
 },
 
 heroGreeting: {
-  fontSize: 16,
+  fontSize: 15,
   fontWeight: "600",
-  color: "#5C5C5C",
+  color: TEXT_SECONDARY,
   marginBottom: 2,
 },
 
 heroRestaurantName: {
-  fontSize: 34,
+  fontSize: 28,
   fontWeight: "900",
-  color: "#1A1A1A",
-  letterSpacing: -1,
+  color: TEXT_PRIMARY,
+  letterSpacing: -0.6,
+  textShadowColor: "rgba(0,0,0,0.4)",
+  textShadowOffset: { width: 0, height: 2 },
+  textShadowRadius: 10,
 },
 
 heroDescription: {
-  fontSize: 15,
-  lineHeight: 21,
+  fontSize: 14,
+  lineHeight: 19,
   fontWeight: "500",
-  color: "#777777",
-  marginTop: 10,
+  color: TEXT_SECONDARY,
+  marginTop: 8,
 },
 
 heroRatingCard: {
-  position: "absolute",
-  right: 4,
-  top: 36,
-  minWidth: 92,
-  backgroundColor: "rgba(255,255,255,0.92)",
-  borderRadius: 18,
+  minWidth: 84,
+  alignItems: "center",
+  backgroundColor: GLASS_BG_STRONG,
+  borderWidth: 1,
+  borderColor: GLASS_BORDER,
+  borderRadius: CARD_RADIUS,
   paddingHorizontal: 14,
   paddingVertical: 12,
   shadowColor: "#000",
-  shadowOpacity: 0.08,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 6 },
   elevation: 3,
 },
 
@@ -901,13 +1180,13 @@ heroRatingTop: {
 heroRatingValue: {
   fontSize: 25,
   fontWeight: "900",
-  color: "#1A1A1A",
+  color: TEXT_PRIMARY,
 },
 
 heroRatingLabel: {
   fontSize: 11,
   fontWeight: "700",
-  color: "#999999",
+  color: TEXT_SECONDARY,
   marginTop: 2,
 },
 
@@ -917,21 +1196,28 @@ heroRatingLabel: {
     paddingTop: 8,
     paddingBottom: 110,
   },
+  // Centrado y con ancho máximo en tablet/desktop -- evita que las
+  // cards se estiren de punta a punta en pantallas grandes.
+  contentWide: {
+    maxWidth: WIDE_CONTENT_MAX_WIDTH,
+    width: "100%",
+    alignSelf: "center",
+  },
 
 
   menuReminderCard: {
     minHeight: 190,
-    marginBottom: 20,
-    borderRadius: 24,
+    marginBottom: 28,
+    borderRadius: CARD_RADIUS,
     overflow: "hidden",
     position: "relative",
-    backgroundColor: "rgba(255,255,255,0.96)",
+    backgroundColor: GLASS_BG,
     borderWidth: 1,
-    borderColor: "rgba(245,168,0,0.18)",
-    shadowColor: "#8A4A00",
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
+    borderColor: GLASS_BORDER,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
     elevation: 5,
   },
   menuReminderGlow: {
@@ -941,7 +1227,6 @@ heroRatingLabel: {
     borderRadius: 75,
     right: -48,
     bottom: -58,
-    backgroundColor: "rgba(255,169,77,0.16)",
   },
   menuReminderContent: {
     flex: 1,
@@ -963,21 +1248,21 @@ heroRatingLabel: {
     gap: 5,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    borderRadius: 10,
-    backgroundColor: "#FFF4E3",
+    borderRadius: CHIP_RADIUS,
+    backgroundColor: "rgba(255,152,0,0.16)",
     marginBottom: 9,
   },
   menuReminderBadgeText: {
     fontSize: 9.5,
     fontWeight: "900",
-    color: "#C36D00",
+    color: AMBER,
     letterSpacing: 0.7,
   },
   menuReminderTitle: {
     fontSize: 18,
     lineHeight: 22,
     fontWeight: "900",
-    color: "#1A1A1A",
+    color: TEXT_PRIMARY,
     letterSpacing: -0.3,
     maxWidth: 215,
   },
@@ -985,7 +1270,7 @@ heroRatingLabel: {
     fontSize: 11.5,
     lineHeight: 16,
     fontWeight: "500",
-    color: "#8A8A8A",
+    color: TEXT_SECONDARY,
     marginTop: 6,
     maxWidth: 215,
   },
@@ -998,25 +1283,25 @@ heroRatingLabel: {
   remindLaterButton: {
     height: 36,
     paddingHorizontal: 11,
-    borderRadius: 11,
+    borderRadius: CHIP_RADIUS,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F7F7F7",
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
-    borderColor: "#EEEEEE",
+    borderColor: GLASS_BORDER_SOFT,
   },
   remindLaterText: {
     fontSize: 10.5,
     fontWeight: "800",
-    color: "#777777",
+    color: TEXT_SECONDARY,
   },
   uploadMenuButton: {
     height: 36,
-    borderRadius: 11,
+    borderRadius: CHIP_RADIUS,
     overflow: "hidden",
     shadowColor: "#F5751A",
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
@@ -1046,35 +1331,55 @@ heroRatingLabel: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
-    marginBottom: 26,
+    marginBottom: 28,
   },
   statCard: {
-    width: (width - 44) / 2,
+    // Siempre 2 columnas -- en teléfono, tablet o desktop -- para que
+    // la grilla sea idéntica y predecible en cualquier dispositivo.
+    width: GRID_ITEM_WIDTH,
     minHeight: 142,
-    backgroundColor: "rgba(255,255,255,0.78)",
-    borderRadius: 22,
+    backgroundColor: GLASS_BG,
+    borderRadius: CARD_RADIUS,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.92)",
+    borderColor: GLASS_BORDER,
     borderTopWidth: 2,
+    overflow: "hidden",
+    position: "relative",
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  // El padding vive acá (el Pressable) -> TODA la card es táctil, no solo
+  // la zona interna.
+  statCardInner: {
+    flex: 1,
     padding: 16,
     paddingTop: 15,
     paddingLeft: 15,
+    borderRadius: CARD_RADIUS,
     overflow: "hidden",
-    position: "relative",
-    shadowColor: "#8A4A00",
-    shadowOpacity: 0.10,
-    shadowRadius: 15,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 4,
+  },
+  statCardPressed: {
+    opacity: 0.82,
+  },
+  statLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  statChevron: {
+    marginLeft: 6,
+    opacity: 0.9,
   },
   statGlow: {
     position: "absolute",
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    right: -34,
-    top: -34,
-    opacity: 0.10,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    right: -38,
+    top: -38,
   },
   statTopRow: {
     flexDirection: "row",
@@ -1088,7 +1393,7 @@ heroRatingLabel: {
     paddingHorizontal: 7,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.72)",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   statMiniDot: {
     width: 5,
@@ -1098,7 +1403,7 @@ heroRatingLabel: {
   statMiniLabelText: {
     fontSize: 7.5,
     fontWeight: "900",
-    color: "#A0A0A0",
+    color: TEXT_TERTIARY,
     letterSpacing: 0.8,
   },
   statIconBadge: {
@@ -1108,35 +1413,21 @@ heroRatingLabel: {
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#F5A800",
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-  trendPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E9FBF1",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    gap: 2,
-  },
-  trendText: {
-    fontSize: 10.5,
-    fontWeight: "800",
-    color: "#2FB966",
-  },
   statValue: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "900",
-    color: "#1A1A1A",
+    color: TEXT_PRIMARY,
     marginTop: 12,
     letterSpacing: -0.5,
   },
   statLabel: {
+    flex: 1,
     fontSize: 12.5,
-    color: "#777777",
-    marginTop: 2,
+    color: TEXT_SECONDARY,
     fontWeight: "600",
   },
   statAccentLine: {
@@ -1146,7 +1437,7 @@ heroRatingLabel: {
     bottom: 11,
     height: 2,
     borderRadius: 2,
-    opacity: 0.28,
+    opacity: 0.4,
   },
 
   sectionHeader: {
@@ -1158,91 +1449,72 @@ heroRatingLabel: {
   sectionTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: TEXT_PRIMARY,
     letterSpacing: -0.3,
   },
   sectionLink: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#F5A800",
+    color: AMBER,
   },
   sectionTag: {
-    backgroundColor: "#FFF4DE",
-    borderRadius: 10,
+    backgroundColor: "rgba(255,183,64,0.14)",
+    borderRadius: CHIP_RADIUS,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   sectionTagText: {
     fontSize: 11.5,
     fontWeight: "700",
-    color: "#B87A00",
+    color: AMBER,
   },
 
   /* ------- Estadísticas ------- */
   chartCard: {
-    backgroundColor: "rgba(255,255,255,0.94)",
-    borderRadius: 20,
+    backgroundColor: GLASS_BG,
+    borderRadius: CARD_RADIUS,
     borderWidth: 1,
-    borderColor: "rgba(245,168,0,0.10)",
+    borderColor: GLASS_BORDER,
     padding: 18,
-    marginBottom: 26,
+    marginBottom: 28,
     shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 1,
   },
-  barChartWrapper: {
+  gaugeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  gaugeWidget: {
+    alignItems: "center",
+    width: "31%",
+  },
+  gaugeRingWrap: {
+    width: GAUGE_SIZE,
+    height: GAUGE_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gaugeCenter: {
+    position: "absolute",
     alignItems: "center",
   },
-  barChartLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
+  gaugeValue: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: TEXT_PRIMARY,
+    marginTop: 2,
+    letterSpacing: -0.3,
   },
-  barChartDayLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#C2C2C2",
+  gaugeLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: TEXT_SECONDARY,
     textAlign: "center",
-  },
-  barChartDayLabelActive: {
-    color: "#F5A800",
-    fontWeight: "800",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#F1E7D8",
-    marginVertical: 16,
-  },
-  breakdownRow: {
-    marginBottom: 14,
-  },
-  breakdownLabelRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  breakdownLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#5C5C5C",
-  },
-  breakdownValue: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#1A1A1A",
-  },
-  breakdownTrack: {
-    height: 8,
-    borderRadius: 5,
-    backgroundColor: "#F3ECE0",
-    overflow: "hidden",
-  },
-  breakdownFill: {
-    height: 8,
-    borderRadius: 5,
-    overflow: "hidden",
+    marginTop: 10,
+    lineHeight: 14,
   },
 
 quickGrid: {
@@ -1250,34 +1522,57 @@ quickGrid: {
   flexWrap: "wrap",
   gap: 12,
 },
+// Siempre 2 columnas, igual que statsGrid -- ver GRID_ITEM_WIDTH.
+//
+// La sombra vive en el wrap, no en quickCard: quickCard tiene
+// overflow:hidden (para recortar el reflejo/franja con bordes
+// redondeados) y en Android una sombra/elevation en el mismo nodo
+// que overflow:hidden queda recortada junto con el contenido.
+quickCardWrap: {
+  width: GRID_ITEM_WIDTH,
+  borderRadius: CARD_RADIUS,
+  shadowColor: "#000",
+  shadowOpacity: 0.4,
+  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 10 },
+  elevation: 10,
+},
+// Solo tiene efecto visible en la Device Preview web (mouse hover) --
+// en touch nunca se activa.
+quickCardWrapHovered: {
+  shadowOpacity: 0.55,
+  shadowRadius: 24,
+},
 quickCard: {
-  width: (width - 44) / 2,
   minHeight: 118,
-  borderRadius: 18,
+  borderRadius: CARD_RADIUS,
   overflow: "hidden",
   position: "relative",
-
-  shadowColor: "#000",
-  shadowOpacity: 0.08,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
-  elevation: 2,
+  backgroundColor: GLASS_BG,
+  borderWidth: 1,
+  borderColor: GLASS_BORDER,
 },
 
-quickBackgroundImage: {
-  borderRadius: 18,
+quickTopHighlight: {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  top: 0,
+  height: 40,
 },
 
-quickBackgroundImageStyle: {
-  ...StyleSheet.absoluteFillObject,
+quickAccentBar: {
+  position: "absolute",
+  left: 0,
+  top: 0,
+  bottom: 0,
+  width: 4,
 },
 
 quickCardContent: {
-  flex: 1,
-  minHeight: 118,
   padding: 16,
   paddingLeft: 15,
-  justifyContent: "center",
+  paddingBottom: 14,
 },
 
 quickTextContainer: {
@@ -1291,24 +1586,39 @@ quickIconBadge: {
   justifyContent: "center",
   marginBottom: 8,
   shadowColor: "#F5A800",
-  shadowOpacity: 0.3,
-  shadowRadius: 6,
+  shadowOpacity: 0.4,
+  shadowRadius: 8,
   shadowOffset: { width: 0, height: 3 },
+  elevation: 3,
 },
 quickLabel: {
   fontSize: 14.5,
   fontWeight: "800",
-  color: "#1A1A1A",
+  color: TEXT_PRIMARY,
   letterSpacing: -0.2,
 },
 quickSub: {
   fontSize: 11.5,
-  color: "#B0B0B0",
+  color: TEXT_SECONDARY,
   fontWeight: "500",
 },
-quickArrow: {
-  position: "absolute",
-  top: 16,
-  right: 14,
+// Franja de ancho completo, no un pill en una esquina -- grande y
+// centrada para que se lea sin dudas como EL botón de la card.
+quickCta: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  paddingVertical: 13,
+  shadowColor: "#000",
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: -1 },
+},
+quickCtaText: {
+  fontSize: 13.5,
+  fontWeight: "800",
+  color: "#FFFFFF",
+  letterSpacing: 0.2,
 },
 });

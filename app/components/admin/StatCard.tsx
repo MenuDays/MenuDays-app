@@ -1,14 +1,11 @@
-import React from "react";
-import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity } from "react-native";
+import React, { useMemo } from "react";
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PieChart } from "react-native-chart-kit";
-import { chartBaseConfig } from "./chartConfig";
+import { getChartConfig } from "./chartConfig";
 import { StatCardData } from "./types";
-
-// Se limita a un ancho "de celular" para el cálculo de la grilla de 2
-// columnas: en tablets, sin esto, cada card terminaba enorme y estirada.
-const { width: rawScreenWidth } = Dimensions.get("screen");
-const width = Math.min(rawScreenWidth, 480);
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface StatCardProps {
   stat: StatCardData;
@@ -19,6 +16,9 @@ interface StatCardProps {
 
 export default function StatCard({ stat, opacity, translateY, onPress }: StatCardProps) {
   const Wrapper = onPress ? TouchableOpacity : View;
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const chartConfig = useMemo(() => getChartConfig(colors), [colors]);
 
   return (
     <Animated.View
@@ -45,7 +45,7 @@ export default function StatCard({ stat, opacity, translateY, onPress }: StatCar
               </Text>
             </View>
           ) : onPress ? (
-            <Ionicons name="chevron-forward" size={16} color="#C9C9C9" />
+            <Ionicons name="chevron-forward" size={16} color={colors.placeholder} />
           ) : null}
         </View>
 
@@ -59,12 +59,12 @@ export default function StatCard({ stat, opacity, translateY, onPress }: StatCar
                 name: b.label,
                 population: b.value,
                 color: b.color,
-                legendFontColor: "#757575",
+                legendFontColor: colors.textSecondary,
                 legendFontSize: 10,
               }))}
               width={100}
               height={54}
-              chartConfig={chartBaseConfig}
+              chartConfig={chartConfig}
               accessor="population"
               backgroundColor="transparent"
               paddingLeft="0"
@@ -84,7 +84,7 @@ export default function StatCard({ stat, opacity, translateY, onPress }: StatCar
           </View>
         ) : stat.subtitle ? (
           <View style={styles.statSubtitleRow}>
-            <Ionicons name="information-circle-outline" size={13} color="#A0A0A0" />
+            <Ionicons name="information-circle-outline" size={13} color={colors.placeholder} />
             <Text style={styles.statSubtitle} numberOfLines={1}>{stat.subtitle}</Text>
           </View>
         ) : null}
@@ -93,17 +93,20 @@ export default function StatCard({ stat, opacity, translateY, onPress }: StatCar
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  // % en vez de un ancho en px calculado sobre un "ancho de celular"
+  // capado a mano -- así siempre entran 2 por fila, en celular Y en
+  // tablet.
   statCardWrap: {
-    width: (width - 44) / 2,
+    width: "48%",
   },
   statCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#F2F2F2",
-    shadowColor: "#000",
+    borderColor: colors.divider,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.035,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -130,15 +133,15 @@ const styles = StyleSheet.create({
   statTrendAlert: { backgroundColor: "#FFEBEE" },
   statTrendText: { fontSize: 9, fontWeight: "800", color: "#4CAF50" },
   statTrendTextAlert: { color: "#E53935" },
-  statTitle: { fontSize: 11.5, fontWeight: "700", color: "#757575", marginTop: 10 },
-  statValue: { fontSize: 24, fontWeight: "900", color: "#1A1A1A", marginTop: 1 },
+  statTitle: { fontSize: 11.5, fontWeight: "700", color: colors.textSecondary, marginTop: 10 },
+  statValue: { fontSize: 24, fontWeight: "900", color: colors.text, marginTop: 1 },
   breakdownArea: { flexDirection: "row", alignItems: "center", marginTop: 6 },
   donutChart: { marginLeft: -9 },
   breakdownLegend: { flex: 1, marginLeft: -3, gap: 4 },
   legendRow: { flexDirection: "row", alignItems: "center", minWidth: 0 },
   legendColor: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
-  legendLabel: { flex: 1, fontSize: 8, color: "#9E9E9E" },
-  legendValue: { fontSize: 9, fontWeight: "800", color: "#757575" },
+  legendLabel: { flex: 1, fontSize: 8, color: colors.textSecondary },
+  legendValue: { fontSize: 9, fontWeight: "800", color: colors.textSecondary },
   statSubtitleRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
-  statSubtitle: { flex: 1, fontSize: 10, color: "#A0A0A0" },
+  statSubtitle: { flex: 1, fontSize: 10, color: colors.placeholder },
 });

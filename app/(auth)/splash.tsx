@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Animated, Easing, ImageBackground } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef } from 'react';
+import * as NativeSplashScreen from 'expo-splash-screen';
+import { useCallback, useEffect, useRef } from 'react';
 import { router, type Href } from 'expo-router';
 import { Image } from 'react-native';
 import AuthService from '../../services/auth.service';
@@ -17,6 +18,9 @@ function routeForRole(rol: string | undefined, hasLocation: boolean): Href {
 }
 
 export default function SplashScreen() {
+  // Garantiza que la navegación fuera del splash ocurra UNA sola vez,
+  // venga del callback de la animación o del timeout de seguridad.
+  const hasNavigatedRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const lidAnim = useRef(new Animated.Value(0)).current;
   const vaporOpacity = useRef(new Animated.Value(0)).current;
@@ -32,6 +36,39 @@ export default function SplashScreen() {
     // arranca ya y para cuando termine la secuencia de abajo ya
     // tenemos la respuesta lista.
     const sessionPromise = AuthService.getSession();
+
+    // Navegación fuera del splash -- idempotente. La llama tanto el
+    // callback de la animación (camino normal) como el timeout de
+    // seguridad de abajo (si la animación no completa en un dispositivo
+    // lento, o si algo se cuelga). El usuario SIEMPRE termina saliendo
+    // del splash.
+    async function navigateAway() {
+      if (hasNavigatedRef.current) return;
+      hasNavigatedRef.current = true;
+      try {
+        NativeSplashScreen.hideAsync().catch(() => {});
+        const session = await Promise.race([
+          sessionPromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (session) {
+          const savedLocation = await Promise.race([
+            LocationService.getUserLocation(),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+          ]);
+          router.replace(routeForRole(session.user?.rol, !!savedLocation));
+        } else {
+          router.replace("/(auth)/onboarding");
+        }
+      } catch {
+        // Pase lo que pase, el usuario tiene que entrar a la app.
+        router.replace("/(auth)/onboarding");
+      }
+    }
+
+    // Red de seguridad: ~4s más que la secuencia completa (~7.6s). Si la
+    // animación no dispara su callback en un equipo lento, igual salimos.
+    const safetyTimeout = setTimeout(navigateAway, 12000);
 
     Animated.sequence([
       // 1. Barra de carga
@@ -94,21 +131,11 @@ export default function SplashScreen() {
         }),
       ]),
     ]).start(() => {
-      setTimeout(async () => {
-        const session = await sessionPromise;
-
-        if (session) {
-          // Ya hay sesión guardada: nos saltamos onboarding y login,
-          // vamos directo a la pantalla que le corresponde al rol.
-          const savedLocation = await LocationService.getUserLocation();
-          router.replace(routeForRole(session.user?.rol, !!savedLocation));
-        } else {
-          router.replace('/(auth)/onboarding');
-        }
-      }, 2000);
+      setTimeout(navigateAway, 2000);
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       progressAnim.stopAnimation();
       lidAnim.stopAnimation();
       vaporOpacity.stopAnimation();
@@ -120,6 +147,19 @@ export default function SplashScreen() {
       card2Y.stopAnimation();
     };
   }, []);
+
+  // Oculta el splash nativo recién cuando esta pantalla ya está pintada
+  // (la foto de fondo cargó), para que el pase native -> JS no muestre
+  // ningún frame en blanco. El timeout es la red de seguridad por si el
+  // evento de carga no dispara (imagen cacheada en algunos casos).
+  const hideNativeSplash = useCallback(() => {
+    NativeSplashScreen.hideAsync().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(hideNativeSplash, 400);
+    return () => clearTimeout(t);
+  }, [hideNativeSplash]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -137,6 +177,7 @@ export default function SplashScreen() {
         source={require('../../assets/images/splash.png')}
         style={styles.background}
         resizeMode="cover"
+        onLoadEnd={hideNativeSplash}
       >
         <LinearGradient
           colors={[
@@ -253,9 +294,11 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#1A120B',
   },
   background: {
     flex: 1,
+    backgroundColor: '#1A120B',
   },
   gradientOverlay: {
     flex: 1,
@@ -321,6 +364,15 @@ vaporLottie: {
     textAlign: 'center',
     letterSpacing: 4,
     lineHeight: 52,
+    // includeFontPadding TRUE explícito (override del default global
+    // includeFontPadding:false): "MENÚ" en mayúsculas grandes con acento
+    // necesita ese padding para no recortarse arriba. Deja el splash
+    // EXACTAMENTE como está hoy.
+    includeFontPadding: true,
+    // Android no cuenta el letterSpacing del último caracter al medir el
+    // ancho del texto -> la última letra se corta ("DAYS" -> "DAY").
+    // El padding le da ese aire de sobra sin descentrar el texto.
+    paddingHorizontal: 8,
   },
   subtitle: {
     fontSize: 16,
@@ -344,6 +396,7 @@ vaporLottie: {
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1.5,
+    paddingRight: 2,
   },
   captionDot: {
     color: 'rgba(255,255,255,0.5)',

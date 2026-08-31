@@ -5,6 +5,7 @@ import React, { useCallback, useMemo, useState } from "react";
 
 import {
   ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 import UserService, { User } from "../../../services/user.service";
 import AuthService from "../../../services/auth.service";
+import { pickImageFromLibrary } from "../../../utils/imagePicker";
 import RestaurantRequestService, {
   RestaurantRequestStatus,
 } from "../../../services/restaurant-request.service";
@@ -30,13 +32,17 @@ import ThemeToggle from "../../components/common/ThemeToggle";
 import { AppAlert } from "../../components/common/AppAlert";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
+import { usePreviewMode } from "../../../contexts/PreviewModeContext";
 
 export default function PerfilScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { previewOrigin, exitPreview } = usePreviewMode();
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [requestStatus, setRequestStatus] =
@@ -64,10 +70,30 @@ export default function PerfilScreen() {
     try {
       const data = await UserService.getMe();
       setUser(data);
-    } catch (e) {
+      setLoadError(null);
+    } catch (e: any) {
       console.log("Error cargando usuario:", e);
+      // Sin esto, cualquier falla (red, 401, error del back) dejaba la
+      // pantalla completamente en blanco para siempre -- `user` nunca se
+      // llenaba y no había ningún estado que mostrar en su lugar.
+      setLoadError(e?.message || "No se pudo cargar tu perfil.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleUploadPhoto() {
+    const picked = await pickImageFromLibrary();
+    if (!picked.ok || !picked.asset) return;
+
+    try {
+      const response = await UserService.uploadPhoto(picked.asset);
+      setUser((prev) => (prev ? { ...prev, profilePhotoUrl: response.photoUrl } : prev));
+      if (user) await UserService.saveLocal({ ...user, profilePhotoUrl: response.photoUrl });
+      AppAlert.alert("¡Listo!", "Foto de perfil actualizada correctamente.");
+    } catch (e) {
+      console.log("Error subiendo foto de perfil:", e);
+      AppAlert.alert("Error", "No se pudo actualizar la foto de perfil.");
     }
   }
 
@@ -80,6 +106,11 @@ export default function PerfilScreen() {
     } finally {
       setCheckingRequest(false);
     }
+  }
+
+  function handleRefresh() {
+    setRefreshing(true);
+    Promise.all([loadUser(), checkRequestStatus()]).finally(() => setRefreshing(false));
   }
 
   function startEditing() {
@@ -134,12 +165,33 @@ export default function PerfilScreen() {
             } catch (e) {
               console.log("Error en logout remoto, limpiando sesión local igual:", e);
             } finally {
+              // Sin esto, si este comensal había entrado en "Ver como
+              // comensal" desde admin/restaurante (o si la próxima
+              // sesión en este mismo dispositivo es de otro rol), el
+              // banner de "Salir de vista previa" podía quedar visible
+              // para un comensal real que nunca activó el preview.
+              exitPreview();
               router.replace("/(auth)/login");
             }
           },
         },
       ]
     );
+  }
+
+  // "Volver a mi panel": sale del modo "ver como comensal" y vuelve al
+  // dashboard del rol real (admin o restaurante). El rol REAL manda (se
+  // lee de la sesión), previewOrigin es solo el fallback.
+  async function handleBackToOwnPanel() {
+    let rol: string | null = previewOrigin;
+    try {
+      const session = await AuthService.getSession();
+      if (session?.user?.rol) rol = session.user.rol;
+    } catch {
+      /* usamos previewOrigin */
+    }
+    exitPreview();
+    router.replace(rol === "administrador" ? "/(admin)/dashboard" : "/(restaurant)/dashboard");
   }
 
   function handleRestaurantCardPress() {
@@ -159,7 +211,19 @@ export default function PerfilScreen() {
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="alert-circle-outline" size={40} color={colors.placeholder} />
+        <Text style={styles.errorText}>
+          {loadError || "No se pudo cargar tu perfil."}
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadUser} activeOpacity={0.85}>
+          <Text style={styles.retryButtonText}>Reintentar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const cityProvinceLabel =
     gpsCityProvince ??
@@ -172,7 +236,10 @@ export default function PerfilScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingScreen>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+      >
 
         <ProfileHero
           mode="avatar"
@@ -180,6 +247,7 @@ export default function PerfilScreen() {
           subtitle={user.email}
           photoUrl={user.profilePhotoUrl}
           initials={`${user.firstName[0]}${user.lastName[0]}`}
+          onPressCamera={handleUploadPhoto}
         />
 
         <View style={styles.content}>
@@ -210,9 +278,30 @@ export default function PerfilScreen() {
                 <InfoRow icon="person-outline" label="Apellido" value={user.lastName} />
                 <Divider />
                 <InfoRow icon="mail-outline" label="Email" value={user.email} />
+                <Divider />
+                <InfoRow
+                  icon="call-outline"
+                  label="Teléfono"
+                  value={user.phoneNumber || "Sin definir"}
+                />
               </>
             )}
           </ProfileCard>
+
+          {/* Cuentas de restaurante casi nunca completan un teléfono/
+              ubicación "personal" propios -- el back ya devuelve acá
+              los de su restaurante como fallback (ver
+              usingRestaurantInfo), pero se aclara para que no se lea
+              como si fuera un dato de comensal cualquiera. */}
+          {user.usingRestaurantInfo && (
+            <View style={styles.restaurantInfoNote}>
+              <Ionicons name="information-circle-outline" size={15} color="#B0793A" />
+              <Text style={styles.restaurantInfoNoteText}>
+                Esta ubicación y teléfono son los de tu restaurante -- todavía no cargaste datos
+                personales de comensal.
+              </Text>
+            </View>
+          )}
 
           {isEditing && (
             <View style={styles.editActionsRow}>
@@ -259,9 +348,9 @@ export default function PerfilScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
           </TouchableOpacity>
 
-          {/* Tema oscuro -- único lugar de la app donde se puede cambiar
-              (solo disponible para comensal, ver allowDarkMode en
-              ThemeContext: restaurante/admin quedan siempre en Light). */}
+          {/* Tema oscuro -- disponible para los 3 roles (ver allowDarkMode
+              en ThemeContext). Admin y restaurante tienen el mismo control
+              en (admin)/perfil.tsx y (restaurant)/perfil.tsx. */}
           <View style={styles.menuRow}>
             <View style={styles.menuRowLeft}>
               <View style={styles.menuRowIcon}>
@@ -272,7 +361,29 @@ export default function PerfilScreen() {
             <ThemeToggle size={32} />
           </View>
 
-          {!checkingRequest && (
+          {previewOrigin && (
+            <TouchableOpacity
+              style={styles.backToPanelButton}
+              onPress={handleBackToOwnPanel}
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={["#FFB74D", "#FB8C00"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.backToPanelGradient}
+              >
+                <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+                <Text style={styles.backToPanelText}>
+                  {previewOrigin === "administrador"
+                    ? "Volver a mi panel de admin"
+                    : "Volver a mi panel de restaurante"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {!checkingRequest && !previewOrigin && (
             <TouchableOpacity
               style={styles.restaurantCard}
               onPress={handleRestaurantCardPress}
@@ -382,9 +493,28 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.background,
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  retryButton: {
+    marginTop: 4,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 22,
+    backgroundColor: "#F5A800",
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   content: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     marginTop: -24,
@@ -453,6 +583,23 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.text,
     marginBottom: 10,
     marginTop: 4,
+  },
+  restaurantInfoNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: "#FFF1DC",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 10,
+  },
+  restaurantInfoNoteText: {
+    flex: 1,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: "#8A5A1E",
+    fontWeight: "500",
   },
   menuRow: {
     flexDirection: "row",
@@ -555,5 +702,31 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#F44336",
+  },
+  backToPanelButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginTop: 4,
+    marginBottom: 16,
+    shadowColor: "#F5751A",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  backToPanelGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backToPanelText: {
+    flexShrink: 1,
+    color: "#FFFFFF",
+    fontSize: 15.5,
+    fontWeight: "800",
   },
 });

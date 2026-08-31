@@ -13,6 +13,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FavoriteService, { FavoriteItem } from "../../services/favorite.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import { EmptyState } from "../components/common/EmptyState";
 import { AppAlert } from "../components/common/AppAlert";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -148,7 +149,7 @@ export default function FavoritosScreen() {
               <View style={styles.cardBody}>
                 <View style={styles.cardHeader}>
                   {item.restaurant.logoUrl ? (
-                    <Image source={{ uri: item.restaurant.logoUrl }} style={styles.logo} />
+                    <Image source={{ uri: optimizedImageUri(item.restaurant.logoUrl, "thumb") }} style={styles.logo} />
                   ) : (
                     <View style={[styles.logo, styles.logoPlaceholder]}>
                       <Ionicons name="storefront-outline" size={16} color={colors.placeholder} />

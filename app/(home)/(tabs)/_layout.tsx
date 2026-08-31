@@ -68,6 +68,9 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Transparente -> deja ver el fondo global de <AppBackground>
+        // (fondo_claro / fondo_oscuro) en todas las tabs del comensal.
+        sceneStyle: { backgroundColor: "transparent" },
         tabBarStyle: [styles.tabBar, { bottom: 18 + insets.bottom }],
         tabBarActiveTintColor: "#FFA726",
         tabBarInactiveTintColor: colors.placeholder,
@@ -110,6 +113,15 @@ export default function TabLayout() {
 
       <Tabs.Screen
         name="menus"
+        // El botón central es el LOGO de la marca (la cloche): al tocarlo
+        // el comensal espera volver al Inicio, no entrar a una pantalla de
+        // "Menús" suelta.
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate("index");
+          },
+        })}
         options={{
           title: "Menús",
 
@@ -135,7 +147,7 @@ export default function TabLayout() {
               allowFontScaling={false}
               style={[
                 styles.tabLabel,
-                { color, marginTop: 4 },
+                { color, marginTop: 7 },
               ]}
             >
               Menús
@@ -183,7 +195,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     right: 16,
     bottom: 18,
 
-    height: 80,
+    height: 82,
 
     backgroundColor: colors.navbarBackground,
 
@@ -200,13 +212,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 10,
 
-    paddingTop: 8,
+    paddingTop: 6,
+    paddingBottom: 8,
   },
 
   tabLabel: {
     fontSize: 11,
-    lineHeight: 14,
+    // ~1.45x -> caja holgada para la "ú" de "Menús" sin recorte.
+    lineHeight: 16,
     fontWeight: "600",
+    // baja el texto un poco -> no se pega al ícono ni se corta arriba.
+    marginTop: 5,
   },
 
   centerButton: {

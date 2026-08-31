@@ -3,15 +3,16 @@ import {
   Modal,
   View,
   Text,
-  Image,
   ScrollView,
   FlatList,
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { optimizedImageUri } from "../../../utils/imageUrl";
 
 export interface ImageViewerItem {
   uri: string;
@@ -98,9 +99,12 @@ export default function ImageViewerModal({
                   showsVerticalScrollIndicator={false}
                 >
                   <Image
-                    source={{ uri: item.uri }}
+                    source={{ uri: optimizedImageUri(item.uri, "full") }}
                     style={[styles.image, { width, height: height * 0.75 }]}
-                    resizeMode="contain"
+                    contentFit="contain"
+                    allowDownscaling={false}
+                    cachePolicy="memory-disk"
+                    transition={120}
                   />
                 </ScrollView>
               </View>

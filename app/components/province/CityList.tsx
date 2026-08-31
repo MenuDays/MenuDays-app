@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CityCard from "./CityCard";
 import { City } from "../../../services/location.service";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -21,6 +22,7 @@ export default function CityList({
   ListHeaderComponent,
 }: CityListProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
@@ -29,7 +31,9 @@ export default function CityList({
       data={cities}
       keyExtractor={(item) => item.id.toString()}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.listContent}
+      // El último cantón siempre queda por encima de la barra del sistema:
+      // se suma el inset inferior real del dispositivo al padding de la lista.
+      contentContainerStyle={[styles.listContent, { paddingBottom: 20 + insets.bottom }]}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <>

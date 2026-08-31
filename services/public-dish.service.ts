@@ -50,6 +50,9 @@ export interface PublicDish {
   precio: number;
   estado: PublicDishStatus; // findAvailable solo devuelve disponibles
   activo: boolean;
+  destacado: boolean;
+  en_oferta: boolean;
+  precio_oferta: number | null;
   created_at: string;
   updated_at: string;
   categorias: PublicDishCategory; // categoria_id es obligatorio en platos
@@ -86,6 +89,9 @@ export interface FindPublicDishesFilters {
   radius?: number;
   latitude?: number;
   longitude?: number;
+  // Para armar los carruseles de la home del comensal.
+  destacado?: boolean;
+  enOferta?: boolean;
 }
 
 class PublicDishService {
@@ -98,6 +104,8 @@ class PublicDishService {
     if (filters.radius != null) params.append("radius", String(filters.radius));
     if (filters.latitude != null) params.append("latitude", String(filters.latitude));
     if (filters.longitude != null) params.append("longitude", String(filters.longitude));
+    if (filters.destacado) params.append("destacado", "true");
+    if (filters.enOferta) params.append("enOferta", "true");
 
     const qs = params.toString();
     return await api<PublicDish[]>(`/public/dishes${qs ? `?${qs}` : ""}`);

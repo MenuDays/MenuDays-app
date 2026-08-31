@@ -125,6 +125,45 @@ export interface PublicMenuDelDia {
   estado: string;
   coleccion_id: number | null;
   menu_colecciones: PublicMenuCollectionRef | null;
+  // Cada tipo puede tener varios nombres -- ver getMenuDelDiaComponentGroups.
+  componente_entrada: string[];
+  componente_sopa: string[];
+  componente_plato_fuerte: string[];
+  componente_jugo: string[];
+  componente_postre: string[];
+  tags: string[];
+}
+
+// "Incluye: Entrada (Ensalada, Sopa de fideo), Postre (Flan)" -- mismo
+// criterio que getMenuComponentSummary en public-menu.service.ts, pero
+// para el shape que devuelve GET /public/restaurants/:id (campos
+// sueltos en vez de anidados, ver PublicMenuDelDia arriba).
+const MENU_COMPONENT_LABELS: [keyof PublicMenuDelDia, string][] = [
+  ["componente_entrada", "Entrada"],
+  ["componente_sopa", "Sopa"],
+  ["componente_plato_fuerte", "Plato Fuerte"],
+  ["componente_jugo", "Jugo"],
+  ["componente_postre", "Postre"],
+];
+
+export function getMenuDelDiaComponentSummary(menu: PublicMenuDelDia): string | null {
+  const parts = MENU_COMPONENT_LABELS.filter(([key]) => (menu[key] as string[]).length > 0).map(
+    ([key, label]) => `${label} (${(menu[key] as string[]).join(", ")})`
+  );
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+export interface MenuDelDiaComponentGroup {
+  label: string;
+  items: string[];
+}
+
+// Mismo criterio que getMenuComponentGroups en public-menu.service.ts,
+// para el shape de GET /public/restaurants/:id.
+export function getMenuDelDiaComponentGroups(menu: PublicMenuDelDia): MenuDelDiaComponentGroup[] {
+  return MENU_COMPONENT_LABELS.filter(([key]) => (menu[key] as string[]).length > 0).map(
+    ([key, label]) => ({ label, items: menu[key] as string[] })
+  );
 }
 
 export interface PublicDish {

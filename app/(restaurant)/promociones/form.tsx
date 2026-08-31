@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, Text, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,10 +11,16 @@ import PromotionService from "../../../services/promotion.service";
 import CategoryService, { Category } from "../../../services/category.service";
 import { AppAlert } from "../../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import SuccessCelebrationModal from "../../components/common/SuccessCelebrationModal";
+import { useTheme } from "../../../contexts/ThemeContext";
+import { isValidPriceInput, parsePriceInput } from "../../../utils/price";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function PromotionFormScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
 
@@ -31,6 +37,7 @@ export default function PromotionFormScreen() {
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     CategoryService.getMyCategories()
@@ -60,8 +67,8 @@ export default function PromotionFormScreen() {
       AppAlert.alert("Falta el título", "Ingresa el título de la promoción.");
       return false;
     }
-    if (!price.trim() || isNaN(Number(price)) || Number(price) < 0) {
-      AppAlert.alert("Precio inválido", "Ingresa un precio válido.");
+    if (!isValidPriceInput(price)) {
+      AppAlert.alert("Precio inválido", "Ingresa un precio válido. Puedes usar coma o punto (ej. 12,50 o 12.50).");
       return false;
     }
     if (!DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate)) {
@@ -86,7 +93,7 @@ export default function PromotionFormScreen() {
       const payload = {
         titulo: title.trim(),
         descripcion: description.trim(),
-        precio: Number(price),
+        precio: parsePriceInput(price),
         fechaInicio: startDate,
         fechaFin: endDate,
         categoriaId: categoryId ?? undefined,
@@ -95,10 +102,11 @@ export default function PromotionFormScreen() {
 
       if (isEditing) {
         await PromotionService.update(id!, payload);
+        router.back();
       } else {
         await PromotionService.create(payload);
+        setShowSuccess(true);
       }
-      router.back();
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo guardar la promoción.");
     } finally {
@@ -177,20 +185,30 @@ export default function PromotionFormScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingScreen>
+
+      <SuccessCelebrationModal
+        visible={showSuccess}
+        title="¡Promoción publicada!"
+        message="Tu promoción ya está lista para atraer más clientes."
+        onClose={() => {
+          setShowSuccess(false);
+          router.back();
+        }}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.screenSolid,
   },
   loaderContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.screenSolid,
   },
   content: {
     padding: 20,

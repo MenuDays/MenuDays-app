@@ -35,9 +35,9 @@ export default function SolicitudHeader({
       style={[styles.header, { height: HEADER_HEIGHT + insets.top }]}
       resizeMode="cover"
     >
-      <View style={styles.overlay} />
+      <View style={styles.overlay} pointerEvents="none" />
 
-      <View style={styles.content}>
+      <View style={styles.content} pointerEvents="none">
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.highlight}>{highlight}</Text>
 

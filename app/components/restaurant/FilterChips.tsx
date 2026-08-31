@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { ScrollView, TouchableOpacity, Text, StyleSheet } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 export interface FilterChipOption<T extends string> {
   value: T;
@@ -21,6 +23,9 @@ export default function FilterChips<T extends string>({
   value,
   onChange,
 }: FilterChipsProps<T>) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <ScrollView
       horizontal
@@ -37,7 +42,7 @@ export default function FilterChips<T extends string>({
             style={[
               styles.chip,
               {
-                backgroundColor: isActive ? option.activeColor : "#FFFFFF",
+                backgroundColor: isActive ? option.activeColor : colors.card,
                 borderColor: option.activeColor,
               },
             ]}
@@ -57,7 +62,7 @@ export default function FilterChips<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scrollView: {
     flexGrow: 0,
     flexShrink: 0,

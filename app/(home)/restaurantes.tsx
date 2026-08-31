@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +16,7 @@ import { router } from "expo-router";
 
 import ExploreService, { ExploreRestaurant } from "../../services/explore.service";
 import UserService from "../../services/user.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
@@ -42,6 +44,7 @@ export default function RestaurantesScreen() {
 
   const [results, setResults] = useState<ExploreRestaurant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Ubicación guardada del perfil, para poder filtrar por distancia.
@@ -71,6 +74,7 @@ export default function RestaurantesScreen() {
       setError(e.message || "No se pudieron cargar los restaurantes.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [search, maxDistance, userCoords]);
 
@@ -79,6 +83,11 @@ export default function RestaurantesScreen() {
     const timeout = setTimeout(fetchRestaurants, 350);
     return () => clearTimeout(timeout);
   }, [fetchRestaurants]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    fetchRestaurants();
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -154,6 +163,7 @@ export default function RestaurantesScreen() {
             contentContainerStyle={styles.resultsList}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
                 <Ionicons name="restaurant-outline" size={36} color={colors.placeholder} />
@@ -169,7 +179,7 @@ export default function RestaurantesScreen() {
                 <View style={styles.logoCircle}>
                   {item.logo_url ? (
                     <Image
-                      source={{ uri: item.logo_url }}
+                      source={{ uri: optimizedImageUri(item.logo_url, "thumb") }}
                       style={styles.logoImage}
                     />
                   ) : (

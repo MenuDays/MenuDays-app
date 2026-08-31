@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
-import { chartBaseConfig } from "./chartConfig";
+import { getChartConfig } from "./chartConfig";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 // Se limita a un ancho "de celular" para que el LineChart (necesita un
 // width numérico fijo, no admite porcentajes) no se estire enorme en tablets.
@@ -32,6 +34,10 @@ export default function OverviewCard({
   weeklyLabels,
   scaleAnim,
 }: OverviewCardProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const chartConfig = useMemo(() => getChartConfig(colors), [colors]);
+
   return (
     <Animated.View
       style={[styles.overviewCard, { transform: [{ scale: scaleAnim }] }]}
@@ -67,7 +73,7 @@ export default function OverviewCard({
         data={{ labels: weeklyLabels, datasets: [{ data: weeklyData }] }}
         width={width - 64}
         height={170}
-        chartConfig={chartBaseConfig}
+        chartConfig={chartConfig}
         bezier
         withInnerLines={false}
         withOuterLines={false}
@@ -87,15 +93,15 @@ export default function OverviewCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overviewCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 22,
     padding: 18,
     marginBottom: 26,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
-    shadowColor: "#000",
+    borderColor: colors.divider,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 7 },
@@ -114,8 +120,8 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#4CAF50" },
-  eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: "#9E9E9E" },
-  overviewTitle: { fontSize: 17, fontWeight: "800", color: "#1A1A1A" },
+  eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: colors.textSecondary },
+  overviewTitle: { fontSize: 17, fontWeight: "800", color: colors.text },
   overviewMetricRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -133,14 +139,14 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   growthText: { fontSize: 12, fontWeight: "800", color: "#4CAF50" },
-  overviewSubtitle: { fontSize: 11, color: "#9E9E9E", marginTop: 2 },
+  overviewSubtitle: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
   chartIconCircle: {
     width: 42,
     height: 42,
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFF6E2",
+    backgroundColor: colors.surfaceSecondary,
   },
   trendChart: { marginTop: 12, marginLeft: -18, borderRadius: 16 },
   chartFooter: {
@@ -151,5 +157,5 @@ const styles = StyleSheet.create({
   },
   chartLegend: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#F5A800" },
-  chartLegendText: { fontSize: 11, color: "#9E9E9E" },
+  chartLegendText: { fontSize: 11, color: colors.textSecondary },
 });

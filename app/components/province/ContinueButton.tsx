@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
 
@@ -22,7 +23,16 @@ export default function ContinueButton({
                                        }: ContinueButtonProps) {
     const { colors } = useTheme();
     const { width } = useWindowDimensions();
-    const styles = useMemo(() => createStyles(colors, width), [colors, width]);
+    // Inset inferior REAL del dispositivo: en un teléfono con barra de 3
+    // botones puede ser ~48px; con gestos, ~0-24. Antes el padding era
+    // fijo (28) y no alcanzaba -> en Android viejo el botón (y con él el
+    // final de la lista de cantones) quedaba tapado por la barra del
+    // sistema. Ahora el padding sigue al inset real.
+    const insets = useSafeAreaInsets();
+    const styles = useMemo(
+        () => createStyles(colors, width, insets.bottom),
+        [colors, width, insets.bottom]
+    );
 
     return (
         <View style={styles.container}>
@@ -50,13 +60,15 @@ export default function ContinueButton({
     );
 }
 
-const createStyles = (colors: ThemeColors, width: number) => StyleSheet.create({
+const createStyles = (colors: ThemeColors, width: number, bottomInset: number) => StyleSheet.create({
     container: {
         width: "100%",
         paddingHorizontal: width * 0.07,
-        paddingBottom: 28,
+        // 20 de aire de base + el inset real de la barra del sistema
+        // (mínimo 28 para no perder el espaciado original en gestos).
+        paddingBottom: Math.max(28, bottomInset + 20),
         paddingTop: 10,
-        backgroundColor: colors.background,
+        backgroundColor: colors.surface,
     },
 
     touchable: {
@@ -86,7 +98,6 @@ const createStyles = (colors: ThemeColors, width: number) => StyleSheet.create({
         fontSize: 17,
         fontWeight: "700",
 
-        // Cuando carguen Poppins:
-        // fontFamily: "Poppins_700Bold",
+        // fontFamily la aplica utils/textDefaults.ts (Inter_700Bold por el fontWeight 700).
     },
 });

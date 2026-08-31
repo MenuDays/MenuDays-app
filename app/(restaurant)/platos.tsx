@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import DishService, { Dish } from "../../services/dish.service";
 import { AppAlert } from "../components/common/AppAlert";
@@ -10,6 +10,10 @@ import PublishFab from "../components/restaurant/PublishFab";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
 import { StatusTone } from "../components/restaurant/StatusBadge";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
+
+const headerImage = require("../../assets/dashboard/platos.png");
 
 type FilterValue = "todos" | "disponible" | "agotado" | "inactivo";
 
@@ -27,6 +31,8 @@ function getStatusMeta(dish: Dish): { label: string; tone: StatusTone } {
 }
 
 export default function DishListScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [filter, setFilter] = useState<FilterValue>("todos");
   const [loading, setLoading] = useState(true);
@@ -82,6 +88,16 @@ export default function DishListScreen() {
     }
   }
 
+  async function handleToggleStock(dish: Dish) {
+    try {
+      const nextEstado = dish.estado === "agotado" ? "disponible" : "agotado";
+      const updated = await DishService.update(dish.id, { estado: nextEstado });
+      setDishes((prev) => prev.map((d) => (d.id === dish.id ? { ...d, estado: updated.estado } : d)));
+    } catch (e: any) {
+      AppAlert.alert("Error", e.message || "No se pudo actualizar el stock del plato.");
+    }
+  }
+
   const filteredDishes = dishes.filter((d) => {
     if (filter === "todos") return true;
     if (filter === "inactivo") return !d.activo;
@@ -93,6 +109,7 @@ export default function DishListScreen() {
       <ScreenHeader
         title="Platos"
         showBack
+        imageSource={headerImage}
       />
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
@@ -127,6 +144,8 @@ export default function DishListScreen() {
                 onEdit={() => router.push(`/(restaurant)/platos/form?id=${item.id}`)}
                 onDelete={() => handleDelete(item.id)}
                 onToggleVisibility={() => handleToggleVisibility(item)}
+                onToggleStock={() => handleToggleStock(item)}
+                isOutOfStock={item.estado === "agotado"}
               />
             );
           }}
@@ -139,10 +158,10 @@ export default function DishListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.background,
   },
   loader: {
     marginTop: 40,
@@ -157,7 +176,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: "center",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     fontSize: 14,
     marginTop: 40,
   },

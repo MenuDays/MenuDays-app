@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Image,
   RefreshControl,
@@ -10,6 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { useLocalSearchParams } from "expo-router";
 import RestauranteDetalleScreen from "../(home)/restaurante-detalle";
 
 import OrderService, {
@@ -18,10 +21,13 @@ import OrderService, {
   RestaurantOrderListItem,
 } from "../../services/order.service";
 import RestaurantService from "../../services/restaurant.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import { AppAlert } from "../components/common/AppAlert";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
 import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Pantalla "Mi Local": antes el ítem de la nav bar no llevaba a ningún
 // lado (route: null en RestaurantBottomNav). Junta dos cosas:
@@ -66,7 +72,17 @@ const ESTADO_FILTERS: (OrderStatus | "todos")[] = [
   "cancelado",
 ];
 
+function isOrderStatus(v: string | undefined): v is OrderStatus {
+  return (
+    !!v &&
+    (ESTADO_FILTERS as string[]).includes(v) &&
+    v !== "todos"
+  );
+}
+
 export default function MiLocalScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [tab, setTab] = useState<Tab>("pedidos");
 
   return (
@@ -104,7 +120,14 @@ export default function MiLocalScreen() {
 // ============================================================
 
 function PedidosTab() {
-  const [estadoFilter, setEstadoFilter] = useState<OrderStatus | "todos">("todos");
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  // El dashboard puede abrir esta pantalla ya filtrada por un estado
+  // (card "Pedidos pendientes" -> ?estado=pendiente).
+  const params = useLocalSearchParams<{ estado?: string }>();
+  const [estadoFilter, setEstadoFilter] = useState<OrderStatus | "todos">(
+    isOrderStatus(params.estado) ? params.estado : "todos"
+  );
   const [orders, setOrders] = useState<RestaurantOrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -114,38 +137,90 @@ function PedidosTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchOrders = useCallback(async () => {
-    setError(null);
+  const inFlight = useRef(false);
+  const estadoFilterRef = useRef(estadoFilter);
+  estadoFilterRef.current = estadoFilter;
+
+  const fetchOrders = useCallback(async (opts?: { silent?: boolean; manual?: boolean }) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    if (opts?.manual) setRefreshing(true);
     try {
+      const filter = estadoFilterRef.current;
       const data = await OrderService.getRestaurantOrders(
-        estadoFilter !== "todos" ? { estado: estadoFilter } : {}
+        filter !== "todos" ? { estado: filter } : {}
       );
+      // Ignorar la respuesta si el filtro cambió mientras cargaba.
+      if (estadoFilterRef.current !== filter) return;
       setOrders(data);
+      setError(null);
     } catch (e: any) {
-      setError(e.message || "No se pudieron cargar los pedidos.");
+      if (!opts?.silent) setError(e.message || "No se pudieron cargar los pedidos.");
     } finally {
+      inFlight.current = false;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [estadoFilter]);
+  }, []);
 
+  // Recargar al cambiar de filtro.
   useEffect(() => {
     setLoading(true);
-    fetchOrders();
-  }, [fetchOrders]);
+    void fetchOrders();
+  }, [estadoFilter, fetchOrders]);
+
+  // Refrescar al enfocar la pantalla + polling suave mientras está activa
+  // y en primer plano -> el restaurante ve los pedidos nuevos (y los
+  // cambios) sin recargar a mano. Se limpia al salir.
+  useFocusEffect(
+    useCallback(() => {
+      void fetchOrders({ silent: true });
+
+      let interval: ReturnType<typeof setInterval> | null = null;
+      const start = () => {
+        if (interval) return;
+        interval = setInterval(() => {
+          if (AppState.currentState === "active") void fetchOrders({ silent: true });
+        }, 15000);
+      };
+      const stop = () => {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      };
+      start();
+      const sub = AppState.addEventListener("change", (s) => {
+        if (s === "active") {
+          void fetchOrders({ silent: true });
+          start();
+        } else {
+          stop();
+        }
+      });
+      return () => {
+        stop();
+        sub.remove();
+      };
+    }, [fetchOrders])
+  );
 
   function handleRefresh() {
-    setRefreshing(true);
-    fetchOrders();
+    void fetchOrders({ manual: true });
   }
 
   async function handleAdvance(orderId: string, nuevoEstado: OrderStatus) {
+    // No permitir doble envío: si ya hay un cambio en curso, ignorar.
+    if (updatingId) return;
     setUpdatingId(orderId);
     try {
       await OrderService.updateStatus(orderId, nuevoEstado);
       setExpandedId(null);
-      fetchOrders();
+      // Recargar para reflejar el estado real confirmado por el backend.
+      await fetchOrders({ silent: true });
     } catch (e: any) {
+      // El backend RECHAZÓ el cambio -> se mantiene el estado anterior
+      // (no se recarga la lista, la card sigue como estaba) y se avisa.
       AppAlert.alert("No se pudo actualizar", e.message || "Intentá de nuevo en un momento.");
     } finally {
       setUpdatingId(null);
@@ -183,9 +258,9 @@ function PedidosTab() {
         </View>
       ) : error ? (
         <View style={styles.centerWrap}>
-          <Ionicons name="cloud-offline-outline" size={36} color="#D9D9D9" />
+          <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
           <Text style={styles.emptyText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchOrders}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); void fetchOrders(); }}>
             <Text style={styles.retryButtonText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
@@ -198,7 +273,7 @@ function PedidosTab() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Ionicons name="receipt-outline" size={36} color="#D9D9D9" />
+              <Ionicons name="receipt-outline" size={36} color={colors.placeholder} />
               <Text style={styles.emptyText}>
                 {estadoFilter === "todos"
                   ? "Todavía no te llegó ningún pedido."
@@ -213,10 +288,10 @@ function PedidosTab() {
               <View style={styles.orderCard}>
                 <View style={styles.orderTopRow}>
                   {item.imagen ? (
-                    <Image source={{ uri: item.imagen }} style={styles.orderImage} />
+                    <Image source={{ uri: optimizedImageUri(item.imagen, "thumb") }} style={styles.orderImage} />
                   ) : (
                     <View style={[styles.orderImage, styles.orderImagePlaceholder]}>
-                      <Ionicons name="fast-food-outline" size={20} color="#BDBDBD" />
+                      <Ionicons name="fast-food-outline" size={20} color={colors.placeholder} />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -235,7 +310,7 @@ function PedidosTab() {
                     <Ionicons
                       name={item.metodoEntrega === "DELIVERY" ? "bicycle-outline" : "storefront-outline"}
                       size={13}
-                      color="#9E9E9E"
+                      color={colors.textSecondary}
                     />
                     <Text style={styles.orderMetaText}>
                       {item.metodoEntrega === "DELIVERY" ? "Delivery" : "Retiro en el local"}
@@ -267,15 +342,19 @@ function PedidosTab() {
 
                     {isExpanded && (
                       <View style={styles.optionsRow}>
-                        {nextOptions.map((option) => (
-                          <TouchableOpacity
-                            key={option}
-                            style={styles.optionChip}
-                            onPress={() => handleAdvance(item.id, option)}
-                          >
-                            <Text style={styles.optionChipText}>{ESTADO_LABEL[option]}</Text>
-                          </TouchableOpacity>
-                        ))}
+                        {nextOptions.map((option) => {
+                          const busy = updatingId !== null;
+                          return (
+                            <TouchableOpacity
+                              key={option}
+                              style={[styles.optionChip, busy && styles.optionChipDisabled]}
+                              onPress={() => handleAdvance(item.id, option)}
+                              disabled={busy}
+                            >
+                              <Text style={styles.optionChipText}>{ESTADO_LABEL[option]}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     )}
                   </>
@@ -295,6 +374,8 @@ function PedidosTab() {
 // ============================================================
 
 function VistaPreviaTab() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -338,8 +419,8 @@ const DAY_NAMES: Record<number, string> = {
   7: "Domingo",
 };
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FAFAFA" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.screenSolid },
   tabContent: { flex: 1 },
 
   tabBar: {
@@ -347,7 +428,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 14,
     marginBottom: 4,
-    backgroundColor: "#F0F0F0",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 14,
     padding: 4,
     gap: 4,
@@ -359,15 +440,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tabButtonActive: {
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
+    backgroundColor: colors.card,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
-  tabLabel: { fontSize: 13, fontWeight: "700", color: "#9E9E9E" },
-  tabLabelActive: { color: "#3E2723" },
+  tabLabel: { fontSize: 13, fontWeight: "700", color: colors.textSecondary },
+  tabLabelActive: { color: colors.text },
 
   filterListWrapper: { flexGrow: 0, marginTop: 14 },
   filterList: { gap: 8, paddingHorizontal: 16 },
@@ -375,26 +456,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: colors.border,
   },
   filterChipActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
-  filterChipText: { fontSize: 12, fontWeight: "700", color: "#3E2723" },
+  filterChipText: { fontSize: 12, fontWeight: "700", color: colors.text },
   filterChipTextActive: { color: "#FFFFFF" },
 
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
   retryButton: { marginTop: 4, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 },
   retryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   emptyWrap: { alignItems: "center", marginTop: 60, paddingHorizontal: 30, gap: 10 },
-  emptyText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
+  emptyText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
 
   ordersList: { padding: 16, paddingBottom: 140, gap: 12 },
   orderCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -402,9 +483,9 @@ const styles = StyleSheet.create({
   },
   orderTopRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   orderImage: { width: 46, height: 46, borderRadius: 10 },
-  orderImagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
-  orderProduct: { fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
-  orderCustomer: { fontSize: 12, color: "#9E9E9E", marginTop: 1 },
+  orderImagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  orderProduct: { fontSize: 14, fontWeight: "800", color: colors.text },
+  orderCustomer: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
   orderMetaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -412,10 +493,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "#F5F5F5",
+    borderTopColor: colors.divider,
   },
   orderMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  orderMetaText: { fontSize: 12, color: "#9E9E9E", fontWeight: "600" },
+  orderMetaText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
   orderTotal: { fontSize: 14, fontWeight: "800", color: "#FB8C00" },
 
   advanceButton: {
@@ -438,6 +519,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FFD9A0",
   },
+  optionChipDisabled: { opacity: 0.45 },
   optionChipText: { fontSize: 12, fontWeight: "700", color: "#FB8C00" },
 
   previewContent: { paddingBottom: 140 },

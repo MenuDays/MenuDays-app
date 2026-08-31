@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,9 +18,12 @@ import RestaurantsAdminService, {
   AdminRestaurantDetail,
   RestaurantAccountStatus,
 } from "../../services/restaurantsAdmin.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import { AppAlert } from "../components/common/AppAlert";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import InfoRow from "../components/admin/InfoRow";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 function getStatusInfo(status: RestaurantAccountStatus) {
   switch (status) {
@@ -33,18 +37,34 @@ function getStatusInfo(status: RestaurantAccountStatus) {
 }
 
 export default function RestauranteAdminDetalleScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [detail, setDetail] = useState<AdminRestaurantDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
+  function loadDetail() {
     if (!id) return;
     RestaurantsAdminService.getById(Number(id))
       .then(setDetail)
       .catch(() => AppAlert.alert("Error", "No se pudo cargar el restaurante."))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    loadDetail();
   }, [id]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadDetail();
+  }
 
   async function applyStatus(estado: RestaurantAccountStatus) {
     if (!detail) return;
@@ -129,11 +149,12 @@ export default function RestauranteAdminDetalleScreen() {
         style={styles.card}
         contentContainerStyle={styles.cardContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
       >
         <View style={styles.topRow}>
           <View style={styles.logoWrap}>
             {detail.logoUrl ? (
-              <Image source={{ uri: detail.logoUrl }} style={styles.logoImage} />
+              <Image source={{ uri: optimizedImageUri(detail.logoUrl, "thumb") }} style={styles.logoImage} />
             ) : (
               <Ionicons name="restaurant" size={28} color="#FB8C00" />
             )}
@@ -198,9 +219,9 @@ export default function RestauranteAdminDetalleScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8F8F8" },
-  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F8F8F8" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   header: { height: 180 },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(20,10,5,0.55)" },
   backButton: {
@@ -218,7 +239,7 @@ const styles = StyleSheet.create({
   headerHighlight: { fontSize: 20, fontWeight: "800", color: "#FFC24D" },
   headerUnderline: { width: 40, height: 3, borderRadius: 2, backgroundColor: "#FB8C00", marginTop: 6 },
 
-  card: { flex: 1, marginTop: -24, backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28 },
+  card: { flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   cardContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120 },
 
   topRow: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16 },
@@ -235,7 +256,7 @@ const styles = StyleSheet.create({
   },
   logoImage: { width: 64, height: 64, borderRadius: 32 },
   nameCol: { flex: 1 },
-  name: { fontSize: 18, fontWeight: "800", color: "#1A1A1A", marginBottom: 6 },
+  name: { fontSize: 18, fontWeight: "800", color: colors.text, marginBottom: 6 },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import ScreenHeader from "../../components/restaurant/ScreenHeader";
 import StatusBadge, { StatusTone } from "../../components/restaurant/StatusBadge";
 import MenuService, { Menu, MenuStatus } from "../../../services/menu.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
+import { optimizedImageUri } from "../../../utils/imageUrl";
 
 const STATUS_META: Record<MenuStatus, { label: string; tone: StatusTone }> = {
   programado: { label: "Programado", tone: "info" },
@@ -15,17 +18,33 @@ const STATUS_META: Record<MenuStatus, { label: string; tone: StatusTone }> = {
 };
 
 export default function MenuDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [menu, setMenu] = useState<Menu | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  function loadMenu() {
     if (!id) return;
     MenuService.getById(id)
       .then(setMenu)
       .catch((e) => AppAlert.alert("Error", e.message || "No se pudo cargar el menú."))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    loadMenu();
   }, [id]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadMenu();
+  }
 
   function handleDelete() {
     if (!menu) return;
@@ -60,13 +79,16 @@ export default function MenuDetailScreen() {
     <View style={styles.container}>
       <ScreenHeader title="Detalle del menú" showBack />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+      >
         <View style={styles.imageWrap}>
           {menu.foto_url ? (
-            <Image source={{ uri: menu.foto_url }} style={styles.image} />
+            <Image source={{ uri: optimizedImageUri(menu.foto_url, "card") }} style={styles.image} />
           ) : (
             <View style={[styles.image, styles.imagePlaceholder]}>
-              <Ionicons name="image-outline" size={32} color="#C9C9C9" />
+              <Ionicons name="image-outline" size={32} color={colors.placeholder} />
             </View>
           )}
         </View>
@@ -80,7 +102,7 @@ export default function MenuDetailScreen() {
         {menu.descripcion ? <Text style={styles.description}>{menu.descripcion}</Text> : null}
 
         <View style={styles.datesRow}>
-          <Ionicons name="calendar-outline" size={16} color="#9E9E9E" />
+          <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
           <Text style={styles.datesText}>
             {menu.fecha_inicio.slice(0, 10)} — {menu.fecha_fin.slice(0, 10)}
           </Text>
@@ -105,19 +127,19 @@ export default function MenuDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.screenSolid },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.screenSolid },
   content: { padding: 20, paddingBottom: 48 },
   imageWrap: { height: 180, borderRadius: 16, overflow: "hidden", marginBottom: 18 },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
+  imagePlaceholder: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
-  name: { flex: 1, fontSize: 22, fontWeight: "900", color: "#1A1A1A" },
+  name: { flex: 1, fontSize: 22, fontWeight: "900", color: colors.text },
   price: { fontSize: 18, fontWeight: "800", color: "#FB8C00", marginTop: 6 },
-  description: { fontSize: 14, color: "#5C5C5C", marginTop: 10, lineHeight: 20 },
+  description: { fontSize: 14, color: colors.textSecondary, marginTop: 10, lineHeight: 20 },
   datesRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16 },
-  datesText: { fontSize: 13, color: "#9E9E9E" },
+  datesText: { fontSize: 13, color: colors.textSecondary },
   actionsRow: { flexDirection: "row", gap: 12, marginTop: 32 },
   editButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#FB8C00", borderRadius: 24, paddingVertical: 13 },
   editText: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },

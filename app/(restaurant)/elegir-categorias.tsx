@@ -16,14 +16,22 @@ import CategoryService, { Category } from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import { getCategoryIcon } from "../../constants/categoryIcons";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 export default function ChooseCategoriesScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   // Si venimos de "Mi perfil" para editar (from=perfil), al guardar
   // volvemos ahí y mostramos el botón de volver. Si venimos del login
   // (primera vez, todavía sin categorías elegidas), no hay a dónde
   // volver: se oculta el back y al guardar se entra al dashboard.
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const cameFromProfile = from === "perfil";
+  // Cualquier `from` (perfil, form, ...) = venimos de otra pantalla dentro
+  // de la app: mostramos el "atrás" y al guardar volvemos. Sin `from` es
+  // el flujo de primera vez (login / recién aprobado), que encadena a
+  // "Configurar delivery".
+  const cameFromProfile = !!from;
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -102,7 +110,7 @@ export default function ChooseCategoriesScreen() {
         <View style={styles.header}>
           {cameFromProfile ? (
             <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
-              <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+              <Ionicons name="chevron-back" size={26} color={colors.text} />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 26 }} />
@@ -115,11 +123,11 @@ export default function ChooseCategoriesScreen() {
         </View>
 
         <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color="#8A8A8A" />
+          <Ionicons name="search" size={18} color={colors.placeholder} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar categoría..."
-            placeholderTextColor="#8A8A8A"
+            placeholderTextColor={colors.placeholder}
             value={search}
             onChangeText={setSearch}
           />
@@ -176,7 +184,7 @@ export default function ChooseCategoriesScreen() {
                       <Image source={{ uri: item.iconos.url }} style={styles.image} />
                     ) : (
                       <View style={[styles.image, styles.imagePlaceholder]}>
-                        <Ionicons name="restaurant-outline" size={22} color="#6B6B6B" />
+                        <Ionicons name="restaurant-outline" size={22} color={colors.placeholder} />
                       </View>
                     )}
                     <View style={[styles.checkCircle, isSelected && styles.checkCircleSelected]}>
@@ -206,10 +214,10 @@ export default function ChooseCategoriesScreen() {
 
 const CARD_GAP = 10;
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#141414",
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: "row",
@@ -225,11 +233,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: colors.text,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     marginTop: 4,
     textAlign: "center",
     paddingHorizontal: 20,
@@ -237,7 +245,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#232323",
+    backgroundColor: colors.inputBackground,
     borderRadius: 14,
     marginHorizontal: 16,
     paddingHorizontal: 14,
@@ -246,7 +254,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: "#FFFFFF",
+    color: colors.text,
     fontSize: 14,
   },
   countRow: {
@@ -259,7 +267,7 @@ const styles = StyleSheet.create({
   },
   countText: {
     fontSize: 13,
-    color: "#D0D0D0",
+    color: colors.textSecondary,
     fontWeight: "500",
   },
   countHighlight: {
@@ -267,7 +275,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   countBadge: {
-    backgroundColor: "#232323",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -287,7 +295,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginHorizontal: 16,
     marginBottom: 12,
-    backgroundColor: "#232323",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -308,7 +316,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    backgroundColor: "#1E1E1E",
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: "transparent",
@@ -318,7 +326,7 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderColor: "#FFA726",
-    backgroundColor: "#2A2116",
+    backgroundColor: colors.surfaceSecondary,
   },
   imageWrap: {
     width: 56,
@@ -331,7 +339,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   imagePlaceholder: {
-    backgroundColor: "#2C2C2C",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -343,8 +351,8 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: "#6B6B6B",
-    backgroundColor: "#1E1E1E",
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -354,13 +362,13 @@ const styles = StyleSheet.create({
   },
   cardLabel: {
     fontSize: 11.5,
-    color: "#E0E0E0",
+    color: colors.text,
     fontWeight: "600",
     textAlign: "center",
   },
   emptyText: {
     textAlign: "center",
-    color: "#8A8A8A",
+    color: colors.textSecondary,
     fontSize: 13,
     marginTop: 40,
   },

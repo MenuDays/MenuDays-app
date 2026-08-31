@@ -38,7 +38,11 @@ export default function EditableRow({
       <TextInput
         style={[
           styles.infoInput,
-          { color: colors.text },
+          {
+            color: colors.text,
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+          },
           multiline && styles.infoInputMultiline,
         ]}
         value={value}
@@ -71,15 +75,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     width: 90,
   },
+  // Fondo + borde propios -- antes este input se veía IGUAL que el texto
+  // de solo-lectura de InfoRow (mismo tamaño/peso/color, sin marco), así
+  // que "modo edición" no se distinguía de "modo vista" a simple vista.
   infoInput: {
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
     textAlign: "right",
-    paddingVertical: 0,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   infoInputMultiline: {
     textAlign: "left",
     minHeight: 60,
+    paddingTop: 10,
   },
 });

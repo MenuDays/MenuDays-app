@@ -10,6 +10,7 @@ import ProvinceHeader from "../components/province/ProvinceHeader";
 import ProvinceSearch from "../components/province/ProvinceSearch";
 
 import LocationService, { City } from "../../services/location.service";
+import ProvinceCityPickerBridge from "../../services/provinceCityPicker.bridge";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
 import { showLocationError, isNetworkError } from "../utils/locationErrors";
@@ -17,10 +18,12 @@ import { showLocationError, isNetworkError } from "../utils/locationErrors";
 export default function CityScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { provinceId, provinceName } = useLocalSearchParams<{
+  const { provinceId, provinceName, picker } = useLocalSearchParams<{
     provinceId: string;
     provinceName: string;
+    picker?: string;
   }>();
+  const isPickerMode = picker === "1";
 
   const [search, setSearch] = useState("");
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
@@ -60,6 +63,24 @@ export default function CityScreen() {
       showLocationError("missingCity");
       return;
     }
+
+    if (isPickerMode) {
+      ProvinceCityPickerBridge.set({
+        province: { id: Number(provinceId), nombre: provinceName ?? "" },
+        city: {
+          id: Number(selectedCity.id),
+          nombre: selectedCity.nombre,
+          latitud: selectedCity.latitud ?? null,
+          longitud: selectedCity.longitud ?? null,
+        },
+      });
+      // Un solo back: index.tsx usó router.replace en modo selector, así
+      // que esta pantalla ocupa su lugar en la pila -- volver un paso
+      // alcanza para llegar directo a quien abrió el selector.
+      router.back();
+      return;
+    }
+
     await LocationService.saveSelectedCity(selectedCity);
     router.push({
       pathname: "/(province)/map-province",
@@ -77,7 +98,10 @@ export default function CityScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    // El borde inferior lo maneja ContinueButton con el inset real del
+    // dispositivo, no el SafeAreaView (que en edge-to-edge + Android viejo
+    // no siempre aplica bien el bottom) -> por eso acá solo top/lados.
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <KeyboardAvoidingScreen>
       <CityList
         cities={filteredCities}
@@ -115,7 +139,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   searchWrap: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     marginTop: -28,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,

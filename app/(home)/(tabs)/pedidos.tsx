@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, ScrollView } from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { AppState, View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, ScrollView, RefreshControl, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
 import OrderService, { OrderHistoryItem, OrderStatus } from "../../../services/order.service";
+import { optimizedImageUri } from "../../../utils/imageUrl";
+import { EmptyState } from "../../components/common/EmptyState";
 import StatusBadge, { StatusTone } from "../../components/restaurant/StatusBadge";
 import { AppAlert } from "../../components/common/AppAlert";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -33,16 +36,81 @@ const ESTADO_TONE: Record<OrderStatus, StatusTone> = {
 export default function PedidosScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // La mascota escala con la pantalla: chica en un iPhone SE, generosa
+  // en un Pro Max / tablet, sin pasarse.
+  const { width: screenWidth } = useWindowDimensions();
+  const mascotSize = Math.round(Math.min(240, Math.max(150, screenWidth * 0.5)));
 
   const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    OrderService.getHistory()
-      .then(setOrders)
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudieron cargar tus pedidos."))
-      .finally(() => setLoading(false));
-  }, []);
+  const inFlight = useRef(false);
+
+  const loadOrders = useCallback(
+    async (opts?: { silent?: boolean; manual?: boolean }) => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      if (opts?.manual) setRefreshing(true);
+      try {
+        const data = await OrderService.getHistory();
+        setOrders(data);
+      } catch (e: any) {
+        // Refresco silencioso (polling): no molestar con un alert, se
+        // conserva lo último cargado y se reintenta en el próximo tick.
+        if (!opts?.silent) {
+          AppAlert.alert("Error", e.message || "No se pudieron cargar tus pedidos.");
+        }
+      } finally {
+        inFlight.current = false;
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    []
+  );
+
+  // Refresca al enfocar la pestaña + polling suave (20s) mientras está
+  // activa y en primer plano -> así los cambios de estado del restaurante
+  // aparecen en la lista sin cerrar la app. Se limpia al salir de la tab.
+  useFocusEffect(
+    useCallback(() => {
+      void loadOrders();
+
+      let interval: ReturnType<typeof setInterval> | null = null;
+      const start = () => {
+        if (interval) return;
+        interval = setInterval(() => {
+          if (AppState.currentState === "active") void loadOrders({ silent: true });
+        }, 20000);
+      };
+      const stop = () => {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      };
+      start();
+
+      const sub = AppState.addEventListener("change", (s) => {
+        if (s === "active") {
+          void loadOrders({ silent: true });
+          start();
+        } else {
+          stop();
+        }
+      });
+
+      return () => {
+        stop();
+        sub.remove();
+      };
+    }, [loadOrders])
+  );
+
+  function handleRefresh() {
+    void loadOrders({ manual: true });
+  }
 
   if (loading) {
     return (
@@ -57,16 +125,18 @@ export default function PedidosScreen() {
       <Text style={styles.title}>Pedidos</Text>
 
       {orders.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          {/* pedidos-nene.png es un PNG sin canal alpha (fondo blanco
-              sólido, no transparente) -- en Dark Mode se veía como un
-              cuadrado blanco pegado. Se reemplaza por un ícono, igual
-              criterio que el resto de los estados vacíos de la app. */}
-          <Ionicons name="receipt-outline" size={64} color={colors.placeholder} />
-          <Text style={styles.emptyText}>Todavía no tienes pedidos.</Text>
-        </View>
+        // "Pibe pensativo" (nene-pensando.png, PNG con transparencia -> se
+        // ve bien en claro y oscuro), centrado y responsive vía EmptyState.
+        <EmptyState
+          mascot={require("../../../assets/images/nene-pensando.png")}
+          size={mascotSize}
+          text={"No hay más pedidos por ahora.\nCuando hagas uno, va a aparecer aquí."}
+        />
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+        >
           {orders.map((order) => (
             <TouchableOpacity
               key={order.id}
@@ -75,7 +145,7 @@ export default function PedidosScreen() {
               onPress={() => router.push(`/(home)/pedido-detalle?id=${order.id}`)}
             >
               {order.imagen ? (
-                <Image source={{ uri: order.imagen }} style={styles.image} />
+                <Image source={{ uri: optimizedImageUri(order.imagen, "thumb") }} style={styles.image} />
               ) : (
                 <View style={[styles.image, styles.imagePlaceholder]}>
                   <Ionicons name="restaurant-outline" size={18} color={colors.placeholder} />

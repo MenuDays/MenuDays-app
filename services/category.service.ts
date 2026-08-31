@@ -15,19 +15,28 @@ export interface Category {
 // spinner de nuevo, aunque los datos fueran a ser exactamente los mismos.
 let categoriesCache: Category[] | null = null;
 
+// El back no las devuelve en ningún orden particular (orden de creación),
+// así que se ordenan acá antes de cachear/devolver -- afecta tanto al
+// listado completo (getAll) como al de categorías propias del
+// restaurante (getMyCategories), que son dos endpoints separados.
+function sortByName(categories: Category[]): Category[] {
+  return [...categories].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
 class CategoryService {
   async getAll(): Promise<Category[]> {
     if (categoriesCache) return categoriesCache;
     const data = await api<Category[]>("/categories");
-    categoriesCache = data;
-    return data;
+    categoriesCache = sortByName(data);
+    return categoriesCache;
   }
 
   // GET /restaurants/categories
   //      devuelve las categorías ya asociadas al restaurante autenticado,
   //      ej: [{ id: "3", nombre: "Pizzas", ... }, ...]
   async getMyCategories(): Promise<Category[]> {
-    return api<Category[]>("/restaurants/categories");
+    const data = await api<Category[]>("/restaurants/categories");
+    return sortByName(data);
   }
 
   // Igual que getMyCategories pero solo los ids, para preseleccionar el

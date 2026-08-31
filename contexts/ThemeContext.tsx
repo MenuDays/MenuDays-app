@@ -43,9 +43,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useSystemColorScheme();
   const [mode, setModeState] = useState<ThemeMode>("system");
   const [isLoading, setIsLoading] = useState(true);
-  // Dark Mode es una feature solo del rol comensal -- restaurante y admin
-  // se quedan siempre en Light, sin importar la preferencia guardada ni
-  // el tema del sistema operativo del dispositivo.
+  // Dark Mode está disponible para los 3 roles (comensal, administrador,
+  // restaurante). Se mantiene el mecanismo de whitelist por si en el
+  // futuro se agrega un rol que deba quedar forzado a Light.
   const [allowDarkMode, setAllowDarkMode] = useState(true);
 
   const refreshRole = () => {
@@ -57,7 +57,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
         try {
           const user = JSON.parse(raw);
-          setAllowDarkMode(!user?.rol || user.rol === "comensal");
+          setAllowDarkMode(
+            !user?.rol ||
+              user.rol === "comensal" ||
+              user.rol === "administrador" ||
+              user.rol === "restaurante"
+          );
         } catch {
           setAllowDarkMode(true);
         }

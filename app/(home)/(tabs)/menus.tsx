@@ -15,8 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 
-import PublicMenuService, { PublicMenu } from "../../../services/public-menu.service";
+import PublicMenuService, { PublicMenu, getMenuComponentSummary } from "../../../services/public-menu.service";
 import UserService from "../../../services/user.service";
+import { optimizedImageUri } from "../../../utils/imageUrl";
 import { EmptyState } from "../../components/common/EmptyState";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -193,11 +194,16 @@ export default function MenusScreen() {
           ListEmptyComponent={
             <EmptyState
               mascot={require("../../../assets/images/nene-brazos-cruzados.png")}
-              text="No hay menús del día publicados cerca tuyo por ahora. Probá ampliar la distancia o vuelve más tarde."
+              text="No hay menús del día publicados cerca de ti por ahora. Prueba ampliar la distancia o vuelve más tarde."
             />
           }
           renderItem={({ item }) => {
             const status = OPEN_LABEL[item.restaurante.estado_operativo] ?? OPEN_LABEL.cerrado;
+            // "Incluye: Entrada (Ensalada), Postre (Flan)" -- si el
+            // restaurante no cargó ningún componente (menú viejo, de
+            // antes de esta funcionalidad), se cae a la descripción
+            // libre de siempre.
+            const componentSummary = getMenuComponentSummary(item);
 
             return (
               <TouchableOpacity
@@ -207,7 +213,7 @@ export default function MenusScreen() {
               >
                 <View style={styles.imageWrap}>
                   {item.foto_url ? (
-                    <Image source={{ uri: item.foto_url }} style={styles.image} />
+                    <Image source={{ uri: optimizedImageUri(item.foto_url, "card") }} style={styles.image} />
                   ) : (
                     <View style={[styles.image, styles.imagePlaceholder]}>
                       <Ionicons name="restaurant-outline" size={24} color={colors.placeholder} />
@@ -221,7 +227,7 @@ export default function MenusScreen() {
                 <View style={styles.info}>
                   <View style={styles.restaurantRow}>
                     {item.restaurante.logo_url ? (
-                      <Image source={{ uri: item.restaurante.logo_url }} style={styles.logo} />
+                      <Image source={{ uri: optimizedImageUri(item.restaurante.logo_url, "thumb") }} style={styles.logo} />
                     ) : (
                       <View style={[styles.logo, styles.logoPlaceholder]}>
                         <Ionicons name="storefront-outline" size={12} color={colors.placeholder} />
@@ -235,7 +241,11 @@ export default function MenusScreen() {
                   <Text style={styles.dishName} numberOfLines={1}>
                     {item.nombre}
                   </Text>
-                  {item.descripcion ? (
+                  {componentSummary ? (
+                    <Text style={styles.dishDescription} numberOfLines={1}>
+                      {componentSummary}
+                    </Text>
+                  ) : item.descripcion ? (
                     <Text style={styles.dishDescription} numberOfLines={1}>
                       {item.descripcion}
                     </Text>

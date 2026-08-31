@@ -214,13 +214,13 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
 
         <Text style={styles.policyText}>
-          Al continuar, aceptás nuestros{' '}
+          Al continuar, aceptas nuestros{' '}
           <Text
             style={styles.policyLink}
             onPress={() =>
               showPolicy(
                 'Términos y Condiciones',
-                'Al usar MenuDays aceptás nuestras condiciones de uso: la app conecta comensales con restaurantes de Ecuador, y cada restaurante es responsable de la información de sus menús, precios y pedidos.'
+                'Al usar MenuDays aceptas nuestras condiciones de uso: la app conecta comensales con restaurantes de Ecuador, y cada restaurante es responsable de la información de sus menús, precios y pedidos.'
               )
             }
           >

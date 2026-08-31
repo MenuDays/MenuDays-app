@@ -101,6 +101,16 @@ export interface Order {
 // codigo_unico en snake_case, sin transformar. No se expone fuera de este
 // archivo -- getById() lo normaliza a OrderDetail (camelCase) antes de
 // devolverlo, para no mezclar las dos convenciones en el resto de la app.
+// Una entrada del historial de estados -- tal cual filas de
+// pedido_historial_estados en el back (created_at ordenado asc). El back
+// lo incluye tanto en GET /orders/restaurant/:id como (ahora) en
+// GET /orders/:id. Puede no venir en respuestas viejas -> siempre opcional.
+export interface OrderStatusHistoryEntry {
+  estado_anterior: OrderStatus | null;
+  estado_nuevo: OrderStatus;
+  created_at: string;
+}
+
 interface OrderDetailRaw {
   id: string;
   codigo_unico: string | null;
@@ -115,6 +125,7 @@ interface OrderDetailRaw {
     fecha: string;
   };
   producto: OrderProduct;
+  historial?: OrderStatusHistoryEntry[];
 }
 
 export interface OrderDetail {
@@ -131,6 +142,7 @@ export interface OrderDetail {
     fecha: string;
   };
   producto: OrderProduct;
+  historial?: OrderStatusHistoryEntry[];
 }
 
 export interface WhatsAppSummary {
@@ -216,6 +228,29 @@ export const NEXT_ORDER_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   rechazado: [],
   cancelado: [],
 };
+
+// Camino "feliz" lineal del pedido -- se usa para dibujar la línea de
+// tiempo del recibo del comensal. rechazado / cancelado NO están acá: son
+// desvíos terminales que se muestran aparte.
+export const ORDER_STATUS_FLOW: OrderStatus[] = [
+  "pendiente",
+  "aceptado",
+  "preparando",
+  "listo",
+  "entregado",
+];
+
+// Estados en los que el pedido ya no cambia más -> el comensal deja de
+// hacer polling.
+export const TERMINAL_ORDER_STATUSES: OrderStatus[] = [
+  "entregado",
+  "rechazado",
+  "cancelado",
+];
+
+export function isTerminalOrderStatus(estado: OrderStatus | undefined | null): boolean {
+  return !!estado && TERMINAL_ORDER_STATUSES.includes(estado);
+}
 
 class OrderService {
   // Crea el pedido real (POST /orders) y devuelve el objeto "Order"

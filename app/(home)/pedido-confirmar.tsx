@@ -39,13 +39,12 @@ export default function PedidoConfirmarScreen() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Misma razón que en pedido-producto.tsx y pedido-entrega.tsx: esta
-  // pantalla está dentro del stack de tabs "(home)", cuya tab bar
-  // flota con position "absolute" y no reserva espacio real, así que
-  // el footer con "Finalizar contactando a WSP" queda tapado si no le
-  // sumamos ese alto a mano.
+  // Corregido (ver pedido-producto.tsx): esta pantalla vive en el
+  // <Stack> de app/(home)/_layout.tsx, fuera de <Tabs> -- la tab bar
+  // flotante no se renderiza acá, así que no hace falta compensar su
+  // alto completo, solo el inset real de abajo (home indicator).
   const insets = useSafeAreaInsets();
-  const tabBarSpace = 74 + 18 + insets.bottom;
+  const tabBarSpace = insets.bottom;
 
   useEffect(() => {
     // Reseteo el estado antes de cada intento: esta pantalla es parte

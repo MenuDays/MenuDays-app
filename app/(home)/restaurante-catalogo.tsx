@@ -9,6 +9,7 @@ import {
   Image,
   Modal,
   PanResponder,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,14 +17,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
+import { optimizedImageUri } from "../../utils/imageUrl";
 
 import RestaurantService, {
   PublicDish,
   PublicMenuDelDia,
   PublicPromotion,
   RestaurantPublicDetail,
+  getMenuDelDiaComponentSummary,
 } from "../../services/restaurant.service";
 import { getCategoryIcon } from "../../constants/categoryIcons";
 import { EmptyState } from "../components/common/EmptyState";
@@ -84,6 +88,7 @@ export default function RestauranteCatalogoScreen() {
 
   const [restaurant, setRestaurant] = useState<RestaurantPublicDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<CatalogTab>("menu");
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
@@ -134,14 +139,8 @@ export default function RestauranteCatalogoScreen() {
     })
   ).current;
 
-  useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setRestaurant(null);
+  function loadRestaurant() {
+    if (!id) return;
     RestaurantService.getPublicDetail(id)
       .then((data) => {
         setRestaurant(data);
@@ -153,8 +152,27 @@ export default function RestauranteCatalogoScreen() {
         }
       })
       .catch((e: any) => setError(e.message || "No se pudo cargar el menú."))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setRestaurant(null);
+    loadRestaurant();
   }, [id]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadRestaurant();
+  }
 
   // Platos agrupados SOLO por las categorías que el restaurante eligió
   // (restaurant.categorias), no por todas las categorías que existen en
@@ -192,9 +210,11 @@ export default function RestauranteCatalogoScreen() {
     [restaurant, query]
   );
 
-  // Menús del día agrupados por Colección, con "Sin colección" como
-  // bucket final para los que todavía no tienen una asignada (mismo
-  // criterio que el fallback "Otros" de platos, más abajo).
+  // Menús del día agrupados por Colección (legado), con los que no
+  // tienen una asignada -- el caso normal desde que los menús pasaron a
+  // ser "compuestos" (ver componente_* en PublicMenuDelDia) -- bajo un
+  // encabezado neutro en vez de "Sin colección" (quedaba raro de cara
+  // al comensal, que no conoce ese concepto interno).
   const menusByCollection = useMemo<MenuCollectionGroup[]>(() => {
     const withCollection = new Map<string, MenuCollectionGroup>();
     const sinColeccion: PublicMenuDelDia[] = [];
@@ -219,7 +239,7 @@ export default function RestauranteCatalogoScreen() {
     const groups = Array.from(withCollection.values()).sort((a, b) => a.orden - b.orden);
 
     if (sinColeccion.length > 0) {
-      groups.push({ id: "sin-coleccion", nombre: "Sin colección", orden: Infinity, menus: sinColeccion });
+      groups.push({ id: "sin-coleccion", nombre: "Menú del día", orden: Infinity, menus: sinColeccion });
     }
 
     return groups;
@@ -358,7 +378,11 @@ export default function RestauranteCatalogoScreen() {
       )}
 
       {tab === "menu" && (
-        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+        >
           {menusByCollection.length === 0 ? (
             <EmptyState
               mascot={require("../../assets/images/nene-pensando.png")}
@@ -393,7 +417,11 @@ export default function RestauranteCatalogoScreen() {
       )}
 
       {tab === "platos" && (
-        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+        >
           {filteredPlatosByCategory.length === 0 && filteredPlatosSinCategoria.length === 0 ? (
             <EmptyState
               mascot={require("../../assets/images/nene-pensando.png")}
@@ -450,6 +478,7 @@ export default function RestauranteCatalogoScreen() {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
           renderItem={({ item }) => (
             <PromoCard
               item={item}
@@ -479,9 +508,10 @@ export default function RestauranteCatalogoScreen() {
           columnWrapperStyle={{ gap: GALLERY_GAP }}
           contentContainerStyle={styles.galleryContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
           renderItem={({ item, index }) => (
             <TouchableOpacity onPress={() => setGalleryIndex(index)} activeOpacity={0.85}>
-              <Image source={{ uri: item.url }} style={styles.galleryThumb} />
+              <Image source={{ uri: optimizedImageUri(item.url, "thumb") }} style={styles.galleryThumb} />
             </TouchableOpacity>
           )}
           ListEmptyComponent={
@@ -519,7 +549,14 @@ export default function RestauranteCatalogoScreen() {
               showsHorizontalScrollIndicator={false}
               renderItem={({ item }) => (
                 <View style={{ width: SCREEN_W, alignItems: "center", justifyContent: "center" }}>
-                  <Image source={{ uri: item.url }} style={styles.viewerImage} resizeMode="contain" />
+                  <ExpoImage
+                    source={{ uri: optimizedImageUri(item.url, "full") }}
+                    style={styles.viewerImage}
+                    contentFit="contain"
+                    allowDownscaling={false}
+                    cachePolicy="memory-disk"
+                    transition={120}
+                  />
                 </View>
               )}
             />
@@ -546,6 +583,7 @@ function MenuCard({
   onPress: () => void;
 }) {
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const componentSummary = getMenuDelDiaComponentSummary(item);
   return (
     <TouchableOpacity
       style={styles.productCard}
@@ -553,7 +591,7 @@ function MenuCard({
       onPress={onPress}
     >
       {item.foto_url ? (
-        <Image source={{ uri: item.foto_url }} style={styles.productImage} />
+        <Image source={{ uri: optimizedImageUri(item.foto_url, "card") }} style={styles.productImage} />
       ) : (
         <View style={[styles.productImage, styles.productImagePlaceholder]}>
           <Ionicons name="restaurant-outline" size={22} color={colors.placeholder} />
@@ -568,7 +606,11 @@ function MenuCard({
             <Text style={styles.priceBadgeText}>${item.precio.toFixed(2)}</Text>
           </View>
         </View>
-        {item.descripcion ? (
+        {componentSummary ? (
+          <Text style={styles.productDescription} numberOfLines={2}>
+            {componentSummary}
+          </Text>
+        ) : item.descripcion ? (
           <Text style={styles.productDescription} numberOfLines={2}>
             {item.descripcion}
           </Text>
@@ -598,7 +640,7 @@ function DishCard({
       onPress={onPress}
     >
       {item.plato_imagenes[0]?.url ? (
-        <Image source={{ uri: item.plato_imagenes[0].url }} style={styles.productImage} />
+        <Image source={{ uri: optimizedImageUri(item.plato_imagenes[0].url, "card") }} style={styles.productImage} />
       ) : (
         <View style={[styles.productImage, styles.productImagePlaceholder]}>
           <Ionicons name="fast-food-outline" size={22} color={colors.placeholder} />
@@ -643,7 +685,7 @@ function PromoCard({
       onPress={onPress}
     >
       {item.imagen_url ? (
-        <Image source={{ uri: item.imagen_url }} style={styles.promoImage} />
+        <Image source={{ uri: optimizedImageUri(item.imagen_url, "card") }} style={styles.promoImage} />
       ) : (
         <View style={[styles.promoImage, styles.promoImagePlaceholder]}>
           <Ionicons name="pricetag-outline" size={34} color={colors.placeholder} />
@@ -697,12 +739,12 @@ function CategoryHeader({ group, colors }: { group: PlatoCategoryGroup; colors: 
 // ==========================================================================
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.screenSolid },
   loaderContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background,
+    backgroundColor: colors.screenSolid,
     gap: 10,
     paddingHorizontal: 30,
   },

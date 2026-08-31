@@ -36,11 +36,53 @@ export interface PublicMenu {
   fecha_inicio: string;
   fecha_fin: string;
   estado: "publicado"; // findAvailable solo devuelve publicados
+  // Cada tipo puede tener varios nombres (ej. dos entradas distintas) --
+  // el comensal los ve como checkboxes dentro de su tipo, ver
+  // getMenuComponentGroups.
+  componente_entrada: string[];
+  componente_sopa: string[];
+  componente_plato_fuerte: string[];
+  componente_jugo: string[];
+  componente_postre: string[];
+  tags: string[];
   created_at: string;
   updated_at: string;
   restaurante: PublicMenuRestaurant;
   categorias: PublicMenuCategory | null; // el back ya incluye esta relación
   distancia?: number; // solo viene si se mandó latitude + longitude
+}
+
+// "Incluye: Entrada (Ensalada, Sopa de fideo), Postre (Flan)" -- resume
+// qué trae el menú para el comensal, en el mismo orden fijo de siempre
+// (Entrada/Sopa/Plato Fuerte/Jugo/Postre). Cada tipo puede listar más de
+// un nombre.
+const COMPONENT_LABELS: [keyof PublicMenu, string][] = [
+  ["componente_entrada", "Entrada"],
+  ["componente_sopa", "Sopa"],
+  ["componente_plato_fuerte", "Plato Fuerte"],
+  ["componente_jugo", "Jugo"],
+  ["componente_postre", "Postre"],
+];
+
+export function getMenuComponentSummary(menu: PublicMenu): string | null {
+  const parts = COMPONENT_LABELS.filter(([key]) => (menu[key] as string[]).length > 0).map(
+    ([key, label]) => `${label} (${(menu[key] as string[]).join(", ")})`
+  );
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+export interface MenuComponentGroup {
+  label: string;
+  items: string[];
+}
+
+// Shape listo para renderizar la lista de checkboxes por tipo en el
+// detalle del menú -- solo los tipos que el restaurante completó (los
+// que quedaron vacíos/"Ninguno" ni aparecen).
+export function getMenuComponentGroups(menu: PublicMenu): MenuComponentGroup[] {
+  return COMPONENT_LABELS.filter(([key]) => (menu[key] as string[]).length > 0).map(
+    ([key, label]) => ({ label, items: menu[key] as string[] })
+  );
 }
 
 // Detalle: el back manda más datos del restaurante (dirección, ciudad,
@@ -75,6 +117,9 @@ export interface FindPublicMenusFilters {
   radius?: number;
   latitude?: number;
   longitude?: number;
+  // Palabra clave (chip) exacta que el restaurante haya cargado en su
+  // menú -- ver PublicMenuService.findMatchingTags para el autocompletado.
+  tag?: string;
 }
 
 class PublicMenuService {
@@ -87,6 +132,7 @@ class PublicMenuService {
     if (filters.radius != null) params.append("radius", String(filters.radius));
     if (filters.latitude != null) params.append("latitude", String(filters.latitude));
     if (filters.longitude != null) params.append("longitude", String(filters.longitude));
+    if (filters.tag) params.append("tag", filters.tag);
 
     const qs = params.toString();
     return await api<PublicMenu[]>(`/public/menus${qs ? `?${qs}` : ""}`);
@@ -94,6 +140,15 @@ class PublicMenuService {
 
   async findOne(id: string): Promise<PublicMenuDetail> {
     return await api<PublicMenuDetail>(`/public/menus/${id}`);
+  }
+
+  // Autocompletado de tags para el buscador de "Explorar" -- devuelve
+  // tags que algún restaurante ya usó en un menú vigente, filtrados por
+  // substring (case-insensitive). Ver PublicMenuController#findMatchingTags.
+  async findMatchingTags(search: string): Promise<string[]> {
+    const query = search.trim();
+    if (!query) return [];
+    return await api<string[]>(`/public/menus/tags?search=${encodeURIComponent(query)}`);
   }
 }
 

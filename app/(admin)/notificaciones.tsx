@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -16,6 +17,8 @@ import NotificationService, {
   NotificationItem,
   NotificationType,
 } from "../../services/notification.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Pantalla de notificaciones del admin. Se llega acá desde la campanita
 // del dashboard (app/(admin)/dashboard.tsx). Al entrar, se marca como
@@ -50,17 +53,28 @@ function formatRelativeTime(iso: string): string {
 }
 
 export default function AdminNotificationsScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(() => {
     NotificationService.getAll()
       .then(setNotifications)
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   }, []);
 
   useFocusEffect(load);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    load();
+  }
 
   async function handlePressNotification(item: NotificationItem) {
     if (!item.leida) {
@@ -95,7 +109,7 @@ export default function AdminNotificationsScreen() {
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notificaciones</Text>
         {hasUnread ? (
@@ -113,7 +127,7 @@ export default function AdminNotificationsScreen() {
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.centerWrap}>
-          <Ionicons name="notifications-off-outline" size={36} color="#D9D9D9" />
+          <Ionicons name="notifications-off-outline" size={36} color={colors.placeholder} />
           <Text style={styles.emptyText}>No tienes notificaciones por ahora.</Text>
         </View>
       ) : (
@@ -122,6 +136,7 @@ export default function AdminNotificationsScreen() {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.row, !item.leida && styles.rowUnread]}
@@ -132,7 +147,7 @@ export default function AdminNotificationsScreen() {
                 <Ionicons
                   name={TYPE_ICON[item.tipo] ?? "notifications-outline"}
                   size={18}
-                  color={!item.leida ? "#FB8C00" : "#9E9E9E"}
+                  color={!item.leida ? "#FB8C00" : colors.placeholder}
                 />
               </View>
 
@@ -156,8 +171,8 @@ export default function AdminNotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -165,22 +180,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.divider,
   },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#1A1A1A" },
+  headerTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
   markAllText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
   markAllPlaceholder: { width: 36 },
 
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30 },
-  emptyText: { textAlign: "center", color: "#9E9E9E", fontSize: 13, lineHeight: 19 },
+  emptyText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
 
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 30 },
   row: {
@@ -188,16 +203,16 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
+    borderBottomColor: colors.divider,
   },
   rowUnread: {
-    backgroundColor: "#FFFBF5",
+    backgroundColor: colors.surfaceSecondary,
   },
   iconCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -206,8 +221,8 @@ const styles = StyleSheet.create({
   },
   rowContent: { flex: 1 },
   rowTopLine: { flexDirection: "row", alignItems: "center", gap: 6 },
-  rowTitle: { flex: 1, fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
+  rowTitle: { flex: 1, fontSize: 14, fontWeight: "800", color: colors.text },
   unreadDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#FB8C00" },
-  rowMessage: { fontSize: 13, color: "#6B6B6B", marginTop: 2, lineHeight: 18 },
-  rowTime: { fontSize: 11, color: "#B0B0B0", marginTop: 4 },
+  rowMessage: { fontSize: 13, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
+  rowTime: { fontSize: 11, color: colors.placeholder, marginTop: 4 },
 });

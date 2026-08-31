@@ -8,6 +8,7 @@ import {
   Linking,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -16,9 +17,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+// Ver comentario en MapLocationPicker.tsx: SafeMapView vive fuera de
+// app/ a propósito, para que el escaneo de rutas de Expo Router no
+// intente bundlear su variante nativa (react-native-maps real) en web.
+import MapView, { Marker, PROVIDER_GOOGLE } from "../../components/map/SafeMapView";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
+import ErrorBoundary from "../components/common/ErrorBoundary";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import { SafeAreaView } from "react-native-safe-area-context";
 // TODO: si el proyecto todavía no tiene "expo-clipboard" instalado,
 // correr `npx expo install expo-clipboard` (se usa para "Copiar dirección").
@@ -55,6 +61,7 @@ const restaurantId = previewRestaurantId ?? routeId;
   const [restaurant, setRestaurant] = useState<RestaurantPublicDetail | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
@@ -88,20 +95,8 @@ const restaurantId = previewRestaurantId ?? routeId;
   const [myComment, setMyComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
 
-   useEffect(() => {
-    if (!restaurantId) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setRestaurant(null);
-    setReviews([]);
-    setIsFavorite(false);
-    setDistanceKm(null);
-    setReviewableOrderId(null);
-    setMyRating(0);
-    setMyComment("");
+  function loadAll() {
+    if (!restaurantId) return;
     Promise.all([
       RestaurantService.getPublicDetail(restaurantId),
       ReviewService.getRestaurantReviews(restaurantId),
@@ -150,8 +145,33 @@ const restaurantId = previewRestaurantId ?? routeId;
         setError(msg);
         AppAlert.alert("Error", msg);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
+  useEffect(() => {
+    if (!restaurantId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setRestaurant(null);
+    setReviews([]);
+    setIsFavorite(false);
+    setDistanceKm(null);
+    setReviewableOrderId(null);
+    setMyRating(0);
+    setMyComment("");
+    loadAll();
   }, [restaurantId, ownerPreview]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadAll();
+  }
 
   async function handleSubmitInlineReview() {
     if (!reviewableOrderId || myRating === 0 || submittingReview) return;
@@ -314,7 +334,7 @@ const restaurantId = previewRestaurantId ?? routeId;
           style={{ marginTop: 14, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 }}
           onPress={() => router.back()}
         >
-          <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Volver</Text>
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontFamily: "Inter_700Bold" }}>Volver</Text>
         </TouchableOpacity>
       </View>
     );
@@ -325,15 +345,26 @@ const restaurantId = previewRestaurantId ?? routeId;
   return (
     <View style={styles.container}>
       <KeyboardAvoidingScreen>
-      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+      >
         <View style={styles.coverWrap}>
           {restaurant.portadaUrl ? (
-            <Image source={{ uri: restaurant.portadaUrl }} style={styles.cover} />
+            <Image source={{ uri: optimizedImageUri(restaurant.portadaUrl, "cover") }} style={styles.cover} />
           ) : (
             <View style={[styles.cover, styles.coverPlaceholder]}>
               <Ionicons name="image-outline" size={32} color="#C9C9C9" />
             </View>
           )}
+
+          {/* Fade inferior: la portada se funde con el fondo de la pantalla
+              en vez de cortar con una línea dura. */}
+          <LinearGradient
+            colors={["transparent", colors.surface]}
+            style={styles.coverFade}
+            pointerEvents="none"
+          />
 
           <SafeAreaView style={styles.coverOverlay} edges={["top"]}>
             {/* En ownerPreview (pestaña "Vista previa" de mi-local.tsx) esta
@@ -374,7 +405,7 @@ const restaurantId = previewRestaurantId ?? routeId;
         <View style={styles.content}>
           <View style={styles.headerRow}>
             {restaurant.logoUrl ? (
-              <Image source={{ uri: restaurant.logoUrl }} style={styles.logo} />
+              <Image source={{ uri: optimizedImageUri(restaurant.logoUrl, "thumb") }} style={styles.logo} />
             ) : (
               <View style={[styles.logo, styles.logoPlaceholder]}>
                 <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
@@ -485,22 +516,35 @@ const restaurantId = previewRestaurantId ?? routeId;
 
             {lat != null && lng != null && (
               <View style={styles.mapWrap}>
-                <MapView
-                  style={{ flex: 1 }}
-                  provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  pitchEnabled={false}
-                  rotateEnabled={false}
-                  region={{
-                    latitude: lat,
-                    longitude: lng,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
+                {/* Si el mapa nativo falla al inicializar (Play Services
+                    viejo/ausente en algún Android), NO se cae la pantalla:
+                    se muestra un recuadro neutro y la dirección de texto de
+                    abajo sigue estando. */}
+                <ErrorBoundary
+                  fallback={
+                    <View style={[styles.mapWrap, styles.mapFallback]}>
+                      <Ionicons name="map-outline" size={22} color={colors.textSecondary} />
+                      <Text style={styles.mapFallbackText}>Mapa no disponible</Text>
+                    </View>
+                  }
                 >
-                  <Marker coordinate={{ latitude: lat, longitude: lng }} />
-                </MapView>
+                  <MapView
+                    style={{ flex: 1 }}
+                    provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    pitchEnabled={false}
+                    rotateEnabled={false}
+                    region={{
+                      latitude: lat,
+                      longitude: lng,
+                      latitudeDelta: 0.01,
+                      longitudeDelta: 0.01,
+                    }}
+                  >
+                    <Marker coordinate={{ latitude: lat, longitude: lng }} />
+                  </MapView>
+                </ErrorBoundary>
               </View>
             )}
 
@@ -569,7 +613,7 @@ const restaurantId = previewRestaurantId ?? routeId;
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
                 {restaurant.galeria.map((img) => (
-                  <Image key={img.id} source={{ uri: img.url }} style={styles.galleryThumb} />
+                  <Image key={img.id} source={{ uri: optimizedImageUri(img.url, "thumb") }} style={styles.galleryThumb} />
                 ))}
               </ScrollView>
             </View>
@@ -595,7 +639,7 @@ const restaurantId = previewRestaurantId ?? routeId;
                 </View>
                 <TextInput
                   style={styles.rateCommentInput}
-                  placeholder="Contanos cómo fue tu experiencia (opcional)"
+                  placeholder="Cuéntanos cómo fue tu experiencia (opcional)"
                   placeholderTextColor={colors.placeholder}
                   value={myComment}
                   onChangeText={setMyComment}
@@ -709,7 +753,7 @@ const restaurantId = previewRestaurantId ?? routeId;
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalSubtitle}>
-                Contanos qué ocurrió para que podamos revisarlo.
+                Cuéntanos qué ocurrió para que podamos revisarlo.
               </Text>
 
               {reportReasonsLoading ? (
@@ -738,7 +782,7 @@ const restaurantId = previewRestaurantId ?? routeId;
               <Text style={styles.modalFieldLabel}>Descripción adicional (opcional)</Text>
               <TextInput
                 style={styles.modalTextarea}
-                placeholder="Contanos más detalles..."
+                placeholder="Cuéntanos más detalles..."
                 placeholderTextColor={colors.placeholder}
                 value={reportDescription}
                 onChangeText={setReportDescription}
@@ -854,7 +898,9 @@ function groupSchedule(
   horarios: RestaurantPublicDetail["horarios"]
 ): ScheduleGroup[] {
   const byDay = new Map<number, RestaurantPublicDetail["horarios"][number]>();
-  horarios.forEach((h) => byDay.set(h.dia_semana, h));
+  // Domingo puede venir como 0 (convención JS) o 7 (convención de la app):
+  // se canoniza a 7 para que también aparezca en el resumen del comensal.
+  horarios.forEach((h) => byDay.set(h.dia_semana === 0 ? 7 : h.dia_semana, h));
 
   const groups: ScheduleGroup[] = [];
   let i = 1;
@@ -918,11 +964,12 @@ function relativeTime(iso: string): string {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.screenSolid },
+  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.screenSolid },
 
   coverWrap: { height: 220, backgroundColor: colors.surfaceSecondary },
   cover: { width: "100%", height: "100%" },
+  coverFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 80 },
   coverPlaceholder: { alignItems: "center", justifyContent: "center" },
   coverOverlay: {
     position: "absolute",
@@ -970,8 +1017,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: 64,
     borderRadius: 32,
     borderWidth: 3,
-    borderColor: colors.background,
-    backgroundColor: colors.background,
+    borderColor: colors.surface,
+    backgroundColor: colors.surface,
     marginTop: -36,
   },
   logoPlaceholder: { alignItems: "center", justifyContent: "center" },
@@ -1005,9 +1052,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   section: { marginTop: 26 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
-  linkText: { fontSize: 13, fontWeight: "700", color: "#FB8C00" },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12 },
+  // flex:1 + numberOfLines para que un título largo no empuje ni corte el
+  // link "Ver todas" en pantallas angostas.
+  sectionTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.text },
+  linkText: { flexShrink: 0, fontSize: 13, fontWeight: "700", color: "#FB8C00" },
   paragraph: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
 
   verMenuButton: {
@@ -1030,6 +1079,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   verMenuText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
 
   mapWrap: { height: 130, borderRadius: 16, overflow: "hidden", marginBottom: 12 },
+  mapFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  mapFallbackText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   addressText: { flex: 1, fontSize: 13, color: colors.textSecondary },
   addressButtonsRow: { flexDirection: "row", gap: 10, marginTop: 14 },

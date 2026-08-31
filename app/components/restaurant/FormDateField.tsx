@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface FormDateFieldProps {
   label: string;
@@ -15,10 +17,6 @@ interface FormDateFieldProps {
 }
 
 const ORANGE = "#F5A800";
-const DARK = "#1A1A1A";
-const TEXT = "#3E2723";
-const MUTED = "#9E9E9E";
-const LIGHT = "#F7F7F7";
 
 const WEEK_DAYS = ["L", "M", "X", "J", "V", "S", "D"];
 
@@ -118,6 +116,8 @@ export default function FormDateField({
   value,
   onChangeText,
 }: FormDateFieldProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [showPicker, setShowPicker] = useState(false);
 
   const initialDate = useMemo(() => stringToDate(value), [value]);
@@ -211,7 +211,7 @@ export default function FormDateField({
         <Ionicons
           name="chevron-down"
           size={18}
-          color={MUTED}
+          color={colors.placeholder}
         />
       </TouchableOpacity>
 
@@ -220,6 +220,7 @@ export default function FormDateField({
         visible={showPicker}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setShowPicker(false)}
       >
         <View style={styles.modalOverlay}>
@@ -240,7 +241,7 @@ export default function FormDateField({
                 style={styles.closeButton}
                 onPress={() => setShowPicker(false)}
               >
-                <Ionicons name="close" size={20} color={TEXT} />
+                <Ionicons name="close" size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -256,7 +257,7 @@ export default function FormDateField({
                 <Ionicons
                   name="chevron-back"
                   size={20}
-                  color={TEXT}
+                  color={colors.text}
                 />
               </TouchableOpacity>
 
@@ -271,7 +272,7 @@ export default function FormDateField({
                 <Ionicons
                   name="chevron-forward"
                   size={20}
-                  color={TEXT}
+                  color={colors.text}
                 />
               </TouchableOpacity>
             </View>
@@ -354,7 +355,7 @@ export default function FormDateField({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrapper: {
     marginBottom: 16,
   },
@@ -362,7 +363,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: "600",
-    color: TEXT,
+    color: colors.text,
     marginBottom: 8,
   },
 
@@ -371,9 +372,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     height: 54,
     paddingHorizontal: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.inputBackground,
     borderWidth: 1,
-    borderColor: "#E3E3E3",
+    borderColor: colors.inputBorder,
     borderRadius: 16,
   },
 
@@ -391,17 +392,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: "500",
-    color: TEXT,
+    color: colors.text,
   },
 
   placeholder: {
-    color: MUTED,
+    color: colors.placeholder,
     fontWeight: "400",
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: colors.overlay,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -410,7 +411,7 @@ const styles = StyleSheet.create({
   calendarContainer: {
     width: "100%",
     maxWidth: 390,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -420,7 +421,7 @@ const styles = StyleSheet.create({
     elevation: 12,
 
     // Sombra iOS
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 8,
@@ -446,21 +447,21 @@ const styles = StyleSheet.create({
   headerDate: {
     fontSize: 25,
     fontWeight: "800",
-    color: DARK,
+    color: colors.text,
   },
 
   closeButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: LIGHT,
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
 
   divider: {
     height: 1,
-    backgroundColor: "#EEEEEE",
+    backgroundColor: colors.divider,
     marginVertical: 18,
   },
 
@@ -474,14 +475,14 @@ const styles = StyleSheet.create({
   monthTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: DARK,
+    color: colors.text,
   },
 
   monthButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: LIGHT,
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -500,7 +501,7 @@ const styles = StyleSheet.create({
   weekDayText: {
     fontSize: 11,
     fontWeight: "800",
-    color: MUTED,
+    color: colors.textSecondary,
   },
 
   daysGrid: {
@@ -520,7 +521,7 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: 14,
     fontWeight: "600",
-    color: TEXT,
+    color: colors.text,
   },
 
   selectedDay: {
@@ -537,7 +538,7 @@ const styles = StyleSheet.create({
   },
 
   otherMonthDayText: {
-    color: MUTED,
+    color: colors.placeholder,
   },
 
   todayText: {
@@ -564,7 +565,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 16,
-    backgroundColor: LIGHT,
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -572,7 +573,7 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#666666",
+    color: colors.textSecondary,
   },
 
   confirmButton: {

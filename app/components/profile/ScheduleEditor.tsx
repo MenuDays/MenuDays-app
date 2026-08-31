@@ -1,7 +1,10 @@
-import React from "react";
-import { View, Text, TextInput, Switch, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useMemo, useState } from "react";
+import { View, Text, TextInput, Switch, TouchableOpacity, StyleSheet } from "react-native";
 import { RestaurantSchedule } from "../../../services/restaurant.service";
 import { useTheme } from "../../../contexts/ThemeContext";
+import { normalizeTimeInput } from "../../../utils/timeFormat";
+import { normalizeSchedule } from "../../../utils/restaurantSchedule";
 
 const DAY_LABELS: Record<number, string> = {
   1: "Lunes",
@@ -13,6 +16,67 @@ const DAY_LABELS: Record<number, string> = {
   7: "Domingo",
 };
 
+const DAY_SHORT: Record<number, string> = {
+  1: "L",
+  2: "M",
+  3: "X",
+  4: "J",
+  5: "V",
+  6: "S",
+  7: "D",
+};
+
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 7];
+
+// "Lunes a Viernes" si son consecutivos, "Sábado, Domingo" si no --
+// mucho más legible que listar 7 filas sueltas.
+function formatDayRange(days: number[]): string {
+  const sorted = [...days].sort((a, b) => a - b);
+  const isConsecutive = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1);
+  if (isConsecutive && sorted.length > 1) {
+    return `${DAY_LABELS[sorted[0]]} a ${DAY_LABELS[sorted[sorted.length - 1]]}`;
+  }
+  return sorted.map((d) => DAY_LABELS[d]).join(", ");
+}
+
+interface ScheduleGroup {
+  key: string;
+  days: number[];
+  hora_apertura: string | null;
+  hora_cierre: string | null;
+  cerrado: boolean;
+}
+
+// Agrupa los 7 días por horario IDÉNTICO -- puramente derivado de
+// `schedule`, no es estado propio: así el resumen siempre refleja
+// exactamente lo que ya se guardó/está por guardarse, sin duplicar
+// fuente de verdad.
+function groupSchedule(schedule: RestaurantSchedule[]): ScheduleGroup[] {
+  const groups = new Map<string, ScheduleGroup>();
+  for (const day of schedule) {
+    const key = day.cerrado ? "cerrado" : `${day.hora_apertura ?? ""}-${day.hora_cierre ?? ""}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.days.push(day.dia_semana);
+    } else {
+      groups.set(key, {
+        key,
+        days: [day.dia_semana],
+        hora_apertura: day.hora_apertura,
+        hora_cierre: day.hora_cierre,
+        cerrado: day.cerrado,
+      });
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) => Math.min(...a.days) - Math.min(...b.days));
+}
+
+// Este editor sigue exponiendo exactamente la misma interfaz de siempre
+// (schedule + onChange por día) -- las pantallas que lo usan no
+// necesitan tocar nada. Por dentro cambia la UX: en vez de 7 filas para
+// completar una por una, se eligen los días que comparten horario con
+// chips y se completa UNA sola vez -- mucho más rápido si (como pasa
+// casi siempre) varios días tienen el mismo horario.
 export default function ScheduleEditor({
   schedule,
   onChange,
@@ -21,89 +85,282 @@ export default function ScheduleEditor({
   onChange: (dayId: number, patch: Partial<RestaurantSchedule>) => void;
 }) {
   const { colors } = useTheme();
-  const sorted = [...schedule].sort((a, b) => a.dia_semana - b.dia_semana);
+  // Trabajamos SIEMPRE con los 7 días canónicos (Lunes..Domingo). Si el
+  // padre pasó menos días, o el domingo como 0, acá se completa/canoniza
+  // -- así los 7 días (domingo incluido) se editan y guardan igual.
+  // Es idempotente: si el padre ya normalizó, esto no cambia nada.
+  const days = useMemo(() => normalizeSchedule(schedule), [schedule]);
+  const groups = useMemo(() => groupSchedule(days), [days]);
+
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set());
+  const [draftOpen, setDraftOpen] = useState("09:00");
+  const [draftClose, setDraftClose] = useState("22:00");
+  const [draftClosed, setDraftClosed] = useState(false);
+
+  function toggleDay(dia: number) {
+    setSelectedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(dia)) next.delete(dia);
+      else next.add(dia);
+      return next;
+    });
+  }
+
+  function loadGroupIntoDraft(group: ScheduleGroup) {
+    setSelectedDays(new Set(group.days));
+    setDraftOpen(group.hora_apertura ?? "09:00");
+    setDraftClose(group.hora_cierre ?? "22:00");
+    setDraftClosed(group.cerrado);
+  }
+
+  function handleBlurOpen() {
+    const normalized = normalizeTimeInput(draftOpen);
+    if (normalized) setDraftOpen(normalized);
+  }
+
+  function handleBlurClose() {
+    const normalized = normalizeTimeInput(draftClose);
+    if (normalized) setDraftClose(normalized);
+  }
+
+  function applyToSelectedDays() {
+    if (selectedDays.size === 0) return;
+    // `days` ya tiene los 7 días -> el `.get()` nunca falla (antes, si el
+    // día no estaba en `schedule`, se salteaba en silencio: el bug del
+    // domingo). Se ordena para que el patch se aplique de Lunes a Domingo.
+    const idByDay = new Map(days.map((d) => [d.dia_semana, d.id]));
+    Array.from(selectedDays)
+      .sort((a, b) => a - b)
+      .forEach((dia) => {
+        const id = idByDay.get(dia);
+        if (id === undefined) return;
+        onChange(
+          id,
+          draftClosed
+            ? { cerrado: true }
+            : { cerrado: false, hora_apertura: draftOpen, hora_cierre: draftClose }
+        );
+      });
+    setSelectedDays(new Set());
+  }
 
   return (
     <View>
-      {sorted.map((day) => (
-        <View key={day.id} style={[styles.row, { borderBottomColor: colors.divider }]}>
-          <View style={styles.dayLabelRow}>
-            <Text style={[styles.dayLabel, { color: colors.text }]}>
-              {DAY_LABELS[day.dia_semana] ?? `Día ${day.dia_semana}`}
-            </Text>
-            <Switch
-              value={!day.cerrado}
-              onValueChange={(open) => onChange(day.id, { cerrado: !open })}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={!day.cerrado ? colors.primary : colors.card}
-            />
-          </View>
+      <Text style={[styles.hint, { color: colors.textSecondary }]}>
+        Elige los días que comparten el mismo horario y complétalo una sola vez -- por ejemplo,
+        de lunes a viernes, y después el fin de semana aparte si es distinto.
+      </Text>
 
-          {!day.cerrado ? (
-            <View style={styles.timesRow}>
-              <TextInput
-                style={[
-                  styles.timeInput,
-                  { borderColor: colors.inputBorder, color: colors.text, backgroundColor: colors.inputBackground },
-                ]}
-                value={day.hora_apertura ?? ""}
-                onChangeText={(text) => onChange(day.id, { hora_apertura: text })}
-                placeholder="09:00"
-                placeholderTextColor={colors.placeholder}
-              />
-              <Text style={[styles.timeSeparator, { color: colors.placeholder }]}>—</Text>
-              <TextInput
-                style={[
-                  styles.timeInput,
-                  { borderColor: colors.inputBorder, color: colors.text, backgroundColor: colors.inputBackground },
-                ]}
-                value={day.hora_cierre ?? ""}
-                onChangeText={(text) => onChange(day.id, { hora_cierre: text })}
-                placeholder="22:00"
-                placeholderTextColor={colors.placeholder}
-              />
-            </View>
-          ) : (
-            <Text style={[styles.closedText, { color: colors.textSecondary }]}>Cerrado</Text>
-          )}
+      {/* Selector de días */}
+      <View style={styles.daysRow}>
+        {DAY_ORDER.map((dia) => {
+          const active = selectedDays.has(dia);
+          return (
+            <TouchableOpacity
+              key={dia}
+              style={[
+                styles.dayChip,
+                { borderColor: colors.border, backgroundColor: colors.inputBackground },
+                active && { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+              onPress={() => toggleDay(dia)}
+            >
+              <Text style={[styles.dayChipText, { color: active ? "#FFFFFF" : colors.text }]}>
+                {DAY_SHORT[dia]}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Horario a aplicar a los días elegidos arriba */}
+      <View style={styles.draftRow}>
+        <Text style={[styles.draftLabel, { color: colors.text }]}>Cerrado</Text>
+        <Switch
+          value={draftClosed}
+          onValueChange={setDraftClosed}
+          trackColor={{ false: colors.border, true: colors.primaryLight }}
+          thumbColor={draftClosed ? colors.primary : colors.card}
+        />
+      </View>
+
+      {!draftClosed && (
+        <View style={styles.timesRow}>
+          <TextInput
+            style={[
+              styles.timeInput,
+              { borderColor: colors.inputBorder, color: colors.text, backgroundColor: colors.inputBackground },
+            ]}
+            value={draftOpen}
+            onChangeText={setDraftOpen}
+            onBlur={handleBlurOpen}
+            placeholder="09:00"
+            placeholderTextColor={colors.placeholder}
+          />
+          <Text style={[styles.timeSeparator, { color: colors.placeholder }]}>—</Text>
+          <TextInput
+            style={[
+              styles.timeInput,
+              { borderColor: colors.inputBorder, color: colors.text, backgroundColor: colors.inputBackground },
+            ]}
+            value={draftClose}
+            onChangeText={setDraftClose}
+            onBlur={handleBlurClose}
+            placeholder="22:00"
+            placeholderTextColor={colors.placeholder}
+          />
         </View>
-      ))}
+      )}
+
+      <TouchableOpacity
+        style={[
+          styles.applyButton,
+          { backgroundColor: selectedDays.size > 0 ? colors.primary : colors.surfaceSecondary },
+        ]}
+        onPress={applyToSelectedDays}
+        disabled={selectedDays.size === 0}
+      >
+        <Ionicons
+          name="checkmark-circle-outline"
+          size={16}
+          color={selectedDays.size > 0 ? "#FFFFFF" : colors.textSecondary}
+        />
+        <Text
+          style={[
+            styles.applyButtonText,
+            { color: selectedDays.size > 0 ? "#FFFFFF" : colors.textSecondary },
+          ]}
+        >
+          {selectedDays.size > 0
+            ? `Aplicar a ${selectedDays.size} día${selectedDays.size > 1 ? "s" : ""}`
+            : "Elige al menos un día"}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Resumen: cómo queda el horario ya guardado, agrupado -- tocar
+          el lápiz precarga ese grupo arriba para editarlo de nuevo. */}
+      <Text style={[styles.summaryTitle, { color: colors.text }]}>Horario actual</Text>
+      <View style={[styles.summaryCard, { borderColor: colors.divider }]}>
+        {groups.map((group) => (
+          <View key={group.key} style={[styles.summaryRow, { borderBottomColor: colors.divider }]}>
+            <View style={styles.summaryTextWrap}>
+              <Text style={[styles.summaryDays, { color: colors.text }]}>
+                {formatDayRange(group.days)}
+              </Text>
+              <Text style={[styles.summaryHours, { color: colors.textSecondary }]}>
+                {group.cerrado ? "Cerrado" : `${group.hora_apertura ?? "--"} - ${group.hora_cierre ?? "--"}`}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.editGroupButton, { backgroundColor: colors.surfaceSecondary }]}
+              onPress={() => loadGroupIntoDraft(group)}
+              hitSlop={8}
+            >
+              <Ionicons name="pencil" size={14} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+  hint: {
+    fontSize: 11.5,
+    marginBottom: 12,
+    lineHeight: 16,
   },
-  dayLabelRow: {
+  daysRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 14,
+  },
+  dayChip: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayChipText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  draftRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 10,
   },
-  dayLabel: {
-    fontSize: 14.5,
+  draftLabel: {
+    fontSize: 13.5,
     fontWeight: "700",
   },
   timesRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 8,
+    marginBottom: 12,
   },
   timeInput: {
-    width: 80,
-    height: 38,
+    flex: 1,
+    height: 42,
     borderRadius: 10,
     borderWidth: 1,
     paddingHorizontal: 10,
-    fontSize: 13,
+    fontSize: 14,
     textAlign: "center",
   },
   timeSeparator: {},
-  closedText: {
-    fontSize: 13,
-    marginTop: 6,
+  applyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 44,
+    borderRadius: 12,
+    marginBottom: 18,
+  },
+  applyButtonText: {
+    fontSize: 13.5,
+    fontWeight: "800",
+  },
+  summaryTitle: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  summaryCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  summaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  summaryTextWrap: {
+    flex: 1,
+  },
+  summaryDays: {
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
+  summaryHours: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  editGroupButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

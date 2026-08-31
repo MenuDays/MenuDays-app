@@ -109,12 +109,20 @@
       }
 
       setLoading(true);
-      getAddressForCoords(latitude, longitude).then((r) => {
-        if (mounted) {
-          setResult(r);
-          setLoading(false);
-        }
-      });
+      getAddressForCoords(latitude, longitude)
+        .then((r) => {
+          if (mounted) {
+            setResult(r);
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          // Nunca dejar el "Buscando..." colgado si algo raro pasa.
+          if (mounted) {
+            setResult(EMPTY);
+            setLoading(false);
+          }
+        });
 
       return () => {
         mounted = false;

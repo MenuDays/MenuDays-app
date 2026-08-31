@@ -13,7 +13,13 @@ export default {
   light: {
     text: '#3E2723',
     textSecondary: '#757575',
-    background: '#FFFFFF',
+    // "transparent" a propósito: el fondo real de la app es el patrón
+    // global de <AppBackground>. Los contenedores que usan este token
+    // dejan pasar el patrón (home, pedidos, perfil, dashboards). Las
+    // pantallas de detalle/local/reseñas usan `screenSolid` -> fondo liso
+    // blanco (claro) / negro (oscuro), como antes.
+    background: 'transparent',
+    screenSolid: '#FFFFFF',
     tint: tintColorLight,
     primary: '#FFA726',
     primaryDark: '#FB8C00',
@@ -43,7 +49,10 @@ export default {
   dark: {
     text: '#FFFFFF',
     textSecondary: '#B0B0B0',
-    background: darkBg,
+    // "transparent" -> deja ver el patrón global (fondo_oscuro). Las
+    // pantallas de detalle usan `screenSolid` -> negro liso, como antes.
+    background: 'transparent',
+    screenSolid: '#000000',
     tint: tintColorDark,
     primary: '#FFA94D',
     primaryDark: '#FB8C00',

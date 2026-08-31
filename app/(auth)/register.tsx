@@ -200,7 +200,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   header: {
-    height: 280,
+    minHeight: 280,
+    paddingVertical: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -217,6 +218,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     letterSpacing: 4,
+    paddingHorizontal: 8,
     lineHeight: 48,
   },
   card: {

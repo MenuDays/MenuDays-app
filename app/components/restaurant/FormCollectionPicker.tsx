@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MenuCollection } from "../../../services/menu-collection.service";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 // Mismo patrón visual que FormCategoryPicker (bottom sheet con lista +
 // checkmark), pero con datos de menu_colecciones -- un concepto
@@ -20,6 +23,9 @@ export default function FormCollectionPicker({
   onChange,
   loading = false,
 }: FormCollectionPickerProps) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [visible, setVisible] = useState(false);
   const selected = collections.find((c) => c.id === value) ?? null;
 
@@ -36,12 +42,16 @@ export default function FormCollectionPicker({
         <Text style={[styles.inputText, !selected && styles.placeholder]} numberOfLines={1}>
           {loading ? "Cargando colecciones..." : selected ? selected.nombre : "Sin colección"}
         </Text>
-        <Ionicons name="chevron-down" size={18} color="#9E9E9E" />
+        <Ionicons name="chevron-down" size={18} color={colors.placeholder} />
       </TouchableOpacity>
 
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
+      <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setVisible(false)}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setVisible(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}
+            onPress={() => {}}
+          >
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>Elige una colección</Text>
 
@@ -82,24 +92,25 @@ export default function FormCollectionPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrapper: {
     marginBottom: 16,
   },
   label: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#3E2723",
+    color: colors.text,
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     height: 52,
     paddingHorizontal: 16,
+    backgroundColor: colors.inputBackground,
   },
   icon: {
     marginRight: 10,
@@ -107,18 +118,18 @@ const styles = StyleSheet.create({
   inputText: {
     flex: 1,
     fontSize: 14,
-    color: "#3E2723",
+    color: colors.text,
   },
   placeholder: {
-    color: "#9E9E9E",
+    color: colors.placeholder,
   },
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(20, 15, 10, 0.45)",
+    backgroundColor: colors.overlay,
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 10,
@@ -130,14 +141,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: colors.border,
     alignSelf: "center",
     marginBottom: 14,
   },
   sheetTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 12,
   },
   list: {
@@ -152,7 +163,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   optionSelected: {
-    backgroundColor: "#FFF6E2",
+    backgroundColor: colors.surfaceSecondary,
   },
   optionIcon: {
     width: 28,
@@ -166,7 +177,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14.5,
     fontWeight: "600",
-    color: "#3E2723",
+    color: colors.text,
   },
   optionTextSelected: {
     color: "#B87A00",
@@ -174,7 +185,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: "center",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     fontSize: 13,
     paddingVertical: 24,
   },

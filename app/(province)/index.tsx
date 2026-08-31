@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     StyleSheet,
@@ -22,6 +22,13 @@ import { showLocationError, isNetworkError } from "../utils/locationErrors";
 export default function ProvinceScreen() {
     const { colors } = useTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
+    // "Modo selector": esta misma pantalla se reusa desde afuera del
+    // onboarding (ej. editar-perfil.tsx del restaurante) para elegir
+    // provincia+cantón sin disparar el flujo normal de guardar la
+    // ubicación del usuario y terminar en el mapa -- ver
+    // provinceCityPicker.bridge.ts.
+    const { picker } = useLocalSearchParams<{ picker?: string }>();
+    const isPickerMode = picker === "1";
     const [search, setSearch] = useState("");
     const [selectedProvince, setSelectedProvince] =
         useState<Province | null>(null);
@@ -60,19 +67,28 @@ export default function ProvinceScreen() {
             return;
         }
 
-        await ProvinceService.saveSelectedProvince(selectedProvince);
+        const params = {
+            provinceId: selectedProvince.id,
+            provinceName: selectedProvince.nombre,
+            ...(isPickerMode ? { picker: "1" } : {}),
+        };
 
-        router.push({
-            pathname: "/(province)/city",
-            params: {
-                provinceId: selectedProvince.id,
-                provinceName: selectedProvince.nombre,
-            },
-        });
+        if (isPickerMode) {
+            // replace (no push): así, cuando city.tsx haga UN solo
+            // router.back(), vuelve directo a quien abrió el selector,
+            // sin dejar esta pantalla pisada en el medio de la pila.
+            router.replace({ pathname: "/(province)/city", params });
+            return;
+        }
+
+        await ProvinceService.saveSelectedProvince(selectedProvince);
+        router.push({ pathname: "/(province)/city", params });
     }
 
     return (
-        <SafeAreaView style={styles.container}>
+        // El borde inferior lo maneja ContinueButton con el inset real del
+        // dispositivo (ver comentario equivalente en city.tsx).
+        <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <KeyboardAvoidingScreen>
             <ProvinceList
                 provinces={filteredProvinces}
@@ -107,7 +123,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     },
 
     searchWrap: {
-        backgroundColor: colors.background,
+        backgroundColor: colors.surface,
         marginTop: -28,
         borderTopLeftRadius: 30,
         borderTopRightRadius: 30,

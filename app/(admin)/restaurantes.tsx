@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,6 +20,9 @@ import RestaurantsAdminService, {
 import { AppAlert } from "../components/common/AppAlert";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import SolicitudHeader from "../components/admin/SolicitudHeader";
+import { useTheme } from "../../contexts/ThemeContext";
+import { optimizedImageUri } from "../../utils/imageUrl";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 type FilterTab = "todos" | RestaurantAccountStatus;
 
@@ -41,18 +45,29 @@ function getStatusInfo(status: RestaurantAccountStatus) {
 }
 
 export default function RestaurantesAdminScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [restaurants, setRestaurants] = useState<AdminRestaurantSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<FilterTab>("activo");
 
   const load = useCallback(() => {
     RestaurantsAdminService.getAll()
       .then(setRestaurants)
       .catch(() => AppAlert.alert("Error", "No se pudieron cargar los restaurantes."))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   }, []);
 
   useFocusEffect(load);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    load();
+  }
 
   const counts = useMemo(() => {
     return {
@@ -82,6 +97,7 @@ export default function RestaurantesAdminScreen() {
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
         ListHeaderComponent={
           <>
             <SolicitudHeader
@@ -113,7 +129,7 @@ export default function RestaurantesAdminScreen() {
                 </View>
               ) : filtered.length === 0 ? (
                 <View style={styles.stateContainer}>
-                  <Ionicons name="restaurant-outline" size={32} color="#D9D9D9" />
+                  <Ionicons name="restaurant-outline" size={32} color={colors.placeholder} />
                   <Text style={styles.emptyText}>No hay restaurantes en esta categoría.</Text>
                 </View>
               ) : null}
@@ -126,7 +142,7 @@ export default function RestaurantesAdminScreen() {
             <View style={styles.cardWrapper}>
               <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => openDetail(item.id)}>
                 {item.logoUrl ? (
-                  <Image source={{ uri: item.logoUrl }} style={styles.logo} />
+                  <Image source={{ uri: optimizedImageUri(item.logoUrl, "thumb") }} style={styles.logo} />
                 ) : (
                   <View style={[styles.logo, styles.logoPlaceholder]}>
                     <Ionicons name="restaurant-outline" size={18} color="#FB8C00" />
@@ -156,7 +172,7 @@ export default function RestaurantesAdminScreen() {
                   <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
                 </View>
 
-                <Ionicons name="chevron-forward" size={16} color="#C9C9C9" />
+                <Ionicons name="chevron-forward" size={16} color={colors.placeholder} />
               </TouchableOpacity>
             </View>
           );
@@ -168,8 +184,8 @@ export default function RestaurantesAdminScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8F8F8" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 18, paddingTop: 16 },
   listContent: { paddingBottom: 110 },
   cardWrapper: { paddingHorizontal: 18 },
@@ -179,28 +195,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "#EDEDED",
+    borderColor: colors.border,
   },
   tabActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
-  tabText: { fontSize: 12, fontWeight: "700", color: "#757575" },
+  tabText: { fontSize: 12, fontWeight: "700", color: colors.textSecondary },
   tabTextActive: { color: "#FFFFFF" },
 
   stateContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 50, gap: 10 },
-  emptyText: { fontSize: 13, color: "#9E9E9E" },
+  emptyText: { fontSize: 13, color: colors.textSecondary },
 
   card: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#F2F2F2",
-    shadowColor: "#000",
+    borderColor: colors.divider,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -208,9 +224,9 @@ const styles = StyleSheet.create({
   },
   logo: { width: 46, height: 46, borderRadius: 14 },
   logoPlaceholder: { backgroundColor: "#FFF3E0", alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
+  name: { fontSize: 14, fontWeight: "800", color: colors.text },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 3 },
-  metaText: { fontSize: 11.5, color: "#9E9E9E", fontWeight: "600" },
+  metaText: { fontSize: 11.5, color: colors.textSecondary, fontWeight: "600" },
   ratingWrap: { flexDirection: "row", alignItems: "center", gap: 3 },
   reportsWrap: { flexDirection: "row", alignItems: "center", gap: 3 },
   reportsText: { fontSize: 11, color: "#E53935", fontWeight: "700" },

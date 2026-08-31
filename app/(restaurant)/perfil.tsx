@@ -1,16 +1,22 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { PENDING_RESTAURANT_ONBOARDING_KEY } from "../../constants/onboardingKeys";
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AuthService from "../../services/auth.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import CategoryService, { Category } from "../../services/category.service";
 import RestaurantService, { Restaurant } from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
+import ThemeToggle from "../components/common/ThemeToggle";
 import { usePreviewMode } from "../../contexts/PreviewModeContext";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // "Mi perfil" pasó a ser un menú simple (no un formulario gigante todo
 // junto): tarjeta con el resumen del restaurante + 3 accesos a sus
@@ -20,35 +26,60 @@ import { usePreviewMode } from "../../contexts/PreviewModeContext";
 // el resumen y el estado actual de cada sección.
 
 export default function RestaurantProfileScreen() {
-  const { enterPreview } = usePreviewMode();
+  const { enterPreview, exitPreview } = usePreviewMode();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback((cancelledRef?: { current: boolean }) => {
+    return Promise.all([
+      RestaurantService.getProfile(),
+      CategoryService.getMyCategories().catch(() => []),
+    ])
+      .then(([restaurantData, categoriesData]) => {
+        if (cancelledRef?.current) return;
+        setRestaurant(restaurantData);
+        setCategories(categoriesData);
+      })
+      .catch((e) => console.log("Error cargando perfil:", e))
+      .finally(() => {
+        if (cancelledRef?.current) return;
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
+      const cancelledRef = { current: false };
       setLoading(true);
-      Promise.all([
-        RestaurantService.getProfile(),
-        CategoryService.getMyCategories().catch(() => []),
-      ])
-        .then(([restaurantData, categoriesData]) => {
-          if (cancelled) return;
-          setRestaurant(restaurantData);
-          setCategories(categoriesData);
-        })
-        .catch((e) => console.log("Error cargando perfil:", e))
-        .finally(() => !cancelled && setLoading(false));
+      load(cancelledRef);
       return () => {
-        cancelled = true;
+        cancelledRef.current = true;
       };
-    }, [])
+    }, [load])
   );
+
+  function handleRefresh() {
+    setRefreshing(true);
+    load();
+  }
 
   function handleViewAsComensal() {
     enterPreview("restaurante");
     router.push("/(home)/(tabs)");
+  }
+
+  async function handleRepeatTutorial() {
+    // Deja el flag y va al dashboard, que al enfocarse lo consume y
+    // muestra el tutorial interactivo (mismo mecanismo que el login).
+    // `navigate` (no `push`) reusa el dashboard que ya está en la pila en
+    // vez de apilar otra instancia.
+    await AsyncStorage.setItem(PENDING_RESTAURANT_ONBOARDING_KEY, "true").catch(() => {});
+    router.navigate("/(restaurant)/dashboard");
   }
 
   function handleLogout() {
@@ -63,6 +94,10 @@ export default function RestaurantProfileScreen() {
           } catch (e) {
             console.log("Error al cerrar sesión:", e);
           } finally {
+            // Evita que quede colgado el banner de "Salir de vista
+            // previa" para la próxima sesión (comensal real u otro
+            // restaurante) en este mismo dispositivo.
+            exitPreview();
             router.replace("/(auth)/login");
           }
         },
@@ -93,10 +128,14 @@ export default function RestaurantProfileScreen() {
     <SafeAreaView style={styles.container} edges={[]}>
       <ScreenHeader title="Mi perfil" showBack />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
+      >
         <View style={styles.summaryCard}>
           {restaurant.logo_url ? (
-            <Image source={{ uri: restaurant.logo_url }} style={styles.logo} />
+            <Image source={{ uri: optimizedImageUri(restaurant.logo_url, "thumb") }} style={styles.logo} />
           ) : (
             <View style={[styles.logo, styles.logoPlaceholder]}>
               <Ionicons name="storefront" size={26} color="#F5A800" />
@@ -118,6 +157,8 @@ export default function RestaurantProfileScreen() {
 
         <View style={styles.menuGroup}>
           <MenuRow
+            styles={styles}
+            colors={colors}
             icon="storefront-outline"
             title="Configurar perfil"
             subtitle="Nombre, portada, ubicación, horarios y contacto"
@@ -125,6 +166,8 @@ export default function RestaurantProfileScreen() {
           />
           <View style={styles.menuDivider} />
           <MenuRow
+            styles={styles}
+            colors={colors}
             icon="pricetags-outline"
             title="Configurar categorías"
             subtitle={categoriesSubtitle}
@@ -132,11 +175,34 @@ export default function RestaurantProfileScreen() {
           />
           <View style={styles.menuDivider} />
           <MenuRow
+            styles={styles}
+            colors={colors}
             icon="bicycle-outline"
             title="Configurar delivery"
             subtitle={deliverySubtitle}
             onPress={() => router.push("/(restaurant)/configurar-delivery?from=perfil")}
           />
+          <View style={styles.menuDivider} />
+          <MenuRow
+            styles={styles}
+            colors={colors}
+            icon="school-outline"
+            title="Repetir tutorial"
+            subtitle="Vuelve a ver la guía de inicio paso a paso"
+            onPress={handleRepeatTutorial}
+          />
+        </View>
+
+        {/* Tema oscuro -- mismo control que en el perfil de comensal y de
+            administrador, ver allowDarkMode en ThemeContext. */}
+        <View style={styles.themeRow}>
+          <View style={styles.themeRowLeft}>
+            <View style={styles.menuIconWrap}>
+              <Ionicons name="moon-outline" size={19} color="#F5A800" />
+            </View>
+            <Text style={styles.menuRowTitle}>Tema oscuro</Text>
+          </View>
+          <ThemeToggle size={32} />
         </View>
 
         <TouchableOpacity style={styles.previewButton} onPress={handleViewAsComensal}>
@@ -160,11 +226,15 @@ function MenuRow({
   title,
   subtitle,
   onPress,
+  styles,
+  colors,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   onPress: () => void;
+  styles: ReturnType<typeof createStyles>;
+  colors: ThemeColors;
 }) {
   return (
     <TouchableOpacity style={styles.menuRow} onPress={onPress} activeOpacity={0.7}>
@@ -177,20 +247,21 @@ function MenuRow({
           {subtitle}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#C9C9C9" />
+      <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.background,
   },
   scrollContent: {
     paddingHorizontal: 18,
@@ -202,11 +273,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
     marginBottom: 24,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -225,25 +296,25 @@ const styles = StyleSheet.create({
   summaryName: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   summarySubtitle: {
     fontSize: 12.5,
-    color: "#8A8A8A",
+    color: colors.textSecondary,
     marginTop: 2,
   },
   sectionLabel: {
     fontSize: 11.5,
     fontWeight: "700",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     letterSpacing: 0.5,
     marginBottom: 10,
     marginLeft: 4,
   },
   menuGroup: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 20,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -268,17 +339,37 @@ const styles = StyleSheet.create({
   menuRowTitle: {
     fontSize: 14.5,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   menuRowSubtitle: {
     fontSize: 12,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     marginTop: 2,
   },
   menuDivider: {
     height: 1,
-    backgroundColor: "#F2F2F2",
+    backgroundColor: colors.divider,
     marginLeft: 66,
+  },
+  themeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  themeRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   previewButton: {
     flexDirection: "row",

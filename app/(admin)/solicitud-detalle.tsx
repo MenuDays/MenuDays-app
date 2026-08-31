@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   ImageBackground,
   Linking,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,9 +19,12 @@ import RestaurantApplicationsAdminService, {
   RestaurantApplicationDetail,
   buildWhatsAppNumber,
 } from "../../services/restaurantApplicationsAdmin.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import InfoRow from "../components/admin/InfoRow";
 import ImageViewerModal from "../components/common/ImageViewerModal";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 function getStatusInfo(status: RestaurantApplicationDetail["status"]) {
   switch (status) {
@@ -34,18 +38,34 @@ function getStatusInfo(status: RestaurantApplicationDetail["status"]) {
 }
 
 export default function SolicitudDetalleScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [detail, setDetail] = useState<RestaurantApplicationDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
-  useEffect(() => {
+  function loadDetail() {
     if (!id) return;
     RestaurantApplicationsAdminService.getById(Number(id))
       .then(setDetail)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    loadDetail();
   }, [id]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadDetail();
+  }
 
   async function handleApprove() {
     if (!detail) return;
@@ -126,11 +146,12 @@ export default function SolicitudDetalleScreen() {
           styles.cardContent,
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
       >
         <View style={styles.topRow}>
           <View style={styles.logoPlaceholder}>
             {detail.logoUrl ? (
-              <Image source={{ uri: detail.logoUrl }} style={styles.logoImage} />
+              <Image source={{ uri: optimizedImageUri(detail.logoUrl, "thumb") }} style={styles.logoImage} />
             ) : (
               <Ionicons name={detail.avatarIcon as any} size={28} color="#FB8C00" />
             )}
@@ -161,7 +182,7 @@ export default function SolicitudDetalleScreen() {
             value={`${detail.location.latitude.toFixed(4)}, ${detail.location.longitude.toFixed(4)} · Ver en mapa`}
           />
         </TouchableOpacity>
-        <InfoRow icon="call-outline" label="Tel." value={detail.phone} />
+        <InfoRow icon="call-outline" label="Tel." value={detail.phone} copyable />
         <InfoRow icon="fast-food-outline" label="Descripción" value={detail.description} />
         <InfoRow icon="person-outline" label="Usuario solicitante" value={detail.requestingUser} />
         <InfoRow icon="calendar-outline" label="Fecha de creación" value={detail.createdAt} />
@@ -203,7 +224,7 @@ export default function SolicitudDetalleScreen() {
               activeOpacity={0.85}
               onPress={() => setViewerIndex(index)}
             >
-              <Image source={{ uri: doc.uri }} style={styles.docImage} resizeMode="cover" />
+              <Image source={{ uri: optimizedImageUri(doc.uri, "card") }} style={styles.docImage} resizeMode="cover" />
               <View style={styles.docZoomBadge}>
                 <Ionicons name="expand-outline" size={12} color="#FFFFFF" />
               </View>
@@ -246,16 +267,16 @@ export default function SolicitudDetalleScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
   },
   header: {
     height: 180,
@@ -298,7 +319,7 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     marginTop: -24,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
   },
@@ -335,7 +356,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 6,
   },
   statusBadge: {
@@ -389,7 +410,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: colors.text,
     marginTop: 20,
     marginBottom: 10,
   },
@@ -406,7 +427,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 90,
     borderRadius: 10,
-    backgroundColor: "#F0F0F0",
+    backgroundColor: colors.surfaceSecondary,
   },
   docZoomBadge: {
     position: "absolute",
@@ -421,7 +442,7 @@ const styles = StyleSheet.create({
   },
   docLabel: {
     fontSize: 11,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     textAlign: "center",
   },
   actionsRow: {

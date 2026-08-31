@@ -23,6 +23,7 @@ import { AppAlert } from "../components/common/AppAlert";
 import ThemeChoiceModal from "../components/common/ThemeChoiceModal";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { Href } from "expo-router";
+import { PENDING_RESTAURANT_ONBOARDING_KEY } from "../../constants/onboardingKeys";
 
 const THEME_PROMPT_SHOWN_KEY = "@MenuDays:themePromptShown";
 
@@ -82,6 +83,22 @@ export default function LoginScreen() {
     }
   }
 
+  // Red de seguridad: si por lo que sea el login queda "colgado" en
+  // `loading` (una promesa que nunca resuelve en un dispositivo lento, una
+  // navegación que no ocurre), a los 30s se libera el overlay y se avisa,
+  // en vez de dejar la pantalla tapada por la mascota para siempre.
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => {
+      setLoading(false);
+      AppAlert.alert(
+        "Se demoró más de lo normal",
+        "Revisá tu conexión e intentá iniciar sesión de nuevo."
+      );
+    }, 30000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   async function handleThemeChoice(chosen: "light" | "dark") {
     setMode(chosen);
     await AsyncStorage.setItem(THEME_PROMPT_SHOWN_KEY, "true").catch(() => {});
@@ -109,6 +126,12 @@ export default function LoginScreen() {
       if (rol === "administrador") {
         router.replace("/(admin)/dashboard");
       } else if (rol === "restaurante") {
+        // El tutorial interactivo del dashboard se muestra siempre que
+        // un restaurante inicia sesión (no solo la primera vez) -- se
+        // marca un flag "pendiente" acá y el dashboard lo consume y
+        // borra apenas lo lee, así vuelve a aparecer en el próximo login.
+        await AsyncStorage.setItem(PENDING_RESTAURANT_ONBOARDING_KEY, "true").catch(() => {});
+
         // Si el restaurante todavía no eligió sus categorías, lo
         // mandamos primero a esa pantalla (obligatoria) antes del
         // dashboard. Si la llamada falla por lo que sea, no bloqueamos
@@ -197,11 +220,14 @@ export default function LoginScreen() {
           <Text style={styles.menuTitle}>MENÚ</Text>
           <Text style={styles.menuTitle}>DAYS</Text>
 
-          {/* Lottie animado */}
+          {/* Lottie animado -- resizeMode="contain" + caja cuadrada fija
+              -> todos los íconos se ven del MISMO tamaño aunque cada JSON
+              venga con dimensiones distintas. */}
           <LottieView
             source={current.lottie}
             autoPlay
             loop
+            resizeMode="contain"
             style={styles.lottie}
           />
 
@@ -297,7 +323,15 @@ export default function LoginScreen() {
           extiende detrás de la status bar y queda un corte arriba (se ve
           lo que hay atrás en vez del overlay negro cubriendo toda la
           pantalla). */}
-      <Modal visible={loading} transparent animationType="fade" statusBarTranslucent>
+      <Modal
+        visible={loading}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        // Android exige onRequestClose; acá el back cancela el overlay de
+        // espera (la request sigue, pero el usuario no queda atrapado).
+        onRequestClose={() => setLoading(false)}
+      >
         <View style={styles.loadingOverlay}>
           <Image
             source={require('../../assets/images/login-nene.png')}
@@ -319,7 +353,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   header: {
-    height: 380,
+    // minHeight (no height fijo) para que crezca con el ícono grande sin
+    // recortar contenido en ninguna pantalla.
+    minHeight: 400,
+    paddingVertical: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -337,10 +374,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 4,
     lineHeight: 48,
+    // Aire para que Android no corte la última letra por el letterSpacing.
+    paddingHorizontal: 8,
   },
   lottie: {
-    width: 100,
-    height: 100,
+    // Caja CUADRADA fija (con resizeMode="contain" en el componente) ->
+    // todos los íconos se ven del mismo tamaño. Escalada al ancho del
+    // dispositivo pero acotada para que no quede ni chica ni gigante.
+    width: Math.round(Math.min(Math.max(width * 0.36, 120), 160)),
+    height: Math.round(Math.min(Math.max(width * 0.36, 120), 160)),
     marginTop: 8,
   },
   categoryText: {

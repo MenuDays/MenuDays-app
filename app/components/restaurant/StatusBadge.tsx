@@ -26,20 +26,24 @@ export default function StatusBadge({ label, tone }: StatusBadgeProps) {
 
   return (
     <View style={[styles.badge, { backgroundColor: colors.background }]}>
-      <Text style={[styles.text, { color: colors.color }]}>{label}</Text>
+      <Text style={[styles.text, { color: colors.color }]} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   badge: {
+    // No se achica: el título de la card se achica antes que el badge.
+    flexShrink: 0,
     alignSelf: "flex-start",
     borderRadius: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 4,
   },
   text: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: "700",
   },
 });

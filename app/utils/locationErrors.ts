@@ -25,48 +25,48 @@ interface LocationErrorContent {
 
 const CONTENT: Record<LocationErrorKind, LocationErrorContent> = {
   missingProvince: {
-    title: "Seleccioná una provincia",
-    message: "Para continuar, elegí una provincia de la lista.",
+    title: "Selecciona una provincia",
+    message: "Para continuar, elige una provincia de la lista.",
     confirmText: "Entendido",
   },
   missingCity: {
-    title: "Seleccioná una ciudad",
+    title: "Selecciona una ciudad",
     message:
-      "Para continuar, elegí una ciudad o cantón dentro de la provincia seleccionada.",
+      "Para continuar, elige una ciudad o cantón dentro de la provincia seleccionada.",
     confirmText: "Entendido",
   },
   incompleteManualAddress: {
     title: "Ubicación incompleta",
     message:
-      "Agregá más detalles a la dirección (calle, número o referencia) para poder ubicarte.",
+      "Agrega más detalles a la dirección (calle, número o referencia) para poder ubicarte.",
     confirmText: "Entendido",
   },
   locationNotFound: {
     title: "No encontramos esa ubicación",
-    message: "Revisá la dirección ingresada o probá con una ubicación más específica.",
+    message: "Revisa la dirección ingresada o prueba con una ubicación más específica.",
     confirmText: "Revisar ubicación",
   },
   networkError: {
     title: "Sin conexión",
     message:
-      "No pudimos consultar tu ubicación. Revisá tu conexión a internet e intentá nuevamente.",
+      "No pudimos consultar tu ubicación. Revisa tu conexión a internet e intenta nuevamente.",
     confirmText: "Reintentar",
   },
   permissionDenied: {
     title: "Necesitamos tu ubicación",
     message:
-      "Activá el permiso de ubicación para MenuDays desde los ajustes de tu dispositivo, o elegila manualmente en el mapa.",
+      "Activa el permiso de ubicación para MenuDays desde los ajustes de tu dispositivo, o elígela manualmente en el mapa.",
     confirmText: "Entendido",
   },
   locationUnavailable: {
     title: "No pudimos obtener tu ubicación",
     message:
-      "Tu dispositivo no pudo determinar tu posición actual. Probá de nuevo o elegila manualmente en el mapa.",
+      "Tu dispositivo no pudo determinar tu posición actual. Prueba de nuevo o elígela manualmente en el mapa.",
     confirmText: "Reintentar",
   },
   locationServicesDisabled: {
     title: "Ubicación desactivada",
-    message: "Activá el acceso a tu ubicación desde los ajustes del dispositivo para continuar.",
+    message: "Activa el acceso a tu ubicación desde los ajustes del dispositivo para continuar.",
     confirmText: "Entendido",
   },
   // Único caso genérico del catálogo: reservado para errores internos
@@ -74,7 +74,7 @@ const CONTENT: Record<LocationErrorKind, LocationErrorContent> = {
   // pedido -- ahí sí está permitido un mensaje genérico).
   genericError: {
     title: "No pudimos completar la acción",
-    message: "Ocurrió un problema inesperado. Intentá de nuevo en unos minutos.",
+    message: "Ocurrió un problema inesperado. Intenta de nuevo en unos minutos.",
     confirmText: "Entendido",
   },
 };

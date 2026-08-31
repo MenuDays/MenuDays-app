@@ -19,5 +19,14 @@ import { Stack } from "expo-router";
 // la URL, así que ningún router.push/Link existente en el resto de la
 // app necesitó tocarse.
 export default function HomeStackLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Transparente -> deja ver el fondo global de <AppBackground>
+        // (fondo_claro / fondo_oscuro).
+        contentStyle: { backgroundColor: "transparent" },
+      }}
+    />
+  );
 }

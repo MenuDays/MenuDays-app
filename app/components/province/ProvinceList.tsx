@@ -5,6 +5,7 @@ import {
     FlatList,
     StyleSheet,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ProvinceCard from "./ProvinceCard";
 import { Province } from "../../../services/province.service";
@@ -28,6 +29,7 @@ export default function ProvinceList({
                                          ListHeaderComponent,
                                      }: ProvinceListProps) {
     const { colors } = useTheme();
+    const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
     return (
@@ -36,7 +38,8 @@ export default function ProvinceList({
             data={provinces}
             keyExtractor={(item) => item.id.toString()}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
+            // Última provincia siempre por encima de la barra del sistema.
+            contentContainerStyle={[styles.listContent, { paddingBottom: 20 + insets.bottom }]}
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={
                 <>

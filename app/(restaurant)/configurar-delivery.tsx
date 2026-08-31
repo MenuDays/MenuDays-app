@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -15,12 +15,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 const deliveryCharacter = require("../../assets/characters/menudays-delivery.png");
 
 type DeliveryOption = "delivery" | "retiro" | null;
 
 export default function ConfigurarDeliveryScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   // Igual criterio que elegir-categorias.tsx: si venimos de "Mi perfil"
   // (from=perfil) es para EDITAR la configuración ya guardada, así que
   // precargamos el valor actual y al guardar volvemos ahí. Si venimos
@@ -131,7 +135,7 @@ export default function ConfigurarDeliveryScreen() {
               onPress={() => router.back()}
               hitSlop={10}
             >
-              <Ionicons name="close" size={22} color="#7A7A7A" />
+              <Ionicons name="close" size={22} color={colors.placeholder} />
             </TouchableOpacity>
           )}
 
@@ -199,7 +203,7 @@ export default function ConfigurarDeliveryScreen() {
                 <Ionicons
                   name="chevron-forward"
                   size={20}
-                  color="#9E9E9E"
+                  color={colors.placeholder}
                 />
               </TouchableOpacity>
 
@@ -228,7 +232,7 @@ export default function ConfigurarDeliveryScreen() {
                 <Ionicons
                   name="chevron-forward"
                   size={20}
-                  color="#9E9E9E"
+                  color={colors.placeholder}
                 />
               </TouchableOpacity>
             </View>
@@ -253,7 +257,7 @@ export default function ConfigurarDeliveryScreen() {
                   value={deliveryName}
                   onChangeText={setDeliveryName}
                   placeholder="Ej: Pedidos Ya"
-                  placeholderTextColor="#A7A7A7"
+                  placeholderTextColor={colors.placeholder}
                   maxLength={150}
                   autoCapitalize="words"
                   autoCorrect={false}
@@ -300,7 +304,7 @@ export default function ConfigurarDeliveryScreen() {
                 <Ionicons
                   name="chevron-back"
                   size={18}
-                  color="#7A7A7A"
+                  color={colors.placeholder}
                 />
                 <Text style={styles.backButtonText}>
                   Volver
@@ -357,7 +361,7 @@ export default function ConfigurarDeliveryScreen() {
                 <Ionicons
                   name="chevron-back"
                   size={18}
-                  color="#7A7A7A"
+                  color={colors.placeholder}
                 />
                 <Text style={styles.backButtonText}>
                   Cambiar opción
@@ -370,10 +374,10 @@ export default function ConfigurarDeliveryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
   },
 
   loadingContainer: {
@@ -401,7 +405,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surfaceSecondary,
     zIndex: 2,
   },
 
@@ -431,7 +435,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 27,
     fontWeight: "900",
-    color: "#241A15",
+    color: colors.text,
     textAlign: "center",
     letterSpacing: -0.5,
   },
@@ -439,7 +443,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
-    color: "#777777",
+    color: colors.textSecondary,
     textAlign: "center",
     marginTop: 9,
     paddingHorizontal: 18,
@@ -453,9 +457,9 @@ const styles = StyleSheet.create({
   optionButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFCF7",
+    backgroundColor: colors.card,
     borderWidth: 1.5,
-    borderColor: "#EEE7DD",
+    borderColor: colors.border,
     borderRadius: 18,
     paddingHorizontal: 15,
     paddingVertical: 15,
@@ -478,14 +482,14 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#30231C",
+    color: colors.text,
     marginBottom: 3,
   },
 
   optionDescription: {
     fontSize: 12.5,
     lineHeight: 18,
-    color: "#858585",
+    color: colors.textSecondary,
   },
 
   formContainer: {
@@ -495,7 +499,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#3E2723",
+    color: colors.text,
     marginBottom: 8,
   },
 
@@ -504,22 +508,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#E3E3E3",
+    borderColor: colors.inputBorder,
     borderRadius: 15,
     paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.inputBackground,
   },
 
   input: {
     flex: 1,
     fontSize: 15,
-    color: "#30231C",
+    color: colors.text,
     marginLeft: 11,
   },
 
   helperText: {
     fontSize: 12,
-    color: "#969696",
+    color: colors.textSecondary,
     marginTop: 8,
     marginBottom: 20,
   },
@@ -557,7 +561,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 13.5,
     fontWeight: "600",
-    color: "#7A7A7A",
+    color: colors.textSecondary,
   },
 
   retiroContainer: {
@@ -568,9 +572,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#FFFCF7",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "#EEE7DD",
+    borderColor: colors.border,
     borderRadius: 15,
     paddingHorizontal: 15,
     paddingVertical: 14,
@@ -581,6 +585,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 19,
-    color: "#665A52",
+    color: colors.textSecondary,
   },
 });

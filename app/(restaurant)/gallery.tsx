@@ -1,24 +1,34 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image } from "expo-image";
 import DishService, { Dish } from "../../services/dish.service";
 import GalleryService, { GalleryImage } from "../../services/gallery.service";
+import { pickImageFromLibrary } from "../../utils/imagePicker";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import { AppAlert } from "../components/common/AppAlert";
+import SuccessCelebrationModal from "../components/common/SuccessCelebrationModal";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
+
+const headerImage = require("../../assets/dashboard/galeria.png");
 
 type Tab = "restaurant" | "dishes";
 
 export default function GalleryScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [tab, setTab] = useState<Tab>("restaurant");
 
   // Tab "Restaurante"
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loadingImages, setLoadingImages] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Tab "Platos"
   const [dishes, setDishes] = useState<Dish[]>([]);
@@ -67,24 +77,16 @@ export default function GalleryScreen() {
   }
 
   async function handleAddPhoto() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      AppAlert.alert("Permiso necesario", "Necesitamos acceso a tus fotos.");
-      return;
-    }
     // Sin editor nativo (ver FormImagePicker.tsx): su contraste no
     // coincide con el diseño de MenuDays en algunos dispositivos.
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-      allowsEditing: false,
-    });
-    if (result.canceled) return;
+    const picked = await pickImageFromLibrary({ allowsEditing: false });
+    if (!picked.ok || !picked.asset) return;
 
     setUploading(true);
     try {
-      const uploaded = await GalleryService.upload(result.assets[0].uri);
+      const uploaded = await GalleryService.upload(picked.asset.uri);
       setImages((prev) => [uploaded, ...prev]);
+      setShowSuccess(true);
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo subir la foto.");
     } finally {
@@ -154,6 +156,7 @@ export default function GalleryScreen() {
         showBack
         rightIcon={isRestaurantTab && !uploading ? "add" : undefined}
         onRightPress={isRestaurantTab ? handleAddPhoto : undefined}
+        imageSource={headerImage}
       />
 
       <View style={styles.tabsRow}>
@@ -194,7 +197,7 @@ export default function GalleryScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Ionicons name="images-outline" size={36} color="#D9D9D9" />
+              <Ionicons name="images-outline" size={36} color={colors.placeholder} />
               <Text style={styles.emptyText}>
                 Todavía no subiste fotos. Toca + para agregar la primera.
               </Text>
@@ -206,7 +209,13 @@ export default function GalleryScreen() {
               activeOpacity={0.85}
               onPress={() => handleOpenImageOptions(item)}
             >
-              <Image source={{ uri: item.url }} style={styles.cellImage} />
+              <Image
+                source={{ uri: optimizedImageUri(item.url, "thumb") }}
+                style={styles.cellImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={120}
+              />
               {item.es_portada ? (
                 <View style={styles.coverBadge}>
                   <Ionicons name="star" size={12} color="#FFFFFF" />
@@ -227,7 +236,7 @@ export default function GalleryScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Ionicons name="restaurant-outline" size={36} color="#D9D9D9" />
+              <Ionicons name="restaurant-outline" size={36} color={colors.placeholder} />
               <Text style={styles.emptyText}>
                 Todavía no cargaste platos.
               </Text>
@@ -240,10 +249,16 @@ export default function GalleryScreen() {
               onPress={() => handleOpenDish(item)}
             >
               {item.plato_imagenes[0]?.url ? (
-                <Image source={{ uri: item.plato_imagenes[0].url }} style={styles.cellImage} />
+                <Image
+                  source={{ uri: optimizedImageUri(item.plato_imagenes[0].url, "thumb") }}
+                  style={styles.cellImage}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={120}
+                />
               ) : (
                 <View style={[styles.cellImage, styles.cellImagePlaceholder]}>
-                  <Ionicons name="image-outline" size={22} color="#D9D9D9" />
+                  <Ionicons name="image-outline" size={22} color={colors.placeholder} />
                 </View>
               )}
               <View style={styles.dishNameBadge}>
@@ -257,16 +272,23 @@ export default function GalleryScreen() {
       )}
 
       <RestaurantBottomNav />
+
+      <SuccessCelebrationModal
+        visible={showSuccess}
+        title="¡Foto subida!"
+        message="Tu galería ya se actualizó para que tus clientes la vean."
+        onClose={() => setShowSuccess(false)}
+      />
     </View>
   );
 }
 
 const GAP = 4;
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.background,
   },
   loader: {
     marginTop: 40,
@@ -283,7 +305,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 10,
     alignItems: "center",
-    backgroundColor: "#F0F0F0",
+    backgroundColor: colors.surfaceSecondary,
   },
   tabButtonActive: {
     backgroundColor: "#FB8C00",
@@ -291,7 +313,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
   },
   tabTextActive: {
     color: "#FFFFFF",
@@ -305,7 +327,7 @@ const styles = StyleSheet.create({
   },
   uploadingText: {
     fontSize: 13,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     fontWeight: "600",
   },
   grid: {
@@ -321,7 +343,7 @@ const styles = StyleSheet.create({
     margin: GAP / 2,
     borderRadius: 10,
     overflow: "hidden",
-    backgroundColor: "#F0F0F0",
+    backgroundColor: colors.surfaceSecondary,
   },
   cellImage: {
     width: "100%",
@@ -364,7 +386,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: "center",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     fontSize: 13,
   },
 });

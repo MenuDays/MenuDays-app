@@ -1,7 +1,11 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
+import React, { useMemo } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { RestaurantApplicationSummary } from "../../../services/restaurantApplicationsAdmin.service";
+import { optimizedImageUri } from "../../../utils/imageUrl";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface SolicitudCardProps {
   application: RestaurantApplicationSummary;
@@ -12,10 +16,19 @@ export default function SolicitudCard({
   application,
   onPress,
 }: SolicitudCardProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       {application.logoUrl ? (
-        <Image source={{ uri: application.logoUrl }} style={styles.avatarImage} />
+        <Image
+          source={{ uri: optimizedImageUri(application.logoUrl, "thumb") }}
+          style={styles.avatarImage}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={120}
+        />
       ) : (
         <View
           style={[styles.avatar, { backgroundColor: application.avatarColor }]}
@@ -40,16 +53,16 @@ export default function SolicitudCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: colors.divider,
     gap: 12,
   },
   avatar: {
@@ -70,12 +83,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 2,
   },
   date: {
     fontSize: 13,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
   },
   chevronCircle: {
     width: 32,

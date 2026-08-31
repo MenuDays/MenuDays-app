@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { AdminApplicationStatus } from "../../../services/restaurantApplicationsAdmin.service";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface Tab {
   status: AdminApplicationStatus;
@@ -21,6 +23,9 @@ export default function SolicitudTabs({
   counts,
   onSelect,
 }: SolicitudTabsProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const tabs: Tab[] = [
     {
       status: "aprobada",
@@ -72,7 +77,7 @@ export default function SolicitudTabs({
             <Text
               style={[
                 styles.tabCount,
-                { color: isSelected ? tab.color : "#9E9E9E" },
+                { color: isSelected ? tab.color : colors.textSecondary },
               ]}
             >
               {tab.count}
@@ -84,7 +89,7 @@ export default function SolicitudTabs({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: "row",
     gap: 8,
@@ -98,12 +103,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
-    backgroundColor: "#FFFFFF",
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   tabLabel: {
     fontSize: 11,
-    color: "#3E2723",
+    color: colors.text,
     fontWeight: "500",
   },
   tabCount: {

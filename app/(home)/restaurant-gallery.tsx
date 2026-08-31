@@ -9,12 +9,15 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  RefreshControl,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import RestaurantService, { PublicGalleryImage } from "../../services/restaurant.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import { AppAlert } from "../components/common/AppAlert";
 import { EmptyState } from "../components/common/EmptyState";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -36,7 +39,19 @@ export default function RestaurantGalleryScreen() {
 
   const [images, setImages] = useState<PublicGalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  function loadGallery() {
+    if (!id) return;
+    RestaurantService.getPublicDetail(id)
+      .then((detail) => setImages([...detail.galeria].sort((a, b) => a.orden - b.orden)))
+      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar la galería."))
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -46,11 +61,13 @@ export default function RestaurantGalleryScreen() {
     setLoading(true);
     setImages([]);
     setSelectedIndex(null);
-    RestaurantService.getPublicDetail(id)
-      .then((detail) => setImages([...detail.galeria].sort((a, b) => a.orden - b.orden)))
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudo cargar la galería."))
-      .finally(() => setLoading(false));
+    loadGallery();
   }, [id]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadGallery();
+  }
 
   return (
     <View style={styles.container}>
@@ -73,9 +90,10 @@ export default function RestaurantGalleryScreen() {
           numColumns={NUM_COLUMNS}
           columnWrapperStyle={{ gap: GAP }}
           contentContainerStyle={styles.grid}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
           renderItem={({ item, index }) => (
             <TouchableOpacity onPress={() => setSelectedIndex(index)} activeOpacity={0.85}>
-              <Image source={{ uri: item.url }} style={styles.thumb} />
+              <Image source={{ uri: optimizedImageUri(item.url, "thumb") }} style={styles.thumb} />
             </TouchableOpacity>
           )}
           ListEmptyComponent={
@@ -106,7 +124,14 @@ export default function RestaurantGalleryScreen() {
               showsHorizontalScrollIndicator={false}
               renderItem={({ item }) => (
                 <View style={{ width, alignItems: "center", justifyContent: "center" }}>
-                  <Image source={{ uri: item.url }} style={styles.fullImage} resizeMode="contain" />
+                  <ExpoImage
+                    source={{ uri: optimizedImageUri(item.url, "full") }}
+                    style={styles.fullImage}
+                    contentFit="contain"
+                    allowDownscaling={false}
+                    cachePolicy="memory-disk"
+                    transition={120}
+                  />
                 </View>
               )}
             />
@@ -118,7 +143,7 @@ export default function RestaurantGalleryScreen() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.screenSolid },
   header: {
     flexDirection: "row",
     alignItems: "center",

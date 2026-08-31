@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -15,9 +14,12 @@ import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen"
 
 import UserService, { User } from "../../services/user.service";
 import AuthService from "../../services/auth.service";
+import { pickImageFromLibrary } from "../../utils/imagePicker";
 import { AppAlert } from "../components/common/AppAlert";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import { usePreviewMode } from "../../contexts/PreviewModeContext";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Reutiliza los mismos componentes de perfil que el comensal
 // ((home)/perfil.tsx) -- un admin es solo una fila más de `usuarios`
@@ -31,9 +33,12 @@ import ProfileCard from "../components/profile/ProfileCard";
 import InfoRow from "../components/profile/InfoRow";
 import EditableRow from "../components/profile/EditableRow";
 import Divider from "../components/profile/Divider";
+import ThemeToggle from "../components/common/ThemeToggle";
 
 export default function AdminPerfilScreen() {
-  const { enterPreview } = usePreviewMode();
+  const { enterPreview, exitPreview } = usePreviewMode();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -95,21 +100,11 @@ export default function AdminPerfilScreen() {
   }
 
   async function handleUploadPhoto() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      AppAlert.alert("Permiso requerido", "Necesitamos acceso a tu galería.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-
-    if (result.canceled) return;
+    const picked = await pickImageFromLibrary();
+    if (!picked.ok || !picked.asset) return;
 
     try {
-      const response = await UserService.uploadPhoto(result.assets[0]);
+      const response = await UserService.uploadPhoto(picked.asset);
       setUser((prev) => (prev ? { ...prev, profilePhotoUrl: response.photoUrl } : prev));
       if (user) await UserService.saveLocal({ ...user, profilePhotoUrl: response.photoUrl });
       AppAlert.alert("¡Listo!", "Foto de perfil actualizada correctamente.");
@@ -139,6 +134,9 @@ export default function AdminPerfilScreen() {
             } catch (e) {
               console.log("Error en logout remoto, limpiando sesión local igual:", e);
             } finally {
+              // Evita que quede colgado el banner de "Salir de vista
+              // previa" para la próxima sesión en este mismo dispositivo.
+              exitPreview();
               router.replace("/(auth)/login");
             }
           },
@@ -231,6 +229,18 @@ export default function AdminPerfilScreen() {
             </View>
           )}
 
+          {/* Tema oscuro -- mismo control que en el perfil de comensal
+              ((home)/(tabs)/perfil.tsx), ver allowDarkMode en ThemeContext. */}
+          <View style={styles.menuRow}>
+            <View style={styles.menuRowLeft}>
+              <View style={styles.menuRowIcon}>
+                <Ionicons name="moon-outline" size={20} color="#F5A800" />
+              </View>
+              <Text style={styles.menuRowText}>Tema oscuro</Text>
+            </View>
+            <ThemeToggle size={32} />
+          </View>
+
           <TouchableOpacity style={styles.previewButton} onPress={handleViewAsComensal}>
             <Ionicons name="eye-outline" size={18} color="#F5A800" />
             <Text style={styles.previewButtonText}>Ver como comensal</Text>
@@ -250,21 +260,24 @@ export default function AdminPerfilScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingBottom: 30,
+    // Espacio para pasar de largo la bottom nav flotante (si no, "Cerrar
+    // sesión" quedaba tapado y la pantalla parecía que no scrolleaba).
+    paddingBottom: 130,
   },
   content: {
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     marginTop: -24,
@@ -320,14 +333,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#757575",
+    color: colors.textSecondary,
   },
   saveButton: {
     flex: 1,
@@ -343,6 +356,39 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  menuRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  menuRowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuRowText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
   },
   previewButton: {
     flexDirection: "row",

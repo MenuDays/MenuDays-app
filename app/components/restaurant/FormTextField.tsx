@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface FormTextFieldProps {
   label: string;
@@ -30,6 +32,9 @@ export default function FormTextField({
   keyboardType = "default",
   editable = true,
 }: FormTextFieldProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.wrapper}>
       <Text style={styles.label}>{label}</Text>
@@ -39,7 +44,7 @@ export default function FormTextField({
           <TextInput
             style={styles.textarea}
             placeholder={placeholder}
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={colors.placeholder}
             value={value}
             onChangeText={(text) =>
               onChangeText?.(maxLength ? text.slice(0, maxLength) : text)
@@ -63,7 +68,7 @@ export default function FormTextField({
           <TextInput
             style={styles.input}
             placeholder={placeholder}
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={colors.placeholder}
             value={value}
             onChangeText={onChangeText}
             keyboardType={keyboardType}
@@ -75,27 +80,28 @@ export default function FormTextField({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrapper: {
     marginBottom: 16,
   },
   label: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#3E2723",
+    color: colors.text,
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     height: 52,
     paddingHorizontal: 16,
+    backgroundColor: colors.inputBackground,
   },
   containerReadOnly: {
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.surfaceSecondary,
   },
   icon: {
     marginRight: 10,
@@ -103,19 +109,20 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 14,
-    color: "#3E2723",
+    color: colors.text,
   },
   textareaContainer: {
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 10,
+    backgroundColor: colors.inputBackground,
   },
   textarea: {
   fontSize: 14,
-  color: "#3E2723",
+  color: colors.text,
   minHeight: 80,
   textAlignVertical: "top",
   paddingTop: 0,
@@ -124,7 +131,7 @@ const styles = StyleSheet.create({
 },
   charCount: {
     fontSize: 12,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     textAlign: "right",
     marginTop: 4,
   },

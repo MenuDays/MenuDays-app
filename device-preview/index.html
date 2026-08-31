@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MenuDays · Device Preview</title>
+<style>
+  :root {
+    --bg: #000000;
+    --panel: #111113;
+    --panel-border: rgba(255,255,255,0.08);
+    --text: #ffffff;
+    --text-secondary: rgba(255,255,255,0.55);
+    --text-tertiary: rgba(255,255,255,0.35);
+    --accent: #FB8C00;
+    --bezel: #1c1c1e;
+    --bezel-edge: #333336;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* ---------- Toolbar ---------- */
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-right: 2px;
+  }
+  .brand-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FFB74D, #FB8C00);
+    box-shadow: 0 0 10px rgba(251,140,0,0.7);
+  }
+  .brand-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+  .brand-title span {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .device-switch {
+    display: flex;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .device-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 9px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+  }
+  .device-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .device-btn.active {
+    background: linear-gradient(135deg, #FFB74D, #FB8C00);
+    color: #fff;
+  }
+
+  select, .num-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 12.5px;
+    padding: 8px 10px;
+    outline: none;
+    font-family: inherit;
+  }
+  select:focus, .num-input:focus, #url-input:focus { border-color: var(--accent); }
+  select {
+    max-width: 220px;
+    cursor: pointer;
+  }
+  select option { background: #1c1c1e; color: #fff; }
+
+  .custom-size-row {
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .custom-size-row.visible { display: flex; }
+  .num-input {
+    width: 64px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .custom-size-row .x {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  .url-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 200px;
+  }
+  #url-input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 12.5px;
+    padding: 8px 12px;
+    outline: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--panel-border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+  .icon-btn svg { width: 15px; height: 15px; }
+
+  .zoom-indicator {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    min-width: 38px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Connection banner ---------- */
+  #conn-banner {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 18px;
+    background: rgba(255,152,0,0.12);
+    border-bottom: 1px solid rgba(255,152,0,0.25);
+    color: #FFC46B;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  #conn-banner.visible { display: flex; }
+  #conn-banner b { color: #fff; }
+
+  /* ---------- Stage ---------- */
+  #stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 40%, rgba(251,140,0,0.05), transparent 60%),
+      var(--bg);
+  }
+
+  #frame-wrap {
+    transform-origin: center center;
+    transition: width 0.2s ease, height 0.2s ease;
+    position: relative;
+  }
+
+  .chrome {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--bezel);
+    box-shadow:
+      0 0 0 1.5px var(--bezel-edge) inset,
+      0 30px 80px rgba(0,0,0,0.65),
+      0 8px 24px rgba(0,0,0,0.5);
+  }
+
+  .chrome .screen {
+    position: absolute;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .chrome .screen iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    background: #fff;
+  }
+
+  /* iPhone chrome */
+  .chrome.phone-ios { border-radius: 54px; padding: 14px; }
+  .chrome.phone-ios .screen { inset: 14px; border-radius: 40px; }
+  .chrome.phone-ios .notch {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    width: 34%; height: 26px; background: var(--bezel);
+    border-radius: 0 0 18px 18px; z-index: 3;
+  }
+  .chrome.phone-ios .home-indicator {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 34%; height: 4px; border-radius: 3px;
+    background: rgba(255,255,255,0.35); z-index: 3;
+  }
+
+  /* Android chrome */
+  .chrome.phone-android { border-radius: 32px; padding: 10px; }
+  .chrome.phone-android .screen { inset: 10px; border-radius: 22px; }
+  .chrome.phone-android .punch-hole {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #050505; border: 1px solid rgba(255,255,255,0.08); z-index: 3;
+  }
+
+  /* Tablet chrome */
+  .chrome.tablet { border-radius: 28px; padding: 20px 16px; }
+  .chrome.tablet .screen { inset: 20px 16px; border-radius: 8px; }
+  .chrome.tablet .cam-dot {
+    position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #050505; border: 1px solid rgba(255,255,255,0.08); z-index: 3;
+  }
+
+  /* Desktop chrome: browser window */
+  .chrome.desktop { border-radius: 12px; padding: 0; background: #17171a; }
+  .chrome.desktop .browser-bar {
+    height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+    background: #1c1c1f; border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px 12px 0 0;
+  }
+  .chrome.desktop .traffic { display: flex; gap: 6px; }
+  .chrome.desktop .traffic span { width: 10px; height: 10px; border-radius: 50%; display: block; }
+  .chrome.desktop .traffic span:nth-child(1) { background: #ff5f57; }
+  .chrome.desktop .traffic span:nth-child(2) { background: #febc2e; }
+  .chrome.desktop .traffic span:nth-child(3) { background: #28c840; }
+  .chrome.desktop .browser-url {
+    flex: 1; background: rgba(255,255,255,0.05); border-radius: 6px; height: 22px;
+    display: flex; align-items: center; padding: 0 10px; font-size: 10.5px;
+    color: var(--text-tertiary); font-family: ui-monospace, monospace;
+    overflow: hidden; white-space: nowrap;
+  }
+  .chrome.desktop .screen { inset: 38px 0 0 0; border-radius: 0 0 12px 12px; }
+
+  /* Custom: sin bezel, solo un marco fino */
+  .chrome.custom {
+    border-radius: 10px;
+    padding: 0;
+    background: transparent;
+    box-shadow: 0 0 0 1.5px var(--bezel-edge) inset, 0 20px 60px rgba(0,0,0,0.55);
+  }
+  .chrome.custom .screen { inset: 0; border-radius: 10px; }
+
+  /* ---------- Device label under the frame ---------- */
+  #device-label {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+  #device-label b { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <span class="brand-title">MenuDays <span>· Device Preview</span></span>
+      </div>
+
+      <div class="device-switch" id="device-switch"></div>
+
+      <select id="model-select"></select>
+
+      <div class="custom-size-row" id="custom-size-row">
+        <input class="num-input" id="custom-width" type="number" min="240" max="2560" value="390" />
+        <span class="x">×</span>
+        <input class="num-input" id="custom-height" type="number" min="320" max="2000" value="844" />
+      </div>
+
+      <div class="url-row">
+        <input id="url-input" type="text" value="http://localhost:8081" spellcheck="false" />
+        <button class="icon-btn" id="reload-btn" title="Recargar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        </button>
+        <button class="icon-btn" id="open-tab-btn" title="Abrir en pestaña nueva">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+        </button>
+      </div>
+
+      <div class="zoom-indicator" id="zoom-indicator">100%</div>
+    </div>
+
+    <div id="conn-banner">
+      ⚠️ Si la app no carga adentro del marco: confirmá que <b>npx expo start --web</b> esté corriendo y que la URL de arriba
+      coincida con el puerto que muestra esa terminal (a veces no es 8081 si estaba ocupado).
+    </div>
+
+    <div id="stage">
+      <div id="frame-wrap"></div>
+      <div id="device-label"></div>
+    </div>
+  </div>
+
+<script>
+  // ============================================================
+  // Catálogo de dispositivos -- tamaño lógico (CSS px) del viewport
+  // que ve la app adentro. Agrupados por familia (iPhone/Android/
+  // Tablet/Desktop) + una opción "Personalizado" con ancho/alto a
+  // mano, para poder probar CUALQUIER tamaño, no solo estos presets.
+  // ============================================================
+  const GROUPS = {
+    iphone: {
+      label: "iPhone", icon: "📱", chrome: "phone-ios", pad: 14,
+      models: [
+        { id: "iphone-se",        label: "iPhone SE",             width: 375,  height: 667 },
+        { id: "iphone-13-mini",   label: "iPhone 13 mini",        width: 375,  height: 812 },
+        { id: "iphone-12",        label: "iPhone 12 / 12 Pro",    width: 390,  height: 844 },
+        { id: "iphone-13",        label: "iPhone 13 / 13 Pro",    width: 390,  height: 844 },
+        { id: "iphone-14",        label: "iPhone 14",             width: 390,  height: 844 },
+        { id: "iphone-15",        label: "iPhone 15 / 15 Pro",    width: 393,  height: 852 },
+        { id: "iphone-pro-max",   label: "iPhone 14/15 Pro Max",  width: 430,  height: 932 },
+      ],
+    },
+    android: {
+      label: "Android", icon: "🤖", chrome: "phone-android", pad: 10,
+      models: [
+        { id: "galaxy-s21",       label: "Galaxy S21",            width: 360,  height: 800 },
+        { id: "galaxy-s22",       label: "Galaxy S22 / S23",      width: 360,  height: 780 },
+        { id: "galaxy-s23-ultra", label: "Galaxy S23 Ultra",      width: 384,  height: 824 },
+        { id: "pixel-6",          label: "Pixel 6",               width: 412,  height: 915 },
+        { id: "pixel-7",          label: "Pixel 7",               width: 412,  height: 915 },
+        { id: "pixel-8",          label: "Pixel 8",               width: 412,  height: 915 },
+      ],
+    },
+    tablet: {
+      label: "Tablet", icon: "📐", chrome: "tablet", padX: 16, padY: 20,
+      models: [
+        { id: "ipad-mini",        label: "iPad Mini",             width: 744,  height: 1133 },
+        { id: "ipad-air",         label: "iPad Air",              width: 820,  height: 1180 },
+        { id: "ipad-pro-11",      label: "iPad Pro 11\"",         width: 834,  height: 1194 },
+        { id: "ipad-pro-12",      label: "iPad Pro 12.9\"",       width: 1024, height: 1366 },
+        { id: "galaxy-tab-s8",    label: "Galaxy Tab S8",         width: 800,  height: 1280 },
+      ],
+    },
+    desktop: {
+      label: "Desktop", icon: "🖥️", chrome: "desktop", topBar: 38,
+      models: [
+        { id: "laptop",           label: "Laptop (1280×800)",     width: 1280, height: 800 },
+        { id: "desktop-1440",     label: "Desktop (1440×900)",    width: 1440, height: 900 },
+        { id: "desktop-1920",     label: "Desktop FHD (1920×1080)", width: 1920, height: 1080 },
+      ],
+    },
+    custom: {
+      label: "Personalizado", icon: "⚙️", chrome: "custom",
+      models: [{ id: "custom", label: "Tamaño personalizado", width: 390, height: 844 }],
+    },
+  };
+
+  const stage = document.getElementById("stage");
+  const frameWrap = document.getElementById("frame-wrap");
+  const deviceLabel = document.getElementById("device-label");
+  const urlInput = document.getElementById("url-input");
+  const zoomIndicator = document.getElementById("zoom-indicator");
+  const switchEl = document.getElementById("device-switch");
+  const modelSelect = document.getElementById("model-select");
+  const customRow = document.getElementById("custom-size-row");
+  const customWidthInput = document.getElementById("custom-width");
+  const customHeightInput = document.getElementById("custom-height");
+  const connBanner = document.getElementById("conn-banner");
+
+  let currentGroup = localStorage.getItem("md-preview-group") || "iphone";
+  let currentModelId = localStorage.getItem("md-preview-model") || GROUPS[currentGroup].models[0].id;
+  let currentUrl = localStorage.getItem("md-preview-url") || "http://localhost:8081";
+  urlInput.value = currentUrl;
+
+  // ---------- Toolbar: botones de familia ----------
+  Object.keys(GROUPS).forEach((groupId) => {
+    const g = GROUPS[groupId];
+    const btn = document.createElement("button");
+    btn.className = "device-btn";
+    btn.dataset.group = groupId;
+    btn.textContent = g.icon + " " + g.label;
+    btn.addEventListener("click", () => selectGroup(groupId));
+    switchEl.appendChild(btn);
+  });
+
+  function selectGroup(groupId) {
+    currentGroup = groupId;
+    localStorage.setItem("md-preview-group", groupId);
+    Array.from(switchEl.children).forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.group === groupId);
+    });
+    populateModelSelect(groupId);
+    // Si el modelo guardado no pertenece a esta familia, usa el primero.
+    const models = GROUPS[groupId].models;
+    if (!models.some((m) => m.id === currentModelId)) {
+      currentModelId = models[0].id;
+    }
+    modelSelect.value = currentModelId;
+    customRow.classList.toggle("visible", groupId === "custom");
+    render();
+  }
+
+  function populateModelSelect(groupId) {
+    modelSelect.innerHTML = "";
+    GROUPS[groupId].models.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.label + " (" + m.width + "×" + m.height + ")";
+      modelSelect.appendChild(opt);
+    });
+  }
+
+  modelSelect.addEventListener("change", () => {
+    currentModelId = modelSelect.value;
+    localStorage.setItem("md-preview-model", currentModelId);
+    render();
+  });
+
+  customWidthInput.addEventListener("change", render);
+  customHeightInput.addEventListener("change", render);
+
+  // ---------- Render del chrome ----------
+  function getActiveModel() {
+    const g = GROUPS[currentGroup];
+    if (currentGroup === "custom") {
+      return {
+        id: "custom",
+        label: "Personalizado",
+        width: Math.max(240, Math.min(2560, Number(customWidthInput.value) || 390)),
+        height: Math.max(320, Math.min(2000, Number(customHeightInput.value) || 844)),
+      };
+    }
+    return g.models.find((m) => m.id === currentModelId) || g.models[0];
+  }
+
+  function buildChrome() {
+    const g = GROUPS[currentGroup];
+    const m = getActiveModel();
+    frameWrap.innerHTML = "";
+
+    const outerW = m.width + (g.chrome === "tablet" ? (g.padX || 0) * 2 : g.chrome === "desktop" || g.chrome === "custom" ? 0 : (g.pad || 0) * 2);
+    const outerH = g.chrome === "desktop"
+      ? m.height + g.topBar
+      : m.height + (g.chrome === "tablet" ? (g.padY || 0) * 2 : g.chrome === "custom" ? 0 : (g.pad || 0) * 2);
+
+    frameWrap.style.width = outerW + "px";
+    frameWrap.style.height = outerH + "px";
+
+    const chrome = document.createElement("div");
+    chrome.className = "chrome " + g.chrome;
+    chrome.style.width = outerW + "px";
+    chrome.style.height = outerH + "px";
+
+    if (g.chrome === "desktop") {
+      const bar = document.createElement("div");
+      bar.className = "browser-bar";
+      bar.innerHTML =
+        '<div class="traffic"><span></span><span></span><span></span></div>' +
+        '<div class="browser-url">' + currentUrl + "</div>";
+      chrome.appendChild(bar);
+    }
+
+    if (g.chrome === "phone-ios") {
+      const notch = document.createElement("div");
+      notch.className = "notch";
+      chrome.appendChild(notch);
+      const home = document.createElement("div");
+      home.className = "home-indicator";
+      chrome.appendChild(home);
+    }
+
+    if (g.chrome === "phone-android") {
+      const hole = document.createElement("div");
+      hole.className = "punch-hole";
+      chrome.appendChild(hole);
+    }
+
+    if (g.chrome === "tablet") {
+      const cam = document.createElement("div");
+      cam.className = "cam-dot";
+      chrome.appendChild(cam);
+    }
+
+    const screen = document.createElement("div");
+    screen.className = "screen";
+
+    const iframe = document.createElement("iframe");
+    iframe.src = currentUrl;
+    iframe.title = "MenuDays preview";
+    screen.appendChild(iframe);
+    chrome.appendChild(screen);
+
+    frameWrap.appendChild(chrome);
+
+    deviceLabel.innerHTML = "<b>" + (g.label === "Personalizado" ? "Personalizado" : m.label) + "</b> · " + m.width + "×" + m.height;
+
+    fitToStage(outerW, outerH);
+  }
+
+  function fitToStage(outerW, outerH) {
+    const availW = stage.clientWidth - 64;
+    const availH = stage.clientHeight - 64;
+    const scale = Math.min(1, availW / outerW, availH / outerH);
+    frameWrap.style.transform = "scale(" + scale + ")";
+    zoomIndicator.textContent = Math.round(scale * 100) + "%";
+  }
+
+  function render() {
+    buildChrome();
+  }
+
+  function normalizeUrl(raw) {
+    const trimmed = raw.trim();
+    if (!trimmed) return "http://localhost:8081";
+    if (!/^https?:\/\//i.test(trimmed)) return "http://" + trimmed;
+    return trimmed;
+  }
+
+  function applyUrl() {
+    currentUrl = normalizeUrl(urlInput.value);
+    urlInput.value = currentUrl;
+    localStorage.setItem("md-preview-url", currentUrl);
+    render();
+    checkConnection();
+  }
+
+  urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") applyUrl();
+  });
+  urlInput.addEventListener("blur", applyUrl);
+
+  document.getElementById("reload-btn").addEventListener("click", () => { render(); checkConnection(); });
+  document.getElementById("open-tab-btn").addEventListener("click", () => window.open(currentUrl, "_blank"));
+
+  // No se puede leer el contenido de un iframe cross-origin, pero SÍ se
+  // puede saber si el servidor responde en absoluto con un fetch aparte
+  // (no bloqueante, no afecta el iframe) -- así el aviso de conexión no
+  // se queda pegado silenciosamente si el usuario todavía no arrancó
+  // `expo start --web` o apunta a un puerto viejo.
+  function checkConnection() {
+    fetch(currentUrl, { mode: "no-cors" })
+      .then(() => connBanner.classList.remove("visible"))
+      .catch(() => connBanner.classList.add("visible"));
+  }
+
+  window.addEventListener("resize", () => {
+    const outerW = parseFloat(frameWrap.style.width) || 390;
+    const outerH = parseFloat(frameWrap.style.height) || 844;
+    fitToStage(outerW, outerH);
+  });
+
+  // ---------- Init ----------
+  populateModelSelect(currentGroup);
+  modelSelect.value = currentModelId;
+  customWidthInput.value = 390;
+  customHeightInput.value = 844;
+  Array.from(switchEl.children).forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.group === currentGroup);
+  });
+  customRow.classList.toggle("visible", currentGroup === "custom");
+  render();
+  checkConnection();
+</script>
+</body>
+</html>

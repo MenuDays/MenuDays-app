@@ -19,7 +19,7 @@ const VB_HEIGHT = BASE_H;
 
 export default function WaveBottom() {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents="none">
       <Svg width="100%" height="100%" viewBox={`0 0 ${VB_WIDTH} ${VB_HEIGHT}`} preserveAspectRatio="none">
         <Defs>
           <LinearGradient id="wave1" x1="0" y1="0" x2={BASE_W} y2="0" gradientUnits="userSpaceOnUse">

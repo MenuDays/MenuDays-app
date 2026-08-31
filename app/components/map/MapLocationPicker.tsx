@@ -10,12 +10,20 @@ import {
   Linking,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
+// SafeMapView vive FUERA de app/ (en components/map/, no
+// app/components/map/) a propósito: el escaneo de rutas de Expo Router
+// para el bundle web requiere cada .tsx bajo app/ por su nombre de
+// archivo literal (sin pasar por la resolución de extensión .web.tsx de
+// Metro), así que si este wrapper viviera adentro de app/, su variante
+// nativa (que importa react-native-maps de verdad) igual se intentaría
+// bundlear para web y rompería el build -- ver components/map/SafeMapView.tsx.
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from "../../../components/map/SafeMapView";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppAlert } from "../common/AppAlert";
+import ErrorBoundary from "../common/ErrorBoundary";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
 
@@ -132,41 +140,80 @@ export default function MapLocationPicker({
     );
   }
 
-  // Sin alertas de "error" acá a propósito: si Google no logra resolver
-  // una dirección de texto para el punto (sea por el punto en sí, sea por
-  // la red), lo que de verdad importa -- el pin en el mapa -- ya quedó
-  // puesto. El campo de dirección es solo una ayuda visual y sigue
-  // editable siempre, así que si no se pudo autocompletar, el usuario
-  // simplemente la escribe él mismo sin que la app lo interrumpa con un
-  // cartel de error.
-  async function reverseGeocode(lat: number, lng: number) {
+  // Fuente PRIMARIA: OpenStreetMap Nominatim (reverse geocoding),
+  // gratis y sin API key -- el geocoder nativo del teléfono
+  // (Location.reverseGeocodeAsync) daba resultados pobres/vacíos muy
+  // seguido (sobre todo Android fuera de zonas muy urbanas), y la app
+  // no tiene una API key de Google Maps sin restricción de Android para
+  // pegarle directo a la Geocoding API de Google. Nominatim da mucho
+  // más detalle (calle, barrio, ciudad) de forma consistente.
+  //
+  // Prioridad: nombre de punto de interés (plaza, local, monumento) >
+  // calle + altura > barrio/sector > ciudad. displayName (la dirección
+  // completa larguísima que arma Nominatim) queda como último recurso
+  // antes de darse por vencido.
+  async function resolveAddressFromNominatim(lat: number, lng: number): Promise<string | null> {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "MenuDaysApp/1.0 (contacto@menudays.com)" },
+    });
+    if (!response.ok) throw new Error(`Nominatim respondió ${response.status}`);
+
+    const data = await response.json();
+    const addr = data?.address ?? {};
+    const poiName: string | undefined = data?.name || addr.amenity || addr.shop || addr.tourism || addr.building;
+    const streetLine = [addr.road, addr.house_number].filter(Boolean).join(" ");
+    const area = [addr.neighbourhood || addr.suburb || addr.quarter, addr.city_district, addr.city || addr.town || addr.village]
+      .filter(Boolean)
+      .join(", ");
+
+    return poiName || streetLine || area || data?.display_name || null;
+  }
+
+  // Fallback: geocoder nativo del teléfono, por si Nominatim falla (sin
+  // red, rate limit, etc.) -- mismo criterio de prioridad que antes.
+  async function resolveAddressFromNative(lat: number, lng: number, attempt = 1): Promise<string | null> {
     try {
-      const results = await Location.reverseGeocodeAsync({
-        latitude: lat,
-        longitude: lng,
-      });
-      if (results.length > 0) {
-        const r = results[0];
-        // Orden de prioridad: calle+numero > calle sola > barrio/sector > ciudad.
-        // Antes esto quedaba en "" apenas faltaba street/streetNumber/district,
-        // que es lo mas comun fuera de zonas urbanas bien mapeadas.
-        const streetLine = [r.street, r.streetNumber].filter(Boolean).join(" ");
-        const fallback = [r.district, r.subregion, r.city, r.region]
-          .filter(Boolean)
-          .join(", ");
-        const resolved = streetLine || fallback;
-        if (resolved) {
-          setAddress(resolved);
-        }
-      }
+      const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      if (results.length === 0) return null;
+
+      const r = results[0];
+      const streetLine = [r.street, r.streetNumber].filter(Boolean).join(" ");
+      const fallback = [r.district, r.subregion, r.city, r.region].filter(Boolean).join(", ");
+      return r.name || streetLine || fallback || null;
     } catch (e) {
-      console.log("Error en geocoding:", e);
+      console.log(`Error en geocoding nativo (intento ${attempt}):`, e);
+      if (attempt < 2) return resolveAddressFromNative(lat, lng, attempt + 1);
+      return null;
     }
+  }
+
+  async function resolveAddress(lat: number, lng: number): Promise<string | null> {
+    try {
+      const fromNominatim = await resolveAddressFromNominatim(lat, lng);
+      if (fromNominatim) return fromNominatim;
+    } catch (e) {
+      console.log("Error en Nominatim, cae al geocoder nativo:", e);
+    }
+    return resolveAddressFromNative(lat, lng);
+  }
+
+  // El pin en el mapa (marker) es lo que de verdad importa y ya queda
+  // puesto apenas se toca -- esto solo resuelve el TEXTO de la
+  // dirección para no dejarlo vacío. Si NINGUNA de las dos fuentes
+  // (Nominatim + geocoder nativo) pudo resolver nada -- caso extremo,
+  // sin red por ejemplo -- se cae a un texto genérico editable, NUNCA a
+  // las coordenadas crudas: un usuario común no entiende
+  // "-1.83120, -78.18340" como ubicación.
+  async function reverseGeocode(lat: number, lng: number) {
+    const resolved = await resolveAddress(lat, lng);
+    setAddress(resolved ?? "Ubicación seleccionada en el mapa");
   }
 
   async function handleMapPress(e: any) {
     const { latitude, longitude } = e.nativeEvent.coordinate;
     setMarker({ latitude, longitude });
+    setAddress(""); // feedback inmediato: se está resolviendo la dirección nueva
     await reverseGeocode(latitude, longitude);
   }
 
@@ -279,6 +326,19 @@ export default function MapLocationPicker({
             <Text style={styles.loadingText}>Cargando mapa...</Text>
           </View>
         ) : (
+          // Si el mapa nativo no arranca en algún Android, se puede seguir
+          // fijando la ubicación a mano (input de dirección) o con el GPS
+          // ("Usar mi ubicación actual") -- la pantalla no queda inservible.
+          <ErrorBoundary
+            fallback={
+              <View style={styles.loadingContainer}>
+                <Ionicons name="map-outline" size={28} color={colors.textSecondary} />
+                <Text style={styles.loadingText}>
+                  No se pudo cargar el mapa. Escribí la dirección abajo o usá tu ubicación actual.
+                </Text>
+              </View>
+            }
+          >
           <MapView
             ref={mapRef}
             style={styles.map}
@@ -295,6 +355,7 @@ export default function MapLocationPicker({
           >
             <Marker coordinate={marker} pinColor={colors.primary} />
           </MapView>
+          </ErrorBoundary>
         )}
 
         <TouchableOpacity

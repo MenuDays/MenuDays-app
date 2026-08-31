@@ -10,5 +10,13 @@ import { Stack } from "expo-router";
 // local/Configurar delivery) ya está cubierta por RestaurantBottomNav +
 // las quick actions del Dashboard, así que no se perdió ningún acceso.
 export default function RestaurantLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Transparente -> deja ver el fondo global de <AppBackground>.
+        contentStyle: { backgroundColor: "transparent" },
+      }}
+    />
+  );
 }

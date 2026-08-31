@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface PaginationProps {
   page: number;
@@ -14,6 +16,9 @@ export default function Pagination({
   totalPages,
   onChangePage,
 }: PaginationProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (totalPages <= 1) return null;
 
   const visiblePages = Math.min(totalPages, MAX_VISIBLE_PAGES);
@@ -40,7 +45,7 @@ export default function Pagination({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: "row",
     justifyContent: "center",
@@ -62,7 +67,7 @@ const styles = StyleSheet.create({
   dotText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
   },
   dotTextActive: {
     color: "#FFFFFF",

@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, Switch, StyleSheet } from "react-native";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
 interface FormToggleRowProps {
   label: string;
@@ -12,6 +14,9 @@ export default function FormToggleRow({
   value,
   onValueChange,
 }: FormToggleRowProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -30,13 +35,13 @@ export default function FormToggleRow({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
 
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 14,
 
     paddingHorizontal: 16,
@@ -45,7 +50,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
 
     borderWidth: 1,
-    borderColor: "#EEEEEE",
+    borderColor: colors.border,
   },
 
   label: {
@@ -53,7 +58,7 @@ const styles = StyleSheet.create({
 
     fontSize: 15,
     fontWeight: "600",
-    color: "#212121",
+    color: colors.text,
 
     marginRight: 16,
   },

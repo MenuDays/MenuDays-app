@@ -22,6 +22,11 @@ export interface User {
   address?: string;
   latitude?: number;
   longitude?: number;
+  // true si el teléfono/ubicación/ciudad de arriba vienen del
+  // restaurante vinculado a esta cuenta (no de un dato personal propio
+  // del comensal) -- pasa con cuentas de restaurante que nunca
+  // completaron esos campos "como comensal". Ver getProfile en el back.
+  usingRestaurantInfo?: boolean;
 }
 
 /**

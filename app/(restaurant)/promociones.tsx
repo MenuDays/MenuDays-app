@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import PromotionService, { Promotion } from "../../services/promotion.service";
 import { AppAlert } from "../components/common/AppAlert";
@@ -10,6 +10,10 @@ import PublishFab from "../components/restaurant/PublishFab";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
 import { StatusTone } from "../components/restaurant/StatusBadge";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
+
+const headerImage = require("../../assets/dashboard/promociones.png");
 
 type FilterValue = "todos" | "vigente" | "programada" | "vencida" | "inactiva";
 
@@ -52,6 +56,8 @@ function formatRange(promotion: Promotion): string {
 }
 
 export default function PromotionListScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [filter, setFilter] = useState<FilterValue>("todos");
   const [loading, setLoading] = useState(true);
@@ -119,6 +125,7 @@ export default function PromotionListScreen() {
       <ScreenHeader
         title="Promociones"
         showBack
+        imageSource={headerImage}
       />
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
@@ -168,10 +175,10 @@ export default function PromotionListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.background,
   },
   loader: {
     marginTop: 40,
@@ -186,7 +193,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: "center",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     fontSize: 14,
     marginTop: 40,
   },

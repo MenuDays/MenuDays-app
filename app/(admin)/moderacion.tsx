@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,9 +14,12 @@ import {
 } from "react-native";
 
 import ReportService, { ReportItem, ReportStatus } from "../../services/report.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import { AppAlert } from "../components/common/AppAlert";
 import AdminBottomNav from "../components/admin/AdminBottomNav";
 import SolicitudHeader from "../components/admin/SolicitudHeader";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 type FilterTab = "todos" | ReportStatus;
 
@@ -46,8 +50,11 @@ function formatDate(iso: string): string {
 }
 
 export default function ModeracionScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<FilterTab>("pendiente");
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
 
@@ -55,10 +62,18 @@ export default function ModeracionScreen() {
     ReportService.getAll()
       .then(setReports)
       .catch(() => AppAlert.alert("Error", "No se pudieron cargar los reportes."))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   }, []);
 
   useFocusEffect(load);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    load();
+  }
 
   const counts = useMemo(() => {
     return {
@@ -122,12 +137,13 @@ export default function ModeracionScreen() {
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
         ListHeaderComponent={
           <>
             <SolicitudHeader
               title="Moderación de"
               highlight="Reportes"
-              subtitle="Revisá y gestioná los reportes de restaurantes"
+              subtitle="Revisa y gestiona los reportes de restaurantes"
             />
             <View style={styles.content}>
               <View style={styles.tabsRow}>
@@ -153,7 +169,7 @@ export default function ModeracionScreen() {
                 </View>
               ) : filtered.length === 0 ? (
                 <View style={styles.stateContainer}>
-                  <Ionicons name="shield-checkmark-outline" size={32} color="#D9D9D9" />
+                  <Ionicons name="shield-checkmark-outline" size={32} color={colors.placeholder} />
                   <Text style={styles.emptyText}>No hay reportes en esta categoría.</Text>
                 </View>
               ) : null}
@@ -171,7 +187,7 @@ export default function ModeracionScreen() {
                 <View style={styles.cardTopRow}>
                   <TouchableOpacity style={styles.restaurantRow} onPress={() => openRestaurant(item)}>
                     {item.restaurant.logoUrl ? (
-                      <Image source={{ uri: item.restaurant.logoUrl }} style={styles.logo} />
+                      <Image source={{ uri: optimizedImageUri(item.restaurant.logoUrl, "thumb") }} style={styles.logo} />
                     ) : (
                       <View style={[styles.logo, styles.logoPlaceholder]}>
                         <Ionicons name="restaurant-outline" size={16} color="#FB8C00" />
@@ -204,7 +220,7 @@ export default function ModeracionScreen() {
                 ) : null}
 
                 <View style={styles.reporterRow}>
-                  <Ionicons name="person-circle-outline" size={15} color="#9E9E9E" />
+                  <Ionicons name="person-circle-outline" size={15} color={colors.placeholder} />
                   <Text style={styles.reporterText} numberOfLines={1}>
                     {item.reporter.nombre} {item.reporter.apellido}
                   </Text>
@@ -223,7 +239,7 @@ export default function ModeracionScreen() {
                       onPress={() => confirmArchive(item)}
                       disabled={isActing}
                     >
-                      <Ionicons name="archive-outline" size={15} color="#757575" />
+                      <Ionicons name="archive-outline" size={15} color={colors.textSecondary} />
                       <Text style={styles.archiveText}>Archivar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -253,8 +269,8 @@ export default function ModeracionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8F8F8" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 18, paddingTop: 16 },
   listContent: { paddingBottom: 110 },
   cardWrapper: { paddingHorizontal: 18 },
@@ -264,25 +280,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "#EDEDED",
+    borderColor: colors.border,
   },
   tabActive: { backgroundColor: "#FB8C00", borderColor: "#FB8C00" },
-  tabText: { fontSize: 12, fontWeight: "700", color: "#757575" },
+  tabText: { fontSize: 12, fontWeight: "700", color: colors.textSecondary },
   tabTextActive: { color: "#FFFFFF" },
 
   stateContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 50, gap: 10 },
-  emptyText: { fontSize: 13, color: "#9E9E9E" },
+  emptyText: { fontSize: 13, color: colors.textSecondary },
 
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 18,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#F2F2F2",
-    shadowColor: "#000",
+    borderColor: colors.divider,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -292,8 +308,8 @@ const styles = StyleSheet.create({
   restaurantRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   logo: { width: 38, height: 38, borderRadius: 12 },
   logoPlaceholder: { backgroundColor: "#FFF3E0", alignItems: "center", justifyContent: "center" },
-  restaurantName: { fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
-  reportDate: { fontSize: 11, color: "#9E9E9E", marginTop: 1 },
+  restaurantName: { fontSize: 14, fontWeight: "800", color: colors.text },
+  reportDate: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
   statusBadge: { borderRadius: 10, paddingHorizontal: 9, paddingVertical: 4 },
   statusText: { fontSize: 11, fontWeight: "800" },
 
@@ -309,11 +325,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   motivoText: { fontSize: 11.5, fontWeight: "700", color: "#E53935" },
-  descripcion: { fontSize: 12.5, color: "#6B6B6B", marginTop: 8, lineHeight: 18 },
+  descripcion: { fontSize: 12.5, color: colors.textSecondary, marginTop: 8, lineHeight: 18 },
 
   reporterRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 10 },
-  reporterText: { fontSize: 11.5, color: "#9E9E9E" },
-  reviewedText: { fontSize: 11, color: "#B0B0B0", marginTop: 4, fontStyle: "italic" },
+  reporterText: { fontSize: 11.5, color: colors.textSecondary },
+  reviewedText: { fontSize: 11, color: colors.placeholder, marginTop: 4, fontStyle: "italic" },
 
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 14 },
   archiveButton: {
@@ -323,11 +339,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
     borderRadius: 20,
     paddingVertical: 10,
   },
-  archiveText: { fontSize: 13, fontWeight: "700", color: "#757575" },
+  archiveText: { fontSize: 13, fontWeight: "700", color: colors.textSecondary },
   resolveButton: {
     flex: 1,
     flexDirection: "row",

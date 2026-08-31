@@ -53,13 +53,12 @@ export default function PedidoEntregaScreen() {
 
   const [selected, setSelected] = useState<DeliveryMethod>(deliveryDisponible ? "delivery" : "retiro_presencial");
 
-  // Misma razón que en pedido-producto.tsx: esta pantalla está dentro
-  // del stack de tabs "(home)", cuya tab bar flota con position
-  // "absolute" (height 74 + bottom 18+insets.bottom en _layout.tsx) y
-  // no reserva espacio real, así que el footer con "Continuar" queda
-  // tapado si no le sumamos ese alto a mano.
+  // Corregido (ver pedido-producto.tsx): esta pantalla vive en el
+  // <Stack> de app/(home)/_layout.tsx, fuera de <Tabs> -- la tab bar
+  // flotante no se renderiza acá, así que no hace falta compensar su
+  // alto completo, solo el inset real de abajo (home indicator).
   const insets = useSafeAreaInsets();
-  const tabBarSpace = 74 + 18 + insets.bottom;
+  const tabBarSpace = insets.bottom;
 
   function handleContinuar() {
     router.push({

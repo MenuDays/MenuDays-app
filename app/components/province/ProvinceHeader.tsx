@@ -35,9 +35,9 @@ export default function ProvinceHeader({
         style={styles.image}
         resizeMode="cover"
       >
-        <View style={styles.overlay} />
+        <View style={styles.overlay} pointerEvents="none" />
 
-        <View style={styles.content}>
+        <View style={styles.content} pointerEvents="none">
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>

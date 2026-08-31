@@ -8,20 +8,22 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import OrderService, {
+import {
   OrderDetail,
   OrderItemType,
-  OrderStatus,
   BackendDeliveryMethod,
 } from "../../services/order.service";
 import RestaurantService from "../../services/restaurant.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
+import { useOrderDetail } from "../../hooks/useOrderDetail";
+import OrderStatusTracker from "../components/orders/OrderStatusTracker";
 import { AppAlert } from "../components/common/AppAlert";
-import StatusBadge, { StatusTone } from "../components/restaurant/StatusBadge";
 import { buildWhatsAppUrl } from "../../utils/whatsapp";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
@@ -29,26 +31,10 @@ import type { ThemeColors } from "../../contexts/ThemeContext";
 // Vista de SOLO LECTURA para el comensal: acá no hay ningún control para
 // cambiar el estado del pedido (eso es exclusivo del lado restaurante,
 // ver GET/PATCH /orders/restaurant/:id en el backend).
-
-const ESTADO_LABEL: Record<OrderStatus, string> = {
-  pendiente: "Pendiente de confirmación",
-  aceptado: "Aceptado por el restaurante",
-  preparando: "En preparación",
-  listo: "Listo para retirar",
-  entregado: "Entregado",
-  rechazado: "Rechazado",
-  cancelado: "Cancelado",
-};
-
-const ESTADO_TONE: Record<OrderStatus, StatusTone> = {
-  pendiente: "warning",
-  aceptado: "info",
-  preparando: "info",
-  listo: "success",
-  entregado: "success",
-  rechazado: "danger",
-  cancelado: "danger",
-};
+//
+// El estado se SINCRONIZA solo: useOrderDetail hace polling del endpoint
+// GET /orders/:id mientras esta pantalla está enfocada y la app en primer
+// plano, y se detiene cuando el pedido llega a un estado final.
 
 const TIPO_LABEL: Record<OrderItemType, string> = {
   plato: "Plato",
@@ -71,9 +57,7 @@ const ENTREGA_ICON: Record<BackendDeliveryMethod, keyof typeof Ionicons.glyphMap
 // realizar el siguiente pedido..." pensado para cuando el pedido recién
 // se está armando. Acá el pedido YA existe (puede estar entregado,
 // rechazado, en preparación, etc.), así que reusar ese mismo endpoint
-// generaría un mensaje confuso ("quiero pedir" sobre algo que ya se
-// pidió). Por eso este mensaje se arma local, de consulta, sin pegarle
-// a ese endpoint.
+// generaría un mensaje confuso. Por eso este mensaje se arma local.
 function buildConsultaMessage(order: OrderDetail): string {
   const referencia = order.codigoUnico ? `código ${order.codigoUnico}` : `pedido #${order.id}`;
   return [
@@ -88,41 +72,31 @@ export default function PedidoDetalleScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const { order, loading, error, refetch, refreshing, isLive } = useOrderDetail(id);
+
   const [restaurantPhone, setRestaurantPhone] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Igual que en pedido-producto.tsx: la tab bar de "(home)" es
-  // position:"absolute" (height 74 + bottom 18+insets.bottom), así que
-  // no reserva espacio real en el layout. Sin sumar esto acá, el footer
-  // (bottom:0) queda debajo de la tab bar y el CTA se ve tapado.
+  // Esta pantalla vive en el <Stack> de app/(home)/_layout.tsx, fuera de
+  // <Tabs> -- solo se compensa el inset real de abajo.
   const insets = useSafeAreaInsets();
-  const tabBarSpace = 74 + 18 + insets.bottom;
+  const bottomInset = insets.bottom;
 
+  // Teléfono del restaurante -- se pide UNA vez por restaurante (no va en
+  // el polling; no cambia).
   useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    setOrder(null);
-    setRestaurantPhone(null);
-    OrderService.getById(id)
-      .then((data) => {
-        setOrder(data);
-        // El detalle del pedido no trae el teléfono del restaurante, así
-        // que se pide aparte (mismo endpoint público que usa
-        // restaurante-detalle.tsx) solo para armar el botón de WhatsApp.
-        return RestaurantService.getPublicDetail(data.restaurante.id)
-          .then((r) => setRestaurantPhone(r.telefonos[0]?.telefono ?? null))
-          .catch(() => setRestaurantPhone(null));
+    if (!order?.restaurante.id) return;
+    let cancelled = false;
+    RestaurantService.getPublicDetail(order.restaurante.id)
+      .then((r) => {
+        if (!cancelled) setRestaurantPhone(r.telefonos[0]?.telefono ?? null);
       })
-      .catch((e: any) => {
-        const msg = e.message || "No se pudo cargar el pedido.";
-        setError(msg);
-        AppAlert.alert("Error", msg);
-      })
-      .finally(() => setLoading(false));
-  }, [id]);
+      .catch(() => {
+        if (!cancelled) setRestaurantPhone(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [order?.restaurante.id]);
 
   async function handleContactar() {
     if (!order) return;
@@ -130,7 +104,9 @@ export default function PedidoDetalleScreen() {
       AppAlert.alert("Sin contacto", "Este restaurante todavía no cargó un teléfono de contacto.");
       return;
     }
-    Linking.openURL(buildWhatsAppUrl(restaurantPhone, buildConsultaMessage(order)));
+    Linking.openURL(buildWhatsAppUrl(restaurantPhone, buildConsultaMessage(order))).catch(() => {
+      AppAlert.alert("No se pudo abrir WhatsApp", "Verificá que tengas WhatsApp instalado.");
+    });
   }
 
   function handleVerRestaurante() {
@@ -150,7 +126,8 @@ export default function PedidoDetalleScreen() {
     });
   }
 
-  if (loading) {
+  // Primera carga (sin ningún dato todavía).
+  if (loading && !order) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#FB8C00" />
@@ -158,35 +135,43 @@ export default function PedidoDetalleScreen() {
     );
   }
 
-  if (error || !order) {
+  // Error solo si NO hay ningún dato para mostrar (si ya hay `order`, el
+  // error es un aviso suave arriba y la pantalla sigue usable).
+  if (!order) {
     return (
       <View style={styles.loaderContainer}>
         <Ionicons name="cloud-offline-outline" size={36} color={colors.placeholder} />
-        <Text style={{ marginTop: 10, textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19, paddingHorizontal: 30 }}>
-          {error || "No se pudo cargar el pedido."}
-        </Text>
-        <TouchableOpacity
-          style={{ marginTop: 14, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 }}
-          onPress={() => router.back()}
-        >
-          <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Volver</Text>
-        </TouchableOpacity>
+        <Text style={styles.errorText}>{error || "No se pudo cargar el pedido."}</Text>
+        <View style={styles.errorButtonsRow}>
+          <TouchableOpacity style={styles.errorButtonOutline} onPress={refetch}>
+            <Text style={styles.errorButtonOutlineText}>Reintentar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.errorButton} onPress={() => router.back()}>
+            <Text style={styles.errorButtonText}>Volver</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
-  // Alto aproximado del footer (que es absolute) para que el contenido del
-  // ScrollView no quede tapado atrás: paddingTop del footer + 1 o 2 CTAs
-  // de ~50px con su gap + la tab bar de abajo.
-  const footerButtons = order.pedido.estado === "entregado" ? 2 : 1;
-  const scrollBottomPadding = tabBarSpace + 34 + footerButtons * 58;
+  const isEntregado = order.pedido.estado === "entregado";
+  const footerButtons = isEntregado ? 2 : 1;
+  const scrollBottomPadding = bottomInset + 34 + footerButtons * 58;
 
   return (
     <View style={styles.container}>
-      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: scrollBottomPadding }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: scrollBottomPadding }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor="#FB8C00" />
+        }
+      >
         <View style={styles.coverWrap}>
           {order.restaurante.portada ? (
-            <Image source={{ uri: order.restaurante.portada }} style={styles.cover} />
+            <Image
+              source={{ uri: optimizedImageUri(order.restaurante.portada, "cover") }}
+              style={styles.cover}
+            />
           ) : (
             <View style={[styles.cover, styles.coverPlaceholder]}>
               <Ionicons name="receipt-outline" size={32} color={colors.placeholder} />
@@ -203,7 +188,10 @@ export default function PedidoDetalleScreen() {
         <View style={styles.content}>
           <View style={styles.headerRow}>
             {order.producto.imagen ? (
-              <Image source={{ uri: order.producto.imagen }} style={styles.productImage} />
+              <Image
+                source={{ uri: optimizedImageUri(order.producto.imagen, "thumb") }}
+                style={styles.productImage}
+              />
             ) : (
               <View style={[styles.productImage, styles.productImagePlaceholder]}>
                 <Ionicons name="restaurant-outline" size={20} color={colors.placeholder} />
@@ -222,8 +210,34 @@ export default function PedidoDetalleScreen() {
             </View>
           </View>
 
-          <View style={styles.statusRow}>
-            <StatusBadge label={ESTADO_LABEL[order.pedido.estado]} tone={ESTADO_TONE[order.pedido.estado]} />
+          {/* Código del pedido + aviso de sincronización. */}
+          <View style={styles.codeRow}>
+            <View style={styles.codeChip}>
+              <Ionicons name="pricetag-outline" size={12} color={colors.textSecondary} />
+              <Text style={styles.codeChipText}>
+                {order.codigoUnico ? `#${order.codigoUnico}` : `Pedido #${order.id}`}
+              </Text>
+            </View>
+            {isLive ? (
+              <View style={styles.liveChip}>
+                {error ? (
+                  <>
+                    <Ionicons name="cloud-offline-outline" size={11} color={colors.placeholder} />
+                    <Text style={styles.liveChipTextMuted}>Sin conexión, reintentando…</Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveChipText}>En vivo</Text>
+                  </>
+                )}
+              </View>
+            ) : null}
+          </View>
+
+          {/* ---------- Estado del pedido (lo más visible) + línea de tiempo ---------- */}
+          <View style={styles.trackerWrap}>
+            <OrderStatusTracker estado={order.pedido.estado} historial={order.historial} />
           </View>
 
           <View style={styles.section}>
@@ -232,25 +246,24 @@ export default function PedidoDetalleScreen() {
               <Text style={styles.sectionTitle}>Detalle del pedido</Text>
             </View>
 
-            <InfoRow
-              icon="pricetag-outline"
-              label="Tipo"
-              value={TIPO_LABEL[order.pedido.tipo]}
-            />
+            <InfoRow icon="pricetag-outline" label="Tipo" value={TIPO_LABEL[order.pedido.tipo]} />
             <InfoRow
               icon={ENTREGA_ICON[order.pedido.metodoEntrega]}
               label="Entrega"
               value={ENTREGA_LABEL[order.pedido.metodoEntrega]}
             />
+            <InfoRow icon="calendar-outline" label="Fecha" value={formatDateTime(order.pedido.fecha)} />
             <InfoRow
-              icon="calendar-outline"
-              label="Fecha"
-              value={formatDateTime(order.pedido.fecha)}
+              icon="fast-food-outline"
+              label="Precio del producto"
+              value={`$${Number(order.producto.precio).toFixed(2)}`}
             />
             <InfoRow
               icon="cash-outline"
               label="Total"
-              value={`$${order.pedido.total.toFixed(2)}${order.pedido.metodoEntrega === "DELIVERY" ? " + cargos" : ""}`}
+              value={`$${Number(order.pedido.total).toFixed(2)}${
+                order.pedido.metodoEntrega === "DELIVERY" ? " + cargos de envío" : ""
+              }`}
               valueStyle={styles.totalValue}
             />
           </View>
@@ -267,8 +280,8 @@ export default function PedidoDetalleScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: 20 + tabBarSpace }]}>
-        {order.pedido.estado === "entregado" && (
+      <View style={[styles.footer, { paddingBottom: 20 + bottomInset }]}>
+        {isEntregado && (
           <TouchableOpacity style={styles.ctaSecondary} onPress={handleDejarResena}>
             <Ionicons name="star-outline" size={18} color="#FB8C00" />
             <Text style={styles.ctaSecondaryText}>Dejar reseña</Text>
@@ -323,8 +336,32 @@ function formatDateTime(iso: string): string {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  loaderContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.screenSolid },
+  loaderContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.screenSolid,
+    paddingHorizontal: 30,
+  },
+  errorText: {
+    marginTop: 10,
+    textAlign: "center",
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  errorButtonsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
+  errorButton: { backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 },
+  errorButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+  errorButtonOutline: {
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderWidth: 1.5,
+    borderColor: "#FB8C00",
+  },
+  errorButtonOutlineText: { color: "#FB8C00", fontSize: 13, fontWeight: "700" },
 
   coverWrap: { height: 160, backgroundColor: colors.surfaceSecondary },
   cover: { width: "100%", height: "100%" },
@@ -355,12 +392,36 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: 64,
     borderRadius: 16,
     borderWidth: 3,
-    borderColor: colors.background,
+    borderColor: colors.surface,
     backgroundColor: colors.card,
   },
   productImagePlaceholder: { alignItems: "center", justifyContent: "center" },
   productName: { fontSize: 17, fontWeight: "900", color: colors.text },
   restaurantLink: { fontSize: 13, fontWeight: "700", color: "#FB8C00", marginTop: 2 },
+
+  codeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    gap: 8,
+  },
+  codeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  codeChipText: { fontSize: 11.5, fontWeight: "800", color: colors.textSecondary, letterSpacing: 0.3 },
+  liveChip: { flexDirection: "row", alignItems: "center", gap: 5 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#2FB966" },
+  liveChipText: { fontSize: 11, fontWeight: "700", color: "#2FB966" },
+  liveChipTextMuted: { fontSize: 10.5, fontWeight: "600", color: colors.placeholder },
+
+  trackerWrap: { marginTop: 16 },
 
   statusRow: { marginTop: 18 },
 
@@ -390,7 +451,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 14,
     gap: 10,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },

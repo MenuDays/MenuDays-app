@@ -1,8 +1,8 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import SolicitudHeader from "../components/admin/SolicitudHeader";
 
@@ -15,8 +15,12 @@ import RestaurantApplicationsAdminService, {
   AdminApplicationStatus,
   RestaurantApplicationSummary,
 } from "../../services/restaurantApplicationsAdmin.service";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 export default function SolicitudesScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [status, setStatus] = useState<AdminApplicationStatus>("pendiente");
   const [items, setItems] = useState<RestaurantApplicationSummary[]>([]);
   const [counts, setCounts] = useState<Record<AdminApplicationStatus, number>>(
@@ -29,6 +33,7 @@ export default function SolicitudesScreen() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Se recarga cada vez que la pantalla vuelve a tener foco (no solo al
   // montar) -- así, al volver de solicitud-detalle.tsx después de
@@ -60,11 +65,18 @@ export default function SolicitudesScreen() {
       console.log("Error cargando solicitudes:", e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
   function handleSelectStatus(newStatus: AdminApplicationStatus) {
     setStatus(newStatus);
+  }
+
+  function handleRefresh() {
+    setRefreshing(true);
+    RestaurantApplicationsAdminService.getCounts().then(setCounts);
+    loadPage(status, page);
   }
 
   function handleChangePage(newPage: number) {
@@ -95,6 +107,7 @@ export default function SolicitudesScreen() {
         )}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
         ListHeaderComponent={
           <>
             <SolicitudHeader
@@ -147,10 +160,10 @@ function statusLabel(status: AdminApplicationStatus) {
   return "rechazadas";
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F8F8",
+    backgroundColor: colors.background,
   },
   content: {
     paddingHorizontal: 18,
@@ -174,6 +187,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
   },
 });

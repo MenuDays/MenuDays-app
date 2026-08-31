@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -40,8 +41,20 @@ export default function RestaurantReviewsScreen() {
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [starFilter, setStarFilter] = useState<StarFilter>(0);
+
+  function loadReviews() {
+    if (!id) return;
+    ReviewService.getRestaurantReviews(id)
+      .then(setReviews)
+      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudieron cargar las reseñas."))
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -54,11 +67,13 @@ export default function RestaurantReviewsScreen() {
     setReviews([]);
     setVisibleCount(PAGE_SIZE);
     setStarFilter(0);
-    ReviewService.getRestaurantReviews(id)
-      .then(setReviews)
-      .catch((e: any) => AppAlert.alert("Error", e.message || "No se pudieron cargar las reseñas."))
-      .finally(() => setLoading(false));
+    loadReviews();
   }, [id]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadReviews();
+  }
 
   const distribution = useMemo(() => buildDistribution(reviews), [reviews]);
 
@@ -94,6 +109,7 @@ export default function RestaurantReviewsScreen() {
           data={visible}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
           ListHeaderComponent={
             <View>
               <View style={styles.summaryRow}>
@@ -233,7 +249,7 @@ function relativeTime(iso: string): string {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.screenSolid },
   header: {
     flexDirection: "row",
     alignItems: "center",

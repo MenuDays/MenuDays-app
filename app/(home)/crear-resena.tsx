@@ -42,7 +42,7 @@ export default function CrearResenaScreen() {
   async function handleEnviar() {
     if (!pedidoId) return;
     if (calificacion === 0) {
-      AppAlert.alert("Falta la calificación", "Elegí de 1 a 5 estrellas antes de enviar.");
+      AppAlert.alert("Falta la calificación", "Elige de 1 a 5 estrellas antes de enviar.");
       return;
     }
     setSubmitting(true);
@@ -97,7 +97,7 @@ export default function CrearResenaScreen() {
             multiline
             numberOfLines={4}
             maxLength={1000}
-            placeholder="Contanos cómo fue tu experiencia..."
+            placeholder="Cuéntanos cómo fue tu experiencia..."
             placeholderTextColor={colors.placeholder}
             value={comentario}
             onChangeText={setComentario}

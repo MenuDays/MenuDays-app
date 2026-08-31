@@ -4,7 +4,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import PublicMenuService from "../../services/public-menu.service";
+import PublicMenuService, {
+  getMenuComponentGroups,
+  MenuComponentGroup,
+} from "../../services/public-menu.service";
+import { optimizedImageUri } from "../../utils/imageUrl";
 import PublicDishService from "../../services/public-dish.service";
 import PublicPromotionService from "../../services/public-promotion.service";
 import { OrderItemType } from "../../services/order.service";
@@ -37,14 +41,26 @@ interface ProductoNormalizado {
   // Sólo menús del día y promociones tienen vigencia (fecha_fin); los
   // platos no, así que queda null para tipo === "plato".
   fechaFin: string | null;
+  // Un grupo por tipo completado (Entrada/Sopa/etc.), cada uno con sus
+  // nombres -- solo aplica a tipo === "menu_dia" (platos/promociones no
+  // tienen componentes). Se muestran como checkboxes en el detalle.
+  componentGroups: MenuComponentGroup[];
 }
 
-// fechaFin viene como "YYYY-MM-DD" (columna @db.Date, sin hora). Se fuerza
-// timeZone "UTC" al formatear para no correr el día según la zona horaria
-// del dispositivo (si no, un device con offset negativo podría mostrar el
-// día anterior al guardado).
+// fechaFin ya viene como ISO completo (ej. "2026-08-23T00:00:00.000Z" --
+// Prisma serializa un @db.Date así, no como "YYYY-MM-DD" pelado como se
+// asumía antes acá, así que armarle un "T00:00:00.000Z" propio lo
+// duplicaba y daba "Invalid Date"). Se parsea directo y se fuerza
+// timeZone "UTC" al formatear para no correr el día según la zona
+// horaria del dispositivo.
 function formatFechaFin(fechaFin: string): string {
-  const date = new Date(`${fechaFin}T00:00:00.000Z`);
+  const date = new Date(fechaFin);
+  if (isNaN(date.getTime())) return "";
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const fechaFinIso = date.toISOString().slice(0, 10);
+  if (fechaFinIso === todayIso) return "Disponible hoy";
+
   const formatted = date.toLocaleDateString("es-EC", {
     day: "numeric",
     month: "long",
@@ -86,13 +102,16 @@ export default function PedidoProductoScreen() {
   const [error, setError] = useState<string | null>(null);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
 
-  // Esta pantalla vive dentro del stack de tabs "(home)", cuya tab bar
-  // flota con position "absolute" (ver styles.tabBar en _layout.tsx:
-  // height 74 + bottom 18+insets.bottom). Al ser absoluta, no reserva
-  // espacio real en el layout, así que el footer con el CTA "Realizar
-  // pedido" queda tapado por la barra si no le sumamos ese alto a mano.
+  // OJO: esta pantalla vive en el <Stack> de app/(home)/_layout.tsx, NO
+  // dentro de <Tabs> (ver ese archivo) -- al navegar acá se sale del
+  // árbol de Tabs por completo, así que la tab bar flotante de abajo NO
+  // se renderiza en esta pantalla. Antes se le sumaba al footer el alto
+  // completo de esa tab bar (74 + 18) "por las dudas", pero eso era
+  // pura altura de más sin ningún elemento real detrás -- el footer con
+  // los botones terminaba comiéndose buena parte de la pantalla. Solo
+  // hace falta el inset de abajo real (home indicator, gesture bar).
   const insets = useSafeAreaInsets();
-  const tabBarSpace = 74 + 18 + insets.bottom;
+  const tabBarSpace = insets.bottom;
 
   useEffect(() => {
     // Reseteo antes de cada fetch: si el intento anterior falló (ej.
@@ -121,6 +140,7 @@ export default function PedidoProductoScreen() {
         restauranteId: dish.restaurante.id,
         restauranteNombre: dish.restaurante.nombre_comercial,
         fechaFin: null,
+        componentGroups: [],
       }));
     } else if (tipo === "promocion") {
       request = PublicPromotionService.findOne(productId).then((promo) => ({
@@ -131,6 +151,7 @@ export default function PedidoProductoScreen() {
         restauranteId: promo.restaurante.id,
         restauranteNombre: promo.restaurante.nombre_comercial,
         fechaFin: promo.fecha_fin,
+        componentGroups: [],
       }));
     } else {
       request = PublicMenuService.findOne(productId).then((menu) => ({
@@ -141,6 +162,7 @@ export default function PedidoProductoScreen() {
         restauranteId: menu.restaurante.id,
         restauranteNombre: menu.restaurante.nombre_comercial,
         fechaFin: menu.fecha_fin,
+        componentGroups: getMenuComponentGroups(menu),
       }));
     }
 
@@ -214,7 +236,7 @@ export default function PedidoProductoScreen() {
           onPress={() => setImageViewerVisible(true)}
         >
           {producto.imagenUrl ? (
-            <Image source={{ uri: producto.imagenUrl }} style={styles.image} />
+            <Image source={{ uri: optimizedImageUri(producto.imagenUrl, "card") }} style={styles.image} />
           ) : (
             <View style={[styles.image, styles.imagePlaceholder]}>
               <Ionicons name="restaurant-outline" size={32} color={colors.placeholder} />
@@ -227,6 +249,22 @@ export default function PedidoProductoScreen() {
           <Text style={styles.nombre}>{producto.nombre}</Text>
           <Text style={styles.precio}>${producto.precio.toFixed(2)}</Text>
         </View>
+        {producto.componentGroups.length > 0 && (
+          <View style={styles.componentsCard}>
+            <Text style={styles.componentsCardTitle}>Este menú incluye</Text>
+            {producto.componentGroups.map((group) => (
+              <View key={group.label} style={styles.componentGroupBlock}>
+                <Text style={styles.componentGroupLabel}>{group.label}</Text>
+                {group.items.map((item) => (
+                  <View key={item} style={styles.componentCheckRow}>
+                    <Ionicons name="checkbox" size={17} color="#FB8C00" />
+                    <Text style={styles.componentCheckText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        )}
         {producto.descripcion ? <Text style={styles.descripcion}>{producto.descripcion}</Text> : null}
         {producto.fechaFin ? (
           <View style={styles.vigenciaRow}>
@@ -260,8 +298,8 @@ export default function PedidoProductoScreen() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  centerContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.screenSolid },
+  centerContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 30, backgroundColor: colors.screenSolid },
   errorText: { textAlign: "center", color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
   retryButton: { marginTop: 4, backgroundColor: "#FB8C00", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 9 },
   retryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
@@ -282,6 +320,24 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   nombre: { flex: 1, fontSize: 22, fontWeight: "900", color: colors.text },
   precio: { fontSize: 18, fontWeight: "800", color: "#FB8C00" },
+  componentsCard: {
+    backgroundColor: "#FFF8ED",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 12,
+    gap: 10,
+  },
+  componentsCardTitle: { fontSize: 13, fontWeight: "800", color: "#8A5A1E" },
+  componentGroupBlock: { gap: 3 },
+  componentGroupLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#B0793A",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  componentCheckRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2 },
+  componentCheckText: { fontSize: 13.5, fontWeight: "500", color: "#3E2723", flexShrink: 1 },
   descripcion: { fontSize: 14, color: colors.textSecondary, marginTop: 10, lineHeight: 20 },
   vigenciaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14 },
   vigenciaText: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },

@@ -1,21 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
-  Linking,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocationService, { City } from "../../services/location.service";
 import ProvinceService, { Province } from "../../services/province.service";
 import RestaurantService, {
@@ -26,6 +20,9 @@ import RestaurantService, {
   RestaurantSocialLink,
 } from "../../services/restaurant.service";
 import RestaurantLocationPickerBridge from "../../services/restaurantLocationPicker.bridge";
+import { pickImageFromLibrary } from "../../utils/imagePicker";
+import { normalizeSchedule } from "../../utils/restaurantSchedule";
+import ProvinceCityPickerBridge from "../../services/provinceCityPicker.bridge";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 
 // OJO: estos dos siguen siendo del comensal, sin tocar.
@@ -40,6 +37,8 @@ import FormTextField from "../components/restaurant/FormTextField";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback } from "react";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { ThemeColors } from "../../contexts/ThemeContext";
 
 // Pantalla "Configurar perfil", a la que se llega desde el ítem del
 // mismo nombre en el menú de "Mi perfil" (perfil.tsx). Es el contenido
@@ -49,6 +48,8 @@ import { useCallback } from "react";
 // pantalla larguísima.
 
 export default function EditarPerfilScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,10 +67,6 @@ export default function EditarPerfilScreen() {
     longitude: number;
     address: string;
   } | null>(null);
-  const [provincePickerVisible, setProvincePickerVisible] = useState(false);
-  const [cityPickerVisible, setCityPickerVisible] = useState(false);
-  const [provinceSearch, setProvinceSearch] = useState("");
-  const [citySearch, setCitySearch] = useState("");
 
   const [phones, setPhones] = useState<RestaurantPhone[]>([]);
   const [socialLinks, setSocialLinks] = useState<RestaurantSocialLink[]>([]);
@@ -84,6 +81,25 @@ export default function EditarPerfilScreen() {
     useCallback(() => {
       const picked = RestaurantLocationPickerBridge.consume();
       if (picked) setEditLocation(picked);
+
+      const pickedProvinceCity = ProvinceCityPickerBridge.consume();
+      if (pickedProvinceCity) {
+        setEditProvince({ id: pickedProvinceCity.province.id, nombre: pickedProvinceCity.province.nombre });
+        setEditCity({
+          id: pickedProvinceCity.city.id,
+          nombre: pickedProvinceCity.city.nombre,
+          latitud: pickedProvinceCity.city.latitud,
+          longitud: pickedProvinceCity.city.longitud,
+        });
+        // La lista de cantones que se muestra si el usuario vuelve a
+        // tocar el selector (por si quiere cambiar de cantón dentro de
+        // la misma provincia sin re-elegir provincia) también se
+        // refresca, para no dejarla con los cantones de la provincia
+        // anterior.
+        LocationService.getCitiesByProvince(pickedProvinceCity.province.id)
+          .then(setCities)
+          .catch(() => {});
+      }
     }, [])
   );
 
@@ -93,7 +109,10 @@ export default function EditarPerfilScreen() {
       setRestaurant(data);
       setPhones(data.restaurante_telefonos ?? []);
       setSocialLinks(data.restaurante_redes_sociales ?? []);
-      setSchedule(data.restaurante_horarios ?? []);
+      // Siempre 7 filas (Lunes..Domingo). Si el back devolvió menos días,
+      // o el domingo como 0 en vez de 7, acá se canoniza -> el editor
+      // puede modificar/guardar CUALQUIER día, domingo incluido.
+      setSchedule(normalizeSchedule(data.restaurante_horarios));
       await populateDrafts(data);
     } catch (e) {
       console.log("Error cargando restaurante:", e);
@@ -155,30 +174,13 @@ export default function EditarPerfilScreen() {
     setIsEditing(false);
   }
 
+  // Reusa las mismas pantallas de Provincia/Cantón del onboarding
+  // (app/(province)/), en "modo selector" -- antes esto era un par de
+  // modales propios de esta pantalla, con su propia lógica de búsqueda
+  // duplicada y con un look distinto al resto de la app. Ver
+  // provinceCityPicker.bridge.ts para cómo vuelve el resultado acá.
   function openProvinceCityPicker() {
-    setProvincePickerVisible(true);
-  }
-
-  async function handleSelectProvince(selected: Province) {
-    setEditProvince(selected);
-    setEditCity(null);
-    setProvincePickerVisible(false);
-    setProvinceSearch("");
-
-    try {
-      const data = await LocationService.getCitiesByProvince(selected.id);
-      setCities(data);
-      setCityPickerVisible(true);
-    } catch (e) {
-      console.log("Error cargando ciudades:", e);
-      setCities([]);
-    }
-  }
-
-  function handleSelectCity(selected: City) {
-    setEditCity(selected);
-    setCityPickerVisible(false);
-    setCitySearch("");
+    router.push("/(province)?picker=1" as any);
   }
 
   function pickLocationOnMap() {
@@ -224,7 +226,9 @@ export default function EditarPerfilScreen() {
           plataforma: s.plataforma,
           url: s.url,
         })),
-        horarios: schedule.map((d) => ({
+        // normalizeSchedule de nuevo acá: garantiza que SIEMPRE se manden
+        // los 7 días (1..7) aunque el estado se hubiera quedado corto.
+        horarios: normalizeSchedule(schedule).map((d) => ({
           diaSemana: d.dia_semana,
           horaApertura: d.cerrado ? undefined : d.hora_apertura ?? undefined,
           horaCierre: d.cerrado ? undefined : d.hora_cierre ?? undefined,
@@ -241,50 +245,16 @@ export default function EditarPerfilScreen() {
     }
   }
 
-  // Antes, si el usuario había rechazado el permiso de galería una vez,
-  // volver a tocar "cambiar logo/portada" mostraba la misma alerta
-  // genérica para siempre sin ninguna forma de arreglarlo (iOS/Android
-  // no vuelven a preguntar solos) -- por eso "no dejaba" subir nada.
-  // Ahora, si el permiso quedó denegado de forma permanente
-  // (canAskAgain: false), se ofrece ir directo a Ajustes.
-  async function ensureLibraryPermission(): Promise<boolean> {
-    const permission = await ImagePicker.getMediaLibraryPermissionsAsync();
-    if (permission.granted) return true;
-
-    if (!permission.canAskAgain) {
-      AppAlert.alert(
-        "Permiso necesario",
-        "Habilitá el acceso a tus fotos desde Ajustes para poder cambiar el logo o la portada.",
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Abrir Ajustes", onPress: () => Linking.openSettings() },
-        ]
-      );
-      return false;
-    }
-
-    const requested = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!requested.granted) {
-      AppAlert.alert("Permiso requerido", "Necesitamos acceso a tu galería.");
-      return false;
-    }
-    return true;
-  }
-
+  // El helper `pickImageFromLibrary` maneja permisos (incluido el caso
+  // "no volver a preguntar" -> ofrece abrir Ajustes) y cualquier error
+  // del selector nativo, sin dejar promesas colgadas -- antes esto se
+  // hacía a mano acá y sin try/catch alrededor del launch.
   async function handleUploadLogo() {
-    if (!(await ensureLibraryPermission())) return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-
-    if (result.canceled) return;
+    const picked = await pickImageFromLibrary({ allowsEditing: true, aspect: [1, 1] });
+    if (!picked.ok || !picked.asset) return;
 
     try {
-      const response = await RestaurantService.uploadLogo(result.assets[0]);
+      const response = await RestaurantService.uploadLogo(picked.asset);
       setRestaurant((prev) => (prev ? { ...prev, logo_url: response.logo_url } : prev));
       AppAlert.alert("¡Listo!", "Logo actualizado correctamente.");
     } catch (e: any) {
@@ -294,19 +264,11 @@ export default function EditarPerfilScreen() {
   }
 
   async function handleUploadCover() {
-    if (!(await ensureLibraryPermission())) return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [16, 9],
-    });
-
-    if (result.canceled) return;
+    const picked = await pickImageFromLibrary({ allowsEditing: true, aspect: [16, 9] });
+    if (!picked.ok || !picked.asset) return;
 
     try {
-      const response = await RestaurantService.uploadCover(result.assets[0]);
+      const response = await RestaurantService.uploadCover(picked.asset);
       setRestaurant((prev) => (prev ? { ...prev, portada_url: response.portada_url } : prev));
       AppAlert.alert("¡Listo!", "Portada actualizada correctamente.");
     } catch (e: any) {
@@ -348,13 +310,6 @@ export default function EditarPerfilScreen() {
 
   const editCityProvinceLabel =
     editProvince && editCity ? `${editProvince.nombre}, ${editCity.nombre}` : null;
-
-  const filteredProvinces = provinces.filter((p) =>
-    p.nombre.toLowerCase().includes(provinceSearch.toLowerCase())
-  );
-  const filteredCities = cities.filter((c) =>
-    c.nombre.toLowerCase().includes(citySearch.toLowerCase())
-  );
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -423,7 +378,7 @@ export default function EditarPerfilScreen() {
                   ? editCityProvinceLabel ?? "Elige provincia y cantón"
                   : cityProvinceLabel ?? "Sin cantón"}
               </Text>
-              {isEditing && <Ionicons name="chevron-down" size={16} color="#3E2723" />}
+              {isEditing && <Ionicons name="chevron-down" size={16} color={colors.text} />}
             </TouchableOpacity>
 
             <Text style={styles.pickerLabel}>Ubicación del restaurante</Text>
@@ -487,111 +442,20 @@ export default function EditarPerfilScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingScreen>
-
-      {/* Selector de provincia */}
-      <Modal
-        visible={provincePickerVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setProvincePickerVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          {/* KeyboardAvoidingView acá adentro: el Modal es su propia
-              jerarquía nativa y no hereda el manejo de teclado de la
-              pantalla de atrás. */}
-          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Elige la provincia</Text>
-              <TouchableOpacity onPress={() => setProvincePickerVisible(false)}>
-                <Ionicons name="close" size={24} color="#3E2723" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalSearchContainer}>
-              <Ionicons name="search-outline" size={18} color="#9E9E9E" style={styles.pickerIcon} />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="Buscar provincia"
-                placeholderTextColor="#9E9E9E"
-                value={provinceSearch}
-                onChangeText={setProvinceSearch}
-              />
-            </View>
-
-            <FlatList
-              data={filteredProvinces}
-              keyExtractor={(item) => String(item.id)}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.modalRow} onPress={() => handleSelectProvince(item)}>
-                  <Text style={styles.modalRowText}>{item.nombre}</Text>
-                </TouchableOpacity>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.modalDivider} />}
-            />
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
-
-      {/* Selector de ciudad */}
-      <Modal
-        visible={cityPickerVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setCityPickerVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView style={styles.modalContent} behavior="padding">
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Elige el cantón{editProvince ? ` (${editProvince.nombre})` : ""}
-              </Text>
-              <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
-                <Ionicons name="close" size={24} color="#3E2723" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalSearchContainer}>
-              <Ionicons name="search-outline" size={18} color="#9E9E9E" style={styles.pickerIcon} />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="Buscar cantón"
-                placeholderTextColor="#9E9E9E"
-                value={citySearch}
-                onChangeText={setCitySearch}
-              />
-            </View>
-
-            <FlatList
-              data={filteredCities}
-              keyExtractor={(item) => String(item.id)}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.modalRow} onPress={() => handleSelectCity(item)}>
-                  <Text style={styles.modalRowText}>{item.nombre}</Text>
-                </TouchableOpacity>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.modalDivider} />}
-              ListEmptyComponent={
-                <Text style={styles.emptyListText}>No hay cantones para esta provincia</Text>
-              }
-            />
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.background,
   },
   scrollContent: {
     paddingBottom: 60,
@@ -633,7 +497,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   sectionTitleSpaced: {
     marginTop: 24,
@@ -641,7 +505,7 @@ const styles = StyleSheet.create({
   },
   disclaimerText: {
     fontSize: 11,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     marginTop: -6,
     marginBottom: 10,
   },
@@ -657,14 +521,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#757575",
+    color: colors.textSecondary,
   },
   saveButton: {
     flex: 1,
@@ -684,21 +548,21 @@ const styles = StyleSheet.create({
   pickerLabel: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#3E2723",
+    color: colors.text,
     marginBottom: 8,
   },
   pickerButton: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
     borderRadius: 12,
     height: 52,
     paddingHorizontal: 16,
     marginBottom: 16,
   },
   pickerButtonReadOnly: {
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.surfaceSecondary,
   },
   pickerIcon: {
     marginRight: 10,
@@ -706,10 +570,10 @@ const styles = StyleSheet.create({
   pickerButtonText: {
     flex: 1,
     fontSize: 14,
-    color: "#3E2723",
+    color: colors.text,
   },
   placeholderText: {
-    color: "#9E9E9E",
+    color: colors.placeholder,
   },
   mapButton: {
     flexDirection: "row",
@@ -730,11 +594,11 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: colors.overlay,
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 20,
@@ -751,37 +615,38 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#3E2723",
+    color: colors.text,
   },
   modalSearchContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     height: 48,
     paddingHorizontal: 14,
     marginBottom: 12,
+    backgroundColor: colors.inputBackground,
   },
   modalSearchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#3E2723",
+    color: colors.text,
   },
   modalRow: {
     paddingVertical: 12,
   },
   modalRowText: {
     fontSize: 14,
-    color: "#3E2723",
+    color: colors.text,
   },
   modalDivider: {
     height: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.divider,
   },
   emptyListText: {
     textAlign: "center",
-    color: "#9E9E9E",
+    color: colors.textSecondary,
     fontSize: 14,
     paddingVertical: 24,
   },
