@@ -104,6 +104,37 @@ export async function pickImageFromLibrary(
   }
 }
 
+/**
+ * Recupera la imagen que quedó "pendiente" cuando Android mató la
+ * Activity de la app mientras la cámara/galería estaba abierta (pasa en
+ * equipos con poca RAM o con "No conservar actividades" activado). Se
+ * llama AL MONTAR la pantalla que abre el picker -- si la app se
+ * reinició, acá vuelve la foto que el usuario ya había confirmado.
+ *
+ * En iOS y web siempre devuelve `{ ok: false }` (no aplica).
+ */
+export async function recoverPendingImage(): Promise<PickImageResult> {
+  try {
+    const pending = await Promise.race([
+      ImagePicker.getPendingResultAsync(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    if (
+      pending &&
+      'assets' in pending &&
+      !pending.canceled &&
+      pending.assets &&
+      pending.assets.length > 0
+    ) {
+      return { ok: true, asset: pending.assets[0] };
+    }
+    return { ok: false, reason: "canceled" };
+  } catch (e) {
+    if (__DEV__) console.warn("[imagePicker] getPendingResultAsync:", e);
+    return { ok: false, reason: "error" };
+  }
+}
+
 /** Abre la cámara. Nunca lanza. */
 export async function pickImageFromCamera(
   options: ImagePicker.ImagePickerOptions = {}

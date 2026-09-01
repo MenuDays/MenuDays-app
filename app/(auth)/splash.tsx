@@ -32,6 +32,34 @@ export default function SplashScreen() {
   const card2Opacity = useRef(new Animated.Value(0)).current;
   const card2Y = useRef(new Animated.Value(30)).current;
 
+  // RESCATE RÁPIDO: si el usuario estaba registrando su restaurante y la
+  // app se reinició (Android mata el proceso mientras la cámara está
+  // abierta en equipos con poca RAM o "No conservar actividades"), NO se
+  // le hace esperar toda la animación del splash: apenas se confirma que
+  // hay un borrador reciente, se vuelve derecho al formulario con sus
+  // datos. Si no hay borrador, el flujo normal de abajo sigue igual.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await AuthService.getSession();
+        if (cancelled || !session) return;
+        const rol = session.user?.rol;
+        if (rol && rol !== 'comensal') return;
+        const hasDraft = await RestaurantDraftStore.hasFreshDraft();
+        if (cancelled || !hasDraft || hasNavigatedRef.current) return;
+        hasNavigatedRef.current = true;
+        NativeSplashScreen.hideAsync().catch(() => {});
+        router.replace('/(auth)/register-restaurant');
+      } catch {
+        // Si algo falla, el flujo normal del splash se encarga.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     // Chequeo de sesión en paralelo con la animación (no la bloquea):
     // arranca ya y para cuando termine la secuencia de abajo ya

@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   BackHandler,
   FlatList,
   Image,
@@ -27,7 +28,11 @@ import RestaurantDraftStore, {
 } from '../../services/restaurantDraft.store';
 import { RestaurantSchedule } from '../../services/restaurant.service';
 import { AppAlert } from "../components/common/AppAlert";
-import { pickImageFromCamera, pickImageFromLibrary } from "../../utils/imagePicker";
+import {
+  pickImageFromCamera,
+  pickImageFromLibrary,
+  recoverPendingImage,
+} from "../../utils/imagePicker";
 import ScheduleEditor from "../components/profile/ScheduleEditor";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
@@ -138,10 +143,21 @@ export default function RegisterRestaurantScreen() {
 
   // --- Borrador anti-reinicio -------------------------------------------
   // La cámara/galería abre una Activity aparte y Android puede matar el
-  // proceso de la app mientras está abierta. Guardamos el formulario en
-  // cada cambio y lo rehidratamos al volver, así no se pierde nada aunque
-  // la app se reinicie (ver services/restaurantDraft.store.ts y splash).
-  const hydratedRef = useRef(false);
+  // proceso de la app mientras está abierta (poca RAM, o "No conservar
+  // actividades" en opciones de desarrollador). Cuando pasa, la app
+  // arranca de cero. Para que el registro NO se pierda:
+  //   1. el formulario se guarda entero en cada cambio (draft store);
+  //   2. al montar, se rehidrata ese borrador;
+  //   3. la foto que quedó a medias se recupera con
+  //      ImagePicker.getPendingResultAsync() (API oficial de Expo para
+  //      este caso), sabiendo dónde ponerla por `pendingPick`;
+  //   4. el splash, si detecta un borrador reciente, vuelve acá en vez
+  //      de mandar al usuario a Inicio.
+  //
+  // `ready` bloquea el render hasta terminar de rehidratar -> a partir de
+  // ahí CUALQUIER guardado es confiable (sin gates frágiles).
+  const [ready, setReady] = useState(false);
+  const pendingPickRef = useRef<'logo' | 'idFront' | 'idBack' | null>(null);
 
   const buildDraft = useCallback((): RestaurantDraftData => ({
     logo,
@@ -163,63 +179,122 @@ export default function RegisterRestaurantScreen() {
       openingHour: s.openingHour,
       closingHour: s.closingHour,
     })),
+    pendingPick: pendingPickRef.current,
   }), [
     logo, restaurantName, province, city, location, phone, selectedCountry,
     description, instagram, facebook, tiktok, idFront, idBack, schedules,
   ]);
 
-  const saveDraftNow = useCallback((): Promise<void> => {
-    if (!hydratedRef.current) return Promise.resolve();
-    return RestaurantDraftStore.save(buildDraft());
-  }, [buildDraft]);
+  // Guarda el borrador YA (se usa antes de abrir cualquier picker). No
+  // depende de ningún flag: si se llama, escribe.
+  const saveDraftNow = useCallback(
+    (pendingPick: 'logo' | 'idFront' | 'idBack' | null = null): Promise<void> => {
+      pendingPickRef.current = pendingPick;
+      return RestaurantDraftStore.save({ ...buildDraft(), pendingPick });
+    },
+    [buildDraft],
+  );
 
   useEffect(() => {
-    ProvinceService.getAll().then(setProvinces);
+    ProvinceService.getAll().then(setProvinces).catch(() => {});
 
     (async () => {
-      const stored = await RestaurantDraftStore.load();
-      // Solo se rehidrata un borrador RECIENTE (interrupción real). Uno
-      // viejo se descarta -- las URIs de las fotos ya no serían válidas y
-      // el usuario seguramente quiere empezar de cero.
-      const isFresh = stored && Date.now() - stored.updatedAt < DRAFT_FRESH_MS;
-      if (stored && !isFresh) {
-        RestaurantDraftStore.clear();
-      }
-      if (stored?.data && isFresh) {
-        const d = stored.data;
-        setLogo(d.logo);
-        setRestaurantName(d.restaurantName);
-        if (d.province) {
-          setProvince(d.province as Province);
-          LocationService.getCitiesByProvince(d.province.id)
-            .then(setCities)
-            .catch(() => setCities([]));
+      try {
+        const stored = await RestaurantDraftStore.load();
+        // Solo se rehidrata un borrador RECIENTE (interrupción real). Uno
+        // viejo se descarta -- las URIs de las fotos ya no serían válidas.
+        const isFresh = stored && Date.now() - stored.updatedAt < DRAFT_FRESH_MS;
+        if (stored && !isFresh) {
+          await RestaurantDraftStore.clear();
         }
-        if (d.city) setCity(d.city as City);
-        setLocation(d.location);
-        setPhone(d.phone);
-        const country = COUNTRY_CODES.find((c) => c.code === d.countryCode);
-        if (country) setSelectedCountry(country);
-        setDescription(d.description);
-        setInstagram(d.instagram);
-        setFacebook(d.facebook);
-        setTiktok(d.tiktok);
-        setIdFront(d.idFront);
-        setIdBack(d.idBack);
-        if (Array.isArray(d.schedules) && d.schedules.length === 7) {
-          setSchedules(d.schedules);
+
+        let restoredIdFront: string | null = null;
+        let restoredIdBack: string | null = null;
+        let restoredLogo: string | null = null;
+
+        if (stored?.data && isFresh) {
+          const d = stored.data;
+          restoredLogo = d.logo;
+          restoredIdFront = d.idFront;
+          restoredIdBack = d.idBack;
+          setLogo(d.logo);
+          setRestaurantName(d.restaurantName);
+          if (d.province) {
+            setProvince(d.province as Province);
+            LocationService.getCitiesByProvince(d.province.id)
+              .then(setCities)
+              .catch(() => setCities([]));
+          }
+          if (d.city) setCity(d.city as City);
+          setLocation(d.location);
+          setPhone(d.phone);
+          const country = COUNTRY_CODES.find((c) => c.code === d.countryCode);
+          if (country) setSelectedCountry(country);
+          setDescription(d.description);
+          setInstagram(d.instagram);
+          setFacebook(d.facebook);
+          setTiktok(d.tiktok);
+          setIdFront(d.idFront);
+          setIdBack(d.idBack);
+          if (Array.isArray(d.schedules) && d.schedules.length === 7) {
+            setSchedules(d.schedules);
+          }
+
+          // Recuperar la foto que quedó pendiente si Android mató la app
+          // mientras la cámara/galería estaba abierta.
+          if (d.pendingPick) {
+            const recovered = await recoverPendingImage();
+            if (recovered.ok && recovered.asset) {
+              const uri = recovered.asset.uri;
+              if (d.pendingPick === 'logo') {
+                restoredLogo = uri;
+                setLogo(uri);
+              } else if (d.pendingPick === 'idFront') {
+                restoredIdFront = uri;
+                setIdFront(uri);
+              } else if (d.pendingPick === 'idBack') {
+                restoredIdBack = uri;
+                setIdBack(uri);
+              }
+            }
+            pendingPickRef.current = null;
+            // Reescribir el borrador ya sin pendingPick y con la foto (si
+            // se recuperó), para que un segundo reinicio no la vuelva a
+            // pedir.
+            RestaurantDraftStore.save({
+              ...(stored.data as RestaurantDraftData),
+              logo: restoredLogo,
+              idFront: restoredIdFront,
+              idBack: restoredIdBack,
+              pendingPick: null,
+            });
+          }
         }
+      } finally {
+        setReady(true);
       }
-      hydratedRef.current = true;
     })();
   }, []);
 
-  // Autoguardado con debounce ante cualquier cambio del formulario.
+  // Autoguardado con debounce ante cualquier cambio del formulario, una
+  // vez rehidratado.
   useEffect(() => {
-    if (!hydratedRef.current) return;
-    const t = setTimeout(saveDraftNow, 600);
+    if (!ready) return;
+    const t = setTimeout(() => {
+      RestaurantDraftStore.save(buildDraft());
+    }, 600);
     return () => clearTimeout(t);
-  }, [saveDraftNow]);
+  }, [ready, buildDraft]);
+
+  // Las fotos se persisten AL INSTANTE (sin esperar el debounce): una
+  // imagen recién tomada/elegida es lo más caro de perder. También deja
+  // pendingPick en null (ya no hay picker en vuelo).
+  useEffect(() => {
+    if (!ready) return;
+    pendingPickRef.current = null;
+    void RestaurantDraftStore.save(buildDraft());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, logo, idFront, idBack]);
 
   async function handleSelectProvince(selected: Province) {
     setProvince(selected);
@@ -256,29 +331,43 @@ export default function RegisterRestaurantScreen() {
   );
 
   async function pickLogo() {
-    // Guardamos el borrador ANTES de abrir la galería: si Android mata la
-    // app mientras el selector está abierto, al volver se rehidrata todo.
-    await saveDraftNow();
+    // Guardamos el borrador ANTES de abrir la galería, marcando que la
+    // imagen pendiente es el logo: si Android mata la app mientras el
+    // selector está abierto, al volver se rehidrata todo y se recupera
+    // esta foto (getPendingResultAsync).
+    await saveDraftNow('logo');
     // Sin `allowsEditing`: el recortador nativo de Android (barra inferior
     // negra con "Guardar/Cancelar") no combina con el diseño de MenuDays
     // -- ver mismo criterio en FormImagePicker/gallery. El logo se muestra
     // recortado al círculo igual (Image + overflow hidden).
     const picked = await pickImageFromLibrary();
+    pendingPickRef.current = null;
     if (picked.ok && picked.asset) setLogo(picked.asset.uri);
+    else void RestaurantDraftStore.save(buildDraft()); // cancelado: limpiar pendingPick
   }
 
   async function pickDocument(side: 'front' | 'back') {
-    await saveDraftNow();
-    // El usuario elige cámara o galería: la galería es más liviana que la
-    // cámara (menos chance de que Android mate la app por memoria).
+    // Se ofrece galería PRIMERO: el selector de fotos del sistema es
+    // mucho más liviano que la app de cámara, así que hay muchísima
+    // menos chance de que Android mate el proceso de MenuDays por
+    // memoria (la causa del "se sale al confirmar la foto"). Igual, si
+    // pasa, el borrador + getPendingResultAsync lo recuperan.
     const source = await new Promise<'camera' | 'library' | null>((resolve) => {
-      AppAlert.alert('Foto del documento', '¿Cómo querés agregarla?', [
-        { text: 'Tomar foto', onPress: () => resolve('camera') },
-        { text: 'Elegir de galería', onPress: () => resolve('library') },
-        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
-      ]);
+      AppAlert.alert(
+        'Foto del documento',
+        'Recomendado: sacá la foto con la cámara del teléfono y elegila de la galería.',
+        [
+          { text: 'Elegir de galería', onPress: () => resolve('library') },
+          { text: 'Tomar foto ahora', onPress: () => resolve('camera') },
+          { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
+        ]
+      );
     });
     if (!source) return;
+
+    // Borrador guardado JUSTO antes de abrir el picker, marcando qué
+    // documento se está completando.
+    await saveDraftNow(side === 'front' ? 'idFront' : 'idBack');
 
     // quality 0.6: una cédula solo tiene que leerse -- una imagen más
     // liviana ocupa menos RAM (menos chance de que Android mate la app) y
@@ -287,9 +376,13 @@ export default function RegisterRestaurantScreen() {
       source === 'camera'
         ? await pickImageFromCamera({ quality: 0.6 })
         : await pickImageFromLibrary({ quality: 0.6 });
-    if (!picked.ok || !picked.asset) return;
-    if (side === 'front') setIdFront(picked.asset.uri);
-    else setIdBack(picked.asset.uri);
+    pendingPickRef.current = null;
+    if (picked.ok && picked.asset) {
+      if (side === 'front') setIdFront(picked.asset.uri);
+      else setIdBack(picked.asset.uri);
+    } else {
+      void RestaurantDraftStore.save(buildDraft()); // cancelado: limpiar pendingPick
+    }
   }
 
   // Adapta el shape local (day/closed/openingHour/closingHour, sin id
@@ -505,6 +598,16 @@ export default function RegisterRestaurantScreen() {
   const filteredCountries = COUNTRY_CODES.filter((c) =>
     (c.name + ' ' + c.dialCode).toLowerCase().includes(countrySearch.toLowerCase())
   );
+
+  // Mientras se rehidrata el borrador (lectura local, un instante) no se
+  // muestra el formulario -> a partir de acá todo guardado es confiable.
+  if (!ready) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAwareScrollView
@@ -912,6 +1015,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
   },
   header: {
     minHeight: 280,

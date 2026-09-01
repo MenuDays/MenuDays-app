@@ -40,6 +40,11 @@ export interface RestaurantDraftData {
     openingHour: string;
     closingHour: string;
   }[];
+  // Qué campo de imagen se estaba completando cuando se abrió la
+  // cámara/galería. Si Android mató la app en ese momento, al volver se
+  // usa esto para saber dónde poner la foto recuperada
+  // (ImagePicker.getPendingResultAsync).
+  pendingPick: "logo" | "idFront" | "idBack" | null;
 }
 
 interface StoredDraft {
