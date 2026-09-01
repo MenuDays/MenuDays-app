@@ -45,6 +45,21 @@ function inferVariant(title: string, buttons: AlertButton[]): AlertVariant {
   const t = title.toLowerCase();
 
   if (hasDestructive || t.includes("error")) return "danger";
+  // Confirmaciones de acciones que salieron bien -> check verde.
+  if (
+    t.includes("listo") ||
+    t.includes("éxito") ||
+    t.includes("guardad") ||
+    t.includes("actualizad") ||
+    t.includes("cread") ||
+    t.includes("publicad") ||
+    t.includes("eliminad") ||
+    t.includes("duplicad") ||
+    t.includes("enviad") ||
+    t.includes("perfecto")
+  ) {
+    return "success";
+  }
   if (t.includes("próxim") || t.includes("pronto")) return "info";
   if (
     t.includes("falta") ||

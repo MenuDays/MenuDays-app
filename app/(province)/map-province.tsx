@@ -7,6 +7,7 @@ import MapLocationPicker, {
   MapLocationResult,
 } from "../components/map/MapLocationPicker";
 import { showLocationError, isNetworkError } from "../utils/locationErrors";
+import { Toast } from "../components/common/Toast";
 
 export default function MapScreen() {
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,7 @@ export default function MapScreen() {
         longitude: result.longitude,
       });
 
+      Toast.success("Ubicación guardada");
       router.replace("/(home)/(tabs)");
     } catch (error) {
       console.error("Error completo:", error);

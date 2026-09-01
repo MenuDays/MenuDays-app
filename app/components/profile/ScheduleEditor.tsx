@@ -80,9 +80,17 @@ function groupSchedule(schedule: RestaurantSchedule[]): ScheduleGroup[] {
 export default function ScheduleEditor({
   schedule,
   onChange,
+  hideClosed = false,
 }: {
   schedule: RestaurantSchedule[];
   onChange: (dayId: number, patch: Partial<RestaurantSchedule>) => void;
+  // Registro de restaurante: ahí "Cerrado" no es un concepto -- el
+  // restaurante simplemente elige los días que ATIENDE y su horario; los
+  // días que no elige quedan sin atención. Con esto se oculta el switch
+  // "Cerrado" y el resumen habla de "días de atención" en vez de
+  // mostrar 7 filas "Cerrado" al abrir. En editar-perfil sigue igual
+  // que siempre (hideClosed = false).
+  hideClosed?: boolean;
 }) {
   const { colors } = useTheme();
   // Trabajamos SIEMPRE con los 7 días canónicos (Lunes..Domingo). Si el
@@ -123,6 +131,10 @@ export default function ScheduleEditor({
     if (normalized) setDraftClose(normalized);
   }
 
+  // En modo registro no existe "cerrado": aplicar SIEMPRE fija un horario
+  // de atención.
+  const applyAsClosed = hideClosed ? false : draftClosed;
+
   function applyToSelectedDays() {
     if (selectedDays.size === 0) return;
     // `days` ya tiene los 7 días -> el `.get()` nunca falla (antes, si el
@@ -136,7 +148,7 @@ export default function ScheduleEditor({
         if (id === undefined) return;
         onChange(
           id,
-          draftClosed
+          applyAsClosed
             ? { cerrado: true }
             : { cerrado: false, hora_apertura: draftOpen, hora_cierre: draftClose }
         );
@@ -144,11 +156,17 @@ export default function ScheduleEditor({
     setSelectedDays(new Set());
   }
 
+  // En modo registro: los días con atención (para el resumen) y los que
+  // todavía no se configuraron.
+  const openGroups = groups.filter((g) => !g.cerrado);
+  const closedDays = days.filter((d) => d.cerrado).map((d) => d.dia_semana);
+
   return (
     <View>
       <Text style={[styles.hint, { color: colors.textSecondary }]}>
-        Elige los días que comparten el mismo horario y complétalo una sola vez -- por ejemplo,
-        de lunes a viernes, y después el fin de semana aparte si es distinto.
+        {hideClosed
+          ? "Elige los días que tu restaurante atiende y define su horario. Los días que no elijas quedan sin atención. Si un grupo de días comparte horario (ej. lunes a viernes) márcalos juntos y complétalo una sola vez."
+          : "Elige los días que comparten el mismo horario y complétalo una sola vez -- por ejemplo, de lunes a viernes, y después el fin de semana aparte si es distinto."}
       </Text>
 
       {/* Selector de días */}
@@ -173,18 +191,21 @@ export default function ScheduleEditor({
         })}
       </View>
 
-      {/* Horario a aplicar a los días elegidos arriba */}
-      <View style={styles.draftRow}>
-        <Text style={[styles.draftLabel, { color: colors.text }]}>Cerrado</Text>
-        <Switch
-          value={draftClosed}
-          onValueChange={setDraftClosed}
-          trackColor={{ false: colors.border, true: colors.primaryLight }}
-          thumbColor={draftClosed ? colors.primary : colors.card}
-        />
-      </View>
+      {/* Horario a aplicar a los días elegidos arriba. El switch "Cerrado"
+          no aplica al registro (ver hideClosed). */}
+      {!hideClosed && (
+        <View style={styles.draftRow}>
+          <Text style={[styles.draftLabel, { color: colors.text }]}>Cerrado</Text>
+          <Switch
+            value={draftClosed}
+            onValueChange={setDraftClosed}
+            trackColor={{ false: colors.border, true: colors.primaryLight }}
+            thumbColor={draftClosed ? colors.primary : colors.card}
+          />
+        </View>
+      )}
 
-      {!draftClosed && (
+      {!applyAsClosed && (
         <View style={styles.timesRow}>
           <TextInput
             style={[
@@ -237,11 +258,15 @@ export default function ScheduleEditor({
         </Text>
       </TouchableOpacity>
 
-      {/* Resumen: cómo queda el horario ya guardado, agrupado -- tocar
-          el lápiz precarga ese grupo arriba para editarlo de nuevo. */}
-      <Text style={[styles.summaryTitle, { color: colors.text }]}>Horario actual</Text>
+      {/* Resumen: cómo queda el horario, agrupado -- tocar el lápiz
+          precarga ese grupo arriba para editarlo de nuevo. En modo
+          registro se listan solo los días CON atención (los que no se
+          eligieron van en una línea aparte, no como filas "Cerrado"). */}
+      <Text style={[styles.summaryTitle, { color: colors.text }]}>
+        {hideClosed ? "Días de atención" : "Horario actual"}
+      </Text>
       <View style={[styles.summaryCard, { borderColor: colors.divider }]}>
-        {groups.map((group) => (
+        {(hideClosed ? openGroups : groups).map((group) => (
           <View key={group.key} style={[styles.summaryRow, { borderBottomColor: colors.divider }]}>
             <View style={styles.summaryTextWrap}>
               <Text style={[styles.summaryDays, { color: colors.text }]}>
@@ -251,15 +276,44 @@ export default function ScheduleEditor({
                 {group.cerrado ? "Cerrado" : `${group.hora_apertura ?? "--"} - ${group.hora_cierre ?? "--"}`}
               </Text>
             </View>
-            <TouchableOpacity
-              style={[styles.editGroupButton, { backgroundColor: colors.surfaceSecondary }]}
-              onPress={() => loadGroupIntoDraft(group)}
-              hitSlop={8}
-            >
-              <Ionicons name="pencil" size={14} color={colors.primary} />
-            </TouchableOpacity>
+            <View style={styles.summaryActions}>
+              <TouchableOpacity
+                style={[styles.editGroupButton, { backgroundColor: colors.surfaceSecondary }]}
+                onPress={() => loadGroupIntoDraft(group)}
+                hitSlop={8}
+              >
+                <Ionicons name="pencil" size={14} color={colors.primary} />
+              </TouchableOpacity>
+              {/* En modo registro: quitar la atención de esos días (los
+                  vuelve a "no atiende") sin necesidad de un switch. */}
+              {hideClosed && !group.cerrado && (
+                <TouchableOpacity
+                  style={[styles.editGroupButton, { backgroundColor: colors.surfaceSecondary }]}
+                  onPress={() => group.days.forEach((d) => onChange(d, { cerrado: true }))}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close" size={15} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         ))}
+
+        {hideClosed && openGroups.length === 0 && (
+          <View style={[styles.summaryRow, { borderBottomColor: colors.divider }]}>
+            <Text style={[styles.summaryHours, { color: colors.textSecondary }]}>
+              Todavía no configuraste ningún día de atención.
+            </Text>
+          </View>
+        )}
+
+        {hideClosed && closedDays.length > 0 && (
+          <View style={[styles.summaryRow, { borderBottomColor: colors.divider }]}>
+            <Text style={[styles.summaryHours, { color: colors.textSecondary }]}>
+              Sin atención: {closedDays.map((d) => DAY_LABELS[d]).join(", ")}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -355,6 +409,11 @@ const styles = StyleSheet.create({
   summaryHours: {
     fontSize: 12,
     marginTop: 2,
+  },
+  summaryActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   editGroupButton: {
     width: 30,

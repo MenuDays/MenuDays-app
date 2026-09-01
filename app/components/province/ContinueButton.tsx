@@ -21,7 +21,7 @@ export default function ContinueButton({
                                            disabled,
                                            onPress,
                                        }: ContinueButtonProps) {
-    const { colors } = useTheme();
+    const { colors, isDark } = useTheme();
     const { width } = useWindowDimensions();
     // Inset inferior REAL del dispositivo: en un teléfono con barra de 3
     // botones puede ser ~48px; con gestos, ~0-24. Antes el padding era
@@ -44,7 +44,9 @@ export default function ContinueButton({
                 <LinearGradient
                     colors={
                         disabled
-                            ? ["#D8D8D8", "#CFCFCF"]
+                            ? isDark
+                                ? ["#2A2A2A", "#242424"]
+                                : ["#D8D8D8", "#CFCFCF"]
                             : ["#FFB640", "#F58A07"]
                     }
                     start={{ x: 0, y: 0 }}

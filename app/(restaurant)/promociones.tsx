@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import PromotionService, { Promotion } from "../../services/promotion.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { Toast } from "../components/common/Toast";
 import EntityListCard from "../components/restaurant/EntityListCard";
 import FilterChips, { FilterChipOption } from "../components/restaurant/FilterChips";
 import PublishFab from "../components/restaurant/PublishFab";
@@ -96,6 +97,7 @@ export default function PromotionListScreen() {
           try {
             await PromotionService.remove(id);
             setPromotions((prev) => prev.filter((p) => p.id !== id));
+            Toast.success("Promoción eliminada");
           } catch (e: any) {
             AppAlert.alert("Error", e.message || "No se pudo eliminar la promoción.");
           }
@@ -110,6 +112,7 @@ export default function PromotionListScreen() {
       setPromotions((prev) =>
         prev.map((p) => (p.id === promotion.id ? { ...p, activa: result.activa } : p))
       );
+      Toast.success(result.activa ? "Promoción activada" : "Promoción desactivada");
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo actualizar la promoción.");
     }

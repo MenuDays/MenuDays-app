@@ -197,7 +197,10 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    // Blanco (no negro): la "card" de campos es blanca y llega hasta
+    // abajo; con #000 quedaba una franja negra debajo de los inputs en
+    // pantallas altas o con el teclado abierto.
+    backgroundColor: '#FFFFFF',
   },
   header: {
     minHeight: 280,

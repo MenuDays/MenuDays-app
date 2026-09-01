@@ -287,11 +287,14 @@ export default function RestaurantDashboard() {
   }
 
   // Mide la posición real (en pantalla) del elemento objetivo. Si no
-  // está suficientemente visible, hace scroll programático del
-  // dashboard para acercarlo antes de medir de nuevo -- así el
-  // spotlight siempre cae sobre la UI real, sin importar el tamaño
-  // de pantalla ni cuánto haya que desplazarse.
-  function measureTourTarget(key: TourTargetKey): Promise<TourRect | null> {
+  // está suficientemente visible, hace scroll programático del dashboard
+  // para acercarlo -- y después ESPERA a que la medición se estabilice
+  // (dos lecturas seguidas iguales) en vez de medir a ciegas tras un
+  // delay fijo. Antes ese delay fijo (420ms) a veces caía en mitad del
+  // scroll animado, y el recuadro del tutorial quedaba desfasado del
+  // componente real. Así el spotlight cae exacto sobre la UI real, sin
+  // importar el tamaño de pantalla ni cuánto haya que desplazarse.
+  function measureTourTargetOnce(key: TourTargetKey): Promise<TourRect | null> {
     return new Promise((resolve) => {
       const ref = getTourTargetRef(key);
       if (!ref.current) {
@@ -299,31 +302,52 @@ export default function RestaurantDashboard() {
         return;
       }
       ref.current.measureInWindow((x, y, width, height) => {
-        if (!width && !height) {
-          resolve(null);
-          return;
-        }
-        const topBound = insets.top + 60;
-        const bottomBound = windowHeight - insets.bottom - 60;
-        let delta = 0;
-        if (y < topBound) {
-          delta = y - (insets.top + 110);
-        } else if (y + height > bottomBound) {
-          delta = y + height - (windowHeight - insets.bottom - 110);
-        }
-        if (Math.abs(delta) > 24 && scrollRef.current) {
-          const nextY = Math.max(0, scrollYRef.current + delta);
-          scrollRef.current.scrollTo({ y: nextY, animated: true });
-          setTimeout(() => {
-            ref.current?.measureInWindow((x2, y2, width2, height2) => {
-              resolve({ x: x2, y: y2, width: width2, height: height2 });
-            });
-          }, 420);
-        } else {
-          resolve({ x, y, width, height });
-        }
+        if (!width && !height) resolve(null);
+        else resolve({ x, y, width, height });
       });
     });
+  }
+
+  async function settleTourTarget(key: TourTargetKey): Promise<TourRect | null> {
+    let prev = await measureTourTargetOnce(key);
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 80));
+      const next = await measureTourTargetOnce(key);
+      if (!next) return prev;
+      if (
+        prev &&
+        Math.abs(next.y - prev.y) < 1 &&
+        Math.abs(next.x - prev.x) < 1 &&
+        Math.abs(next.height - prev.height) < 1
+      ) {
+        return next;
+      }
+      prev = next;
+    }
+    return prev;
+  }
+
+  async function measureTourTarget(key: TourTargetKey): Promise<TourRect | null> {
+    const first = await measureTourTargetOnce(key);
+    if (!first) return null;
+
+    // Margen generoso para que la card no quede pegada al borde de la
+    // pantalla ni debajo del panel de texto del tutorial.
+    const topBound = insets.top + 96;
+    const bottomBound = windowHeight - insets.bottom - 96;
+    let delta = 0;
+    if (first.y < topBound) {
+      delta = first.y - (insets.top + 128);
+    } else if (first.y + first.height > bottomBound) {
+      delta = first.y + first.height - (windowHeight - insets.bottom - 128);
+    }
+
+    if (Math.abs(delta) > 8 && scrollRef.current) {
+      const nextY = Math.max(0, scrollYRef.current + delta);
+      scrollRef.current.scrollTo({ y: nextY, animated: true });
+    }
+
+    return settleTourTarget(key);
   }
 
   function handleOnboardingFinish() {

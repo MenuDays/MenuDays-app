@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppAlertProvider } from "./components/common/AppAlert";
+import { ToastProvider } from "./components/common/Toast";
 import AppBackground from "./components/common/AppBackground";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 import { ThemeProvider } from "../contexts/ThemeContext";
@@ -79,22 +80,24 @@ export default function RootLayout() {
       <ThemeProvider>
         <PreviewModeProvider>
           <AppAlertProvider>
-            <AppBackground>
-              {/* Boundary interno: si una PANTALLA tira un error de
-                  render, se muestra la pantalla de "Algo salió mal" sin
-                  tirar abajo los providers (tema, alerts, safe area). */}
-              <ErrorBoundary>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    // Transparente para dejar ver el patrón global de
-                    // AppBackground (modo claro). En oscuro AppBackground
-                    // pinta el fondo sólido del tema.
-                    contentStyle: { backgroundColor: "transparent" },
-                  }}
-                />
-              </ErrorBoundary>
-            </AppBackground>
+            <ToastProvider>
+              <AppBackground>
+                {/* Boundary interno: si una PANTALLA tira un error de
+                    render, se muestra la pantalla de "Algo salió mal" sin
+                    tirar abajo los providers (tema, alerts, safe area). */}
+                <ErrorBoundary>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      // Transparente para dejar ver el patrón global de
+                      // AppBackground (modo claro). En oscuro AppBackground
+                      // pinta el fondo sólido del tema.
+                      contentStyle: { backgroundColor: "transparent" },
+                    }}
+                  />
+                </ErrorBoundary>
+              </AppBackground>
+            </ToastProvider>
           </AppAlertProvider>
         </PreviewModeProvider>
       </ThemeProvider>

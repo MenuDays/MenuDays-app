@@ -1,9 +1,15 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTheme } from "../../../contexts/ThemeContext";
+import type { ThemeColors } from "../../../contexts/ThemeContext";
 
-const mascot = require("../../../assets/images/nene-festejo.png");
+// Personaje "feliz" con transparencia REAL (PNG RGBA) -- el anterior
+// (nene-festejo.png) venía sin canal alfa, con un fondo crudo que
+// desentonaba contra la card del cartel. nene-thumbsup.png es el mismo
+// que ya se usa en la confirmación de pedido.
+const mascot = require("../../../assets/images/nene-thumbsup.png");
 
 interface SuccessCelebrationModalProps {
   visible: boolean;
@@ -23,6 +29,8 @@ export default function SuccessCelebrationModal({
   onClose,
   buttonLabel = "¡Genial!",
 }: SuccessCelebrationModalProps) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const scale = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const mascotBounce = useRef(new Animated.Value(0)).current;
@@ -44,7 +52,7 @@ export default function SuccessCelebrationModal({
   }, [visible]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
           <View style={styles.glow} />
@@ -89,72 +97,73 @@ export default function SuccessCelebrationModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(20,15,10,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 28,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    paddingTop: 12,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
-    alignItems: "center",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 12,
-  },
-  glow: {
-    position: "absolute",
-    top: -70,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(255,183,64,0.28)",
-  },
-  mascot: {
-    width: 148,
-    height: 148,
-    marginTop: 4,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: "#3E2723",
-    textAlign: "center",
-    marginTop: 6,
-    letterSpacing: -0.3,
-  },
-  message: {
-    fontSize: 13.5,
-    color: "#8A8A8A",
-    textAlign: "center",
-    lineHeight: 19,
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  button: {
-    width: "100%",
-    borderRadius: 24,
-    overflow: "hidden",
-  },
-  buttonGradient: {
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 28,
+    },
+    card: {
+      width: "100%",
+      maxWidth: 340,
+      backgroundColor: colors.modalBackground,
+      borderRadius: 28,
+      paddingTop: 12,
+      paddingBottom: 24,
+      paddingHorizontal: 24,
+      alignItems: "center",
+      overflow: "hidden",
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.3,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 12,
+    },
+    glow: {
+      position: "absolute",
+      top: -70,
+      width: 220,
+      height: 220,
+      borderRadius: 110,
+      backgroundColor: "rgba(255,183,64,0.28)",
+    },
+    mascot: {
+      width: 148,
+      height: 148,
+      marginTop: 4,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: "900",
+      color: colors.text,
+      textAlign: "center",
+      marginTop: 6,
+      letterSpacing: -0.3,
+    },
+    message: {
+      fontSize: 13.5,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 19,
+      marginTop: 8,
+      marginBottom: 20,
+    },
+    button: {
+      width: "100%",
+      borderRadius: 24,
+      overflow: "hidden",
+    },
+    buttonGradient: {
+      height: 50,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    buttonText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "800",
+    },
+  });

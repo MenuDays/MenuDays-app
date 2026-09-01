@@ -21,3 +21,26 @@ export function getNavbarSideMargin(screenWidth: number): number {
 
   return (screenWidth - NAVBAR_MAX_WIDTH) / 2;
 }
+
+// Altura VISUAL que ocupan las navbars flotantes (restaurante/admin/
+// comensal) sin contar el safe-area inferior. Cubre el caso más alto de
+// las tres (la de restaurante, que además "levanta" el botón +):
+//   ~16 (aire del botón elevado) + ~62 (fila de íconos+label) +
+//   ~10 (margen inferior) + un colchón.
+// Las pantallas con navbar flotante deben dejar este espacio + el inset
+// real al final de su scroll, para que el último elemento (típicamente
+// "Cerrar sesión") no quede tapado ni pegado a la navbar. Se prefiere
+// esto -- padding calculado con el inset real -- antes que posiciones
+// absolutas frágiles.
+export const FLOATING_NAV_BAR_HEIGHT = 96;
+
+/**
+ * Espacio a reservar al final de una pantalla que tiene una navbar
+ * flotante encima, para que su contenido no quede tapado.
+ *
+ * @param bottomInset  El `useSafeAreaInsets().bottom` de la pantalla.
+ * @param extra        Aire adicional entre el último elemento y la navbar.
+ */
+export function getFloatingNavClearance(bottomInset: number, extra = 24): number {
+  return FLOATING_NAV_BAR_HEIGHT + Math.max(bottomInset, 0) + extra;
+}

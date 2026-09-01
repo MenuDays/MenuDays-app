@@ -10,6 +10,7 @@ import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
 import PromotionService from "../../../services/promotion.service";
 import CategoryService, { Category } from "../../../services/category.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import { Toast } from "../../components/common/Toast";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 import SuccessCelebrationModal from "../../components/common/SuccessCelebrationModal";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -102,6 +103,7 @@ export default function PromotionFormScreen() {
 
       if (isEditing) {
         await PromotionService.update(id!, payload);
+        Toast.success("Promoción actualizada");
         router.back();
       } else {
         await PromotionService.create(payload);

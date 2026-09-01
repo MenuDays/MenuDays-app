@@ -9,8 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
+import { getFloatingNavClearance } from "../../utils/navbarLayout";
 
 import UserService, { User } from "../../services/user.service";
 import AuthService from "../../services/auth.service";
@@ -38,6 +39,7 @@ import ThemeToggle from "../components/common/ThemeToggle";
 export default function AdminPerfilScreen() {
   const { enterPreview, exitPreview } = usePreviewMode();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,7 +160,13 @@ export default function AdminPerfilScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingScreen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: getFloatingNavClearance(insets.bottom) },
+        ]}
+      >
 
         <ProfileHero
           mode="avatar"
@@ -272,9 +280,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    // Espacio para pasar de largo la bottom nav flotante (si no, "Cerrar
-    // sesión" quedaba tapado y la pantalla parecía que no scrolleaba).
-    paddingBottom: 130,
+    // paddingBottom real -> se calcula en el render con
+    // getFloatingNavClearance(insets.bottom): navbar flotante + safe area,
+    // así "Cerrar sesión" nunca queda tapado ni pegado a la navbar.
   },
   content: {
     backgroundColor: colors.surface,
@@ -283,8 +291,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: -24,
     paddingHorizontal: 18,
     paddingTop: 24,
-    // deja lugar para que la AdminBottomNav flotante no tape lo último
-    paddingBottom: 110,
+    paddingBottom: 28,
   },
   roleBadge: {
     alignSelf: "flex-start",

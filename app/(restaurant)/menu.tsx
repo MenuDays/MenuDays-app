@@ -22,6 +22,7 @@ import MenuService, {
   getMenuComponents,
 } from "../../services/menu.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { Toast } from "../components/common/Toast";
 import SheetOverlay from "../components/common/SheetOverlay";
 import SuccessCelebrationModal from "../components/common/SuccessCelebrationModal";
 import EntityListCard from "../components/restaurant/EntityListCard";
@@ -289,6 +290,7 @@ export default function MenuListScreen() {
           try {
             await MenuService.remove(id);
             setMenus((prev) => prev.filter((m) => m.id !== id));
+            Toast.success("Menú eliminado");
           } catch (e: any) {
             AppAlert.alert("Error", e.message || "No se pudo eliminar el menú.");
           }
@@ -303,6 +305,7 @@ export default function MenuListScreen() {
       setMenus((prev) =>
         prev.map((m) => (m.id === menu.id ? { ...m, estado: result.estado } : m))
       );
+      Toast.success(result.estado === "publicado" ? "Menú publicado" : "Menú oculto");
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo actualizar el menú.");
     }
@@ -316,6 +319,7 @@ export default function MenuListScreen() {
       const nextEstado = menu.estado === "agotado" ? "publicado" : "agotado";
       const updated = await MenuService.update(menu.id, { estado: nextEstado });
       setMenus((prev) => prev.map((m) => (m.id === menu.id ? { ...m, estado: updated.estado } : m)));
+      Toast.success(updated.estado === "agotado" ? "Menú marcado como agotado" : "Menú disponible de nuevo");
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo actualizar el stock del menú.");
     }
@@ -585,6 +589,11 @@ export default function MenuListScreen() {
       setShowSuccess(true);
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo guardar el menú.");
+      // Si el server tardó/cortó la respuesta, el menú igual pudo haberse
+      // creado (el back ignora el POST duplicado dentro de ~1 min). Se
+      // refresca la lista para que refleje el estado real y el usuario
+      // vea si ya quedó guardado antes de reintentar.
+      loadMenus();
     } finally {
       setSavingMenu(false);
     }

@@ -12,8 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
+import { getFloatingNavClearance } from "../../../utils/navbarLayout";
 import UserService, { User } from "../../../services/user.service";
 import AuthService from "../../../services/auth.service";
 import { pickImageFromLibrary } from "../../../utils/imagePicker";
@@ -30,12 +31,14 @@ import EditableRow from "../../components/profile/EditableRow";
 import Divider from "../../components/profile/Divider";
 import ThemeToggle from "../../components/common/ThemeToggle";
 import { AppAlert } from "../../components/common/AppAlert";
+import { Toast } from "../../components/common/Toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
 import { usePreviewMode } from "../../../contexts/PreviewModeContext";
 
 export default function PerfilScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { previewOrigin, exitPreview } = usePreviewMode();
 
@@ -90,7 +93,7 @@ export default function PerfilScreen() {
       const response = await UserService.uploadPhoto(picked.asset);
       setUser((prev) => (prev ? { ...prev, profilePhotoUrl: response.photoUrl } : prev));
       if (user) await UserService.saveLocal({ ...user, profilePhotoUrl: response.photoUrl });
-      AppAlert.alert("¡Listo!", "Foto de perfil actualizada correctamente.");
+      Toast.success("Foto de perfil actualizada");
     } catch (e) {
       console.log("Error subiendo foto de perfil:", e);
       AppAlert.alert("Error", "No se pudo actualizar la foto de perfil.");
@@ -142,6 +145,7 @@ export default function PerfilScreen() {
       setUser(newUser);
       await UserService.saveLocal(newUser);
       setIsEditing(false);
+      Toast.success("Perfil actualizado");
     } catch (e) {
       console.log("Error guardando perfil:", e);
       AppAlert.alert("Error", "No se pudo guardar el perfil. Intenta de nuevo.");
@@ -238,6 +242,7 @@ export default function PerfilScreen() {
       <KeyboardAvoidingScreen>
       <ScrollView
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: getFloatingNavClearance(insets.bottom) }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
       >
 
@@ -486,7 +491,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingBottom: 30,
   },
   loadingContainer: {
     flex: 1,
@@ -520,7 +524,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: -24,
     paddingHorizontal: 18,
     paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 28,
   },
   inlineEditTrigger: {
     flexDirection: "row",

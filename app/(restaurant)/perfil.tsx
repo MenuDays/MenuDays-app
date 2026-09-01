@@ -5,7 +5,8 @@ import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { PENDING_RESTAURANT_ONBOARDING_KEY } from "../../constants/onboardingKeys";
 import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { getFloatingNavClearance } from "../../utils/navbarLayout";
 import AuthService from "../../services/auth.service";
 import { optimizedImageUri } from "../../utils/imageUrl";
 import CategoryService, { Category } from "../../services/category.service";
@@ -28,6 +29,7 @@ import type { ThemeColors } from "../../contexts/ThemeContext";
 export default function RestaurantProfileScreen() {
   const { enterPreview, exitPreview } = usePreviewMode();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -130,7 +132,10 @@ export default function RestaurantProfileScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: getFloatingNavClearance(insets.bottom) },
+        ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FB8C00" />}
       >
         <View style={styles.summaryCard}>
@@ -266,8 +271,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 16,
-    // deja lugar para que la bottom nav flotante no tape lo último
-    paddingBottom: 110,
+    // paddingBottom real -> se calcula en el render con
+    // getFloatingNavClearance(insets.bottom): navbar flotante + safe area.
   },
   summaryCard: {
     flexDirection: "row",

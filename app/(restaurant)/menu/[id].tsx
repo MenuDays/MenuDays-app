@@ -6,6 +6,7 @@ import ScreenHeader from "../../components/restaurant/ScreenHeader";
 import StatusBadge, { StatusTone } from "../../components/restaurant/StatusBadge";
 import MenuService, { Menu, MenuStatus } from "../../../services/menu.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import { Toast } from "../../components/common/Toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
 import { optimizedImageUri } from "../../../utils/imageUrl";
@@ -56,6 +57,7 @@ export default function MenuDetailScreen() {
         onPress: async () => {
           try {
             await MenuService.remove(menu.id);
+            Toast.success("Menú eliminado");
             router.back();
           } catch (e: any) {
             AppAlert.alert("Error", e.message || "No se pudo eliminar el menú.");

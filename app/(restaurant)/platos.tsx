@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import DishService, { Dish } from "../../services/dish.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { Toast } from "../components/common/Toast";
 import EntityListCard from "../components/restaurant/EntityListCard";
 import FilterChips, { FilterChipOption } from "../components/restaurant/FilterChips";
 import PublishFab from "../components/restaurant/PublishFab";
@@ -71,6 +72,7 @@ export default function DishListScreen() {
           try {
             await DishService.remove(id);
             setDishes((prev) => prev.filter((d) => d.id !== id));
+            Toast.success("Plato eliminado");
           } catch (e: any) {
             AppAlert.alert("Error", e.message || "No se pudo eliminar el plato.");
           }
@@ -83,6 +85,7 @@ export default function DishListScreen() {
     try {
       const updated = await DishService.update(dish.id, { activo: !dish.activo });
       setDishes((prev) => prev.map((d) => (d.id === dish.id ? { ...d, activo: updated.activo } : d)));
+      Toast.success(updated.activo ? "Plato activado en el catálogo" : "Plato oculto del catálogo");
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo actualizar el plato.");
     }
@@ -93,6 +96,7 @@ export default function DishListScreen() {
       const nextEstado = dish.estado === "agotado" ? "disponible" : "agotado";
       const updated = await DishService.update(dish.id, { estado: nextEstado });
       setDishes((prev) => prev.map((d) => (d.id === dish.id ? { ...d, estado: updated.estado } : d)));
+      Toast.success(updated.estado === "agotado" ? "Plato marcado como agotado" : "Plato disponible de nuevo");
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo actualizar el stock del plato.");
     }

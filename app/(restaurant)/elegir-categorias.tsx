@@ -14,6 +14,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import CategoryService, { Category } from "../../services/category.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { Toast } from "../components/common/Toast";
 import KeyboardAvoidingScreen from "../components/common/KeyboardAvoidingScreen";
 import { getCategoryIcon } from "../../constants/categoryIcons";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -90,6 +91,7 @@ export default function ChooseCategoriesScreen() {
     setSaving(true);
     try {
       await CategoryService.updateRestaurantCategories(Array.from(selectedIds));
+      Toast.success("Categorías guardadas");
       if (cameFromProfile) {
         router.back();
       } else {

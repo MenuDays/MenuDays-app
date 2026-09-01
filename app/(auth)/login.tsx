@@ -350,7 +350,10 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    // Blanco (no negro): la "card" del formulario es blanca y ocupa el
+    // resto de la pantalla; con #000 quedaba una franja negra debajo de
+    // los campos en pantallas altas o con el teclado abierto.
+    backgroundColor: '#FFFFFF',
   },
   header: {
     // minHeight (no height fijo) para que crezca con el ícono grande sin

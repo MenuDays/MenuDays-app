@@ -40,6 +40,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "MenuDays necesita acceso a tus fotos para subir el logo y la cédula al registrar tu restaurante.",
+          "cameraPermission": "MenuDays necesita acceso a la cámara para tomar el logo y las fotos de la cédula al registrar tu restaurante.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-font",
         {
           "fonts": [

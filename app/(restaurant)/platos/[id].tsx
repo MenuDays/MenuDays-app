@@ -6,6 +6,7 @@ import ScreenHeader from "../../components/restaurant/ScreenHeader";
 import StatusBadge, { StatusTone } from "../../components/restaurant/StatusBadge";
 import DishService, { Dish } from "../../../services/dish.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import { Toast } from "../../components/common/Toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import type { ThemeColors } from "../../../contexts/ThemeContext";
 import { optimizedImageUri } from "../../../utils/imageUrl";
@@ -55,6 +56,7 @@ export default function DishDetailScreen() {
         onPress: async () => {
           try {
             await DishService.remove(dish.id);
+            Toast.success("Plato eliminado");
             router.back();
           } catch (e: any) {
             AppAlert.alert("Error", e.message || "No se pudo eliminar el plato.");

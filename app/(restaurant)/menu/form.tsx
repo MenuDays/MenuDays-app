@@ -15,6 +15,8 @@ import {
 import CategoryService, { Category } from "../../../services/category.service";
 import MenuService, { Menu, MenuScheduleType, getMenuComponents } from "../../../services/menu.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import { Toast } from "../../components/common/Toast";
+import SuccessCelebrationModal from "../../components/common/SuccessCelebrationModal";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
 import FormDateField from "../../components/restaurant/FormDateField";
@@ -82,6 +84,7 @@ export default function MenuFormScreen() {
   const [publishOnSave, setPublishOnSave] = useState(true);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Cada tipo admite VARIOS nombres -- ej. dos entradas distintas ese
   // día. componentDrafts guarda el texto que se está tipeando ANTES de
@@ -355,7 +358,12 @@ export default function MenuFormScreen() {
         }
       }
 
-      router.back();
+      if (isEditing) {
+        Toast.success("Menú actualizado");
+        router.back();
+      } else {
+        setShowSuccess(true);
+      }
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo guardar el menú.");
     } finally {
@@ -647,6 +655,16 @@ export default function MenuFormScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingScreen>
+
+      <SuccessCelebrationModal
+        visible={showSuccess}
+        title="¡Menú publicado!"
+        message="Tu menú ya está listo para que lo vean tus clientes."
+        onClose={() => {
+          setShowSuccess(false);
+          router.back();
+        }}
+      />
     </View>
   );
 }

@@ -6,6 +6,7 @@ import { router, type Href } from 'expo-router';
 import { Image } from 'react-native';
 import AuthService from '../../services/auth.service';
 import LocationService from '../../services/location.service';
+import RestaurantDraftStore from '../../services/restaurantDraft.store';
 
 
 // Adónde mandar a cada rol una vez logueado. Mismo mapeo que usa
@@ -52,11 +53,28 @@ export default function SplashScreen() {
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
         ]);
         if (session) {
+          const rol = session.user?.rol;
+
+          // Si el usuario estaba registrando su restaurante y la app se
+          // reinició (Android suele matar el proceso mientras la cámara
+          // está abierta), lo devolvemos al formulario con sus datos en
+          // vez de dejarlo en Inicio como si nada hubiera pasado.
+          if (!rol || rol === 'comensal') {
+            const hasDraft = await Promise.race([
+              RestaurantDraftStore.hasFreshDraft(),
+              new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+            ]);
+            if (hasDraft) {
+              router.replace('/(auth)/register-restaurant');
+              return;
+            }
+          }
+
           const savedLocation = await Promise.race([
             LocationService.getUserLocation(),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
           ]);
-          router.replace(routeForRole(session.user?.rol, !!savedLocation));
+          router.replace(routeForRole(rol, !!savedLocation));
         } else {
           router.replace("/(auth)/onboarding");
         }

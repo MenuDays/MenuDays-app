@@ -11,81 +11,69 @@ export interface ApiOptions extends RequestInit {
   silentStatuses?: number[];
 }
 
-// El back vive en Railway: si estuvo un rato sin tráfico, el contenedor
-// puede quedar "dormido" y la PRIMERA petición que lo despierta a veces
-// ni siquiera llega a completarse a nivel de red (fetch() tira
-// "Network request failed" o se cuelga) -- no es que no haya internet,
-// es que el server todavía está arrancando. Por eso antes aparecía ese
-// cartelito de la nada y, al tocar "Aceptar" y reintentar la MISMA
-// acción un segundo después (con el server ya despierto), andaba bien.
+// El back vive en Railway: si estuvo un rato sin tráfico el contenedor
+// puede quedar "dormido", y durante un redeploy hay ~1 min en el que
+// todavía no acepta conexiones. En esos casos la PRIMERA petición puede
+// fallar a nivel de red (fetch() tira "Network request failed" o se
+// cuelga) AUNQUE el dispositivo tenga internet perfectamente: no es que
+// no haya conexión, es que el server todavía está arrancando.
 //
-// Acá se reintenta un par de veces, en silencio (con el mismo loading
-// que ya tiene cada pantalla mientras espera el await), ANTES de
-// mostrarle cualquier error al usuario. Recién si los 3 intentos fallan
-// de verdad se asume que es un problema real de conexión.
-const MAX_NETWORK_RETRIES = 3;
-const RETRY_DELAY_MS = 900;
+// La estrategia acá:
+//  - Un fetch() que se rechaza MUY rápido casi siempre significa que la
+//    petición nunca salió del dispositivo (sin red, DNS, o conexión
+//    rechazada porque el contenedor todavía no escucha). Eso es seguro
+//    de reintentar -- no llegó a impactar en el server -- así que se
+//    reintenta en silencio, con backoff creciente, dándole tiempo a
+//    Railway a terminar de reanudarse.
+//  - Un fetch() que TARDA en fallar (o nuestro propio timeout) pudo
+//    haber llegado al server. Reintentar una mutación ahí podría
+//    duplicar el recurso, así que NO se reintenta: se corta y se avisa
+//    que "el server está tardando" (que NO es lo mismo que "sin
+//    internet").
+//  - Solo si de verdad no se logró contactar al server se muestra el
+//    cartel de "revisá tu conexión".
 
-// Verificación de accesibilidad del back (endpoint público y barato).
-// Cualquier RESPUESTA HTTP -- incluso 401/404 -- prueba que hay internet
-// y que el server está vivo; solo un rechazo de fetch() o el timeout
-// cuentan como "inalcanzable". Se reintenta varias veces porque el
-// contenedor de Railway puede tardar 20-30s en despertar del todo.
-const PROBE_TIMEOUT_MS = 8000;
-const PROBE_MAX_ATTEMPTS = 6;
-const PROBE_DELAY_MS = 1500;
+const CONNECTION_ERROR_MESSAGE =
+  "Revisa tu conexión a internet e intenta nuevamente.";
+
+// El servidor recibió la petición pero tardó demasiado en contestar (o
+// la respuesta se perdió). NO es un problema de conexión. En una
+// mutación NO se reintenta a ciegas -- el recurso pudo haberse creado.
+const SLOW_SERVER_MESSAGE =
+  "El servidor está tardando más de lo normal. Espera unos segundos y " +
+  "revisa si se guardó antes de volver a intentarlo.";
 
 // Timeouts separados según el tipo de petición:
 //  - JSON normal (GET/PATCH livianos): 25s alcanza de sobra incluso
 //    despertando el contenedor de Railway.
 //  - Subida de archivos (multipart/form-data, ej. foto de un menú/plato/
 //    promoción/galería): la foto puede pesar varios MB y encima el back
-//    la reenvía a Cloudinary, así que un timeout corto disparaba un falso
-//    "revisá tu conexión" con el menú a medio subir. 120s da margen real
-//    en datos móviles lentos; si de verdad no hay red, fetch() falla al
-//    toque igual (no espera el timeout completo). Además, para las
-//    subidas se hace un "ping" previo para no mandar los MB contra un
-//    server dormido (ver api()).
+//    la reenvía a Cloudinary, así que un timeout corto disparaba un
+//    falso "revisá tu conexión" con el menú a medio subir. 120s da
+//    margen real en datos móviles lentos; si de verdad no hay red,
+//    fetch() falla al toque igual (no espera el timeout completo).
 const REQUEST_TIMEOUT_MS = 25000;
 const UPLOAD_TIMEOUT_MS = 120000;
 
-const CONNECTION_ERROR_MESSAGE =
-  "Revisa tu conexión a internet e intenta nuevamente.";
+// Por debajo de esto, un fetch() rechazado se considera "falló rápido"
+// => la petición nunca llegó al server => es seguro reintentarla. Por
+// encima, pudo haber llegado => no se reintenta una mutación.
+const FAST_FAILURE_MS = 6000;
 
-// Un GET/HEAD se repite libremente (no tiene efectos secundarios). Un
-// POST/PATCH/PUT/DELETE es más delicado: si el primer intento LLEGÓ a
-// impactar en el server y solo se perdió la respuesta, un reintento
-// podría duplicar el recurso. Por eso las mutaciones no se reintentan
-// "a ciegas" -- solo tras CONFIRMAR con un ping que el back recién
-// ahora está accesible (señal casi segura de que el primer intento
-// falló porque el contenedor estaba dormido y la petición nunca llegó).
+// Un GET/HEAD se repite libremente (no tiene efectos secundarios).
 const IDEMPOTENT_METHODS = new Set(["GET", "HEAD"]);
-const MAX_MUTATION_RETRIES = 2;
+const MAX_GET_RETRIES = 3;
+const GET_RETRY_DELAY_MS = 900;
+
+// Mutaciones: solo se reintentan cuando el fetch() falló rápido (nunca
+// llegó al server). El backoff creciente (~14s en total) le da tiempo
+// al contenedor de Railway a terminar de reanudarse, sin reintentar a
+// ciegas algo que pudo haber impactado ni hacer esperar de más a quien
+// de verdad está sin señal.
+const MUTATION_RETRY_BACKOFF_MS = [1200, 2500, 4000, 6000];
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// true si el back respondió CUALQUIER cosa (aunque sea 401/404). Un
-// rechazo de fetch() o el timeout -> false. Reintenta unas cuantas veces
-// para darle tiempo al contenedor de Railway a terminar de arrancar.
-async function backendIsReachable(): Promise<boolean> {
-  for (let attempt = 1; attempt <= PROBE_MAX_ATTEMPTS; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-    try {
-      await fetch(`${BASE_URL}/categories`, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      return true;
-    } catch {
-      clearTimeout(timeoutId);
-      if (attempt < PROBE_MAX_ATTEMPTS) await sleep(PROBE_DELAY_MS);
-    }
-  }
-  return false;
 }
 
 // Si el token guardado venció o quedó inválido (ver comentario en
@@ -114,11 +102,40 @@ async function handleUnauthorized(): Promise<void> {
   }, 2000);
 }
 
-// true solo para fallas a NIVEL DE RED (nunca llegó a haber respuesta):
-// fetch() rechazado (DNS, sin conexión, servidor inalcanzable) o el
-// timeout propio de acá. Un 4xx/5xx real del back NO pasa por acá --
-// esos ya tienen su propio mensaje específico y no deben reintentarse
-// ni disfrazarse de "error de conexión".
+type TimedError = Error & { code?: "TIMEOUT" };
+
+// Un solo intento de fetch con timeout propio. Si el que aborta es
+// NUESTRO timeout (no un corte de red), el error se marca con
+// code "TIMEOUT" para poder distinguirlo aguas arriba.
+async function attemptFetch(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) {
+      const err: TimedError = new Error(SLOW_SERVER_MESSAGE);
+      err.code = "TIMEOUT";
+      throw err;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// Maneja SOLO fallas a nivel de red (nunca llegó a haber respuesta
+// HTTP): fetch() rechazado o nuestro timeout. Un 4xx/5xx real del back
+// NO pasa por acá -- eso ya es una Response y se procesa en api().
 async function fetchWithRetry(
   url: string,
   options: RequestInit
@@ -128,50 +145,50 @@ async function fetchWithRetry(
   const isMutation = !IDEMPOTENT_METHODS.has(method);
   const timeoutMs = isUpload ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
 
-  async function attemptFetch(): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-  }
-
   let lastError: unknown;
 
   // ---- GET / HEAD: reintento simple, se pueden repetir sin riesgo ----
   if (!isMutation) {
-    for (let attempt = 0; attempt <= MAX_NETWORK_RETRIES; attempt++) {
+    for (let attempt = 0; attempt <= MAX_GET_RETRIES; attempt++) {
       try {
-        return await attemptFetch();
+        return await attemptFetch(url, options, timeoutMs);
       } catch (error) {
         lastError = error;
-        if (attempt < MAX_NETWORK_RETRIES) await sleep(RETRY_DELAY_MS);
+        if (attempt < MAX_GET_RETRIES) await sleep(GET_RETRY_DELAY_MS);
       }
     }
-    console.log("[api] Falló la conexión:", lastError);
+    console.log("[api] Falló la conexión (GET):", lastError);
     throw new Error(CONNECTION_ERROR_MESSAGE);
   }
 
   // ---- POST / PATCH / PUT / DELETE ----
-  // Si el back está dormido (Railway), esta primera petición puede
-  // fallar a nivel de red sin haber llegado nunca a impactar. Antes de
-  // rendirse: se verifica si el server está accesible AHORA. Si sí, se
-  // asume arranque en frío (la mutación no se aplicó) y se reintenta;
-  // solo si el ping tampoco responde se muestra "sin conexión".
-  for (let attempt = 0; attempt <= MAX_MUTATION_RETRIES; attempt++) {
+  // Solo se reintenta si el fetch() falló RÁPIDO (la petición nunca
+  // salió del dispositivo). Si tardó en fallar o fue nuestro timeout, la
+  // petición pudo haber llegado al server: reintentar duplicaría el
+  // recurso, así que se corta y se informa "server lento".
+  for (
+    let attempt = 0;
+    attempt <= MUTATION_RETRY_BACKOFF_MS.length;
+    attempt++
+  ) {
+    const startedAt = Date.now();
     try {
-      return await attemptFetch();
+      return await attemptFetch(url, options, timeoutMs);
     } catch (error) {
       lastError = error;
-      if (attempt >= MAX_MUTATION_RETRIES) break;
-      const reachable = await backendIsReachable();
-      if (!reachable) break;
-      await sleep(RETRY_DELAY_MS);
+      const elapsed = Date.now() - startedAt;
+
+      if (
+        (error as TimedError).code === "TIMEOUT" ||
+        elapsed >= FAST_FAILURE_MS
+      ) {
+        console.log("[api] El server tardó demasiado (mutación):", lastError);
+        throw new Error(SLOW_SERVER_MESSAGE);
+      }
+
+      const backoff = MUTATION_RETRY_BACKOFF_MS[attempt];
+      if (backoff === undefined) break;
+      await sleep(backoff);
     }
   }
 
@@ -188,7 +205,6 @@ export async function api<T>(
 
   const url = `${BASE_URL}${endpoint}`;
   const method = (options.method || "GET").toUpperCase();
-  const isMutation = !IDEMPOTENT_METHODS.has(method);
 
   if (__DEV__) {
     console.log("================================");
@@ -196,19 +212,6 @@ export async function api<T>(
     console.log("METHOD:", method);
     console.log("BODY:", options.body);
     console.log("================================");
-  }
-
-  // Subida de archivos (foto de menú/plato/promo/galería): antes de
-  // mandar varios MB contra un back que puede estar dormido, se lo
-  // "despierta" con un ping barato mientras la pantalla ya muestra su
-  // loading. Así el POST/PATCH grande recién sale cuando el server está
-  // despierto -- y si de verdad no hay internet, se corta acá sin dejar
-  // una subida a medias.
-  if (isMutation && isFormData) {
-    const reachable = await backendIsReachable();
-    if (!reachable) {
-      throw new Error(CONNECTION_ERROR_MESSAGE);
-    }
   }
 
   let status: number | null = null;

@@ -6,6 +6,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import CategoryService, { Category } from "../../../services/category.service";
 import DishService from "../../../services/dish.service";
 import { AppAlert } from "../../components/common/AppAlert";
+import { Toast } from "../../components/common/Toast";
 import KeyboardAvoidingScreen from "../../components/common/KeyboardAvoidingScreen";
 import SuccessCelebrationModal from "../../components/common/SuccessCelebrationModal";
 import FormCategoryPicker from "../../components/restaurant/FormCategoryPicker";
@@ -143,6 +144,7 @@ if (isEditing) {
     ...payload,
     activo: active,
   });
+  Toast.success("Plato actualizado");
   router.back();
 } else {
   await DishService.create(payload);

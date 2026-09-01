@@ -2,7 +2,6 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Shadow } from "react-native-shadow-2";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ClocheIcon from "../../components/home/ClocheIcon";
@@ -27,13 +26,17 @@ function TabIcon({
   focused: boolean;
 }) {
   return (
+    // Caja de tamaño FIJO: el punto activo va posicionado en absoluto, no
+    // en el flujo -- así al enfocar/desenfocar un tab el ícono no se
+    // mueve ni empuja al resto (antes el `gap:4` + el punto condicional
+    // cambiaban la altura de la caja al cambiar de sección).
     <View style={staticStyles.iconWrapper}>
       <Ionicons
         name={name}
         size={24}
         color={color}
       />
-      {focused && <View style={staticStyles.dot} />}
+      <View style={[staticStyles.dot, !focused && staticStyles.dotHidden]} />
     </View>
   );
 }
@@ -43,14 +46,21 @@ function TabIcon({
 // useTheme() propio.
 const staticStyles = StyleSheet.create({
   iconWrapper: {
+    width: 40,
+    height: 34,
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
   },
   dot: {
+    position: "absolute",
+    bottom: 0,
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: "#FFA726",
+  },
+  dotHidden: {
+    opacity: 0,
   },
 });
 
@@ -125,21 +135,18 @@ export default function TabLayout() {
         options={{
           title: "Menús",
 
+          // Botón central (logo cloche). Antes iba envuelto en <Shadow>
+          // de react-native-shadow-2: esa librería mide el hijo y dibuja
+          // la sombra en una capa aparte, y al cambiar de tab (re-render
+          // de la tab bar) esa medición llegaba tarde -> la sombra
+          // aparecía un instante descolocada arriba a la izquierda (el
+          // "ícono raro" que se veía correrse). Ahora es una sombra
+          // nativa normal, igual que el botón "+" de la navbar de
+          // restaurante -- sin capa que medir, sin salto.
           tabBarIcon: () => (
-            <Shadow
-              distance={4}
-              offset={[0, -22]}
-              startColor="rgba(251,140,0,0.60)"
-              endColor="rgba(251,140,0,0)"
-              paintInside={false}
-            >
-              <View style={styles.centerButton}>
-                <ClocheIcon
-                  size={26}
-                  color="#FFFFFF"
-                />
-              </View>
-            </Shadow>
+            <View style={styles.centerButton}>
+              <ClocheIcon size={26} color="#FFFFFF" />
+            </View>
           ),
 
           tabBarLabel: ({ color }) => (
@@ -239,5 +246,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
     borderWidth: 4,
     borderColor: colors.navbarBackground,
+
+    // Sombra nativa (reemplaza al <Shadow> de react-native-shadow-2).
+    shadowColor: "#FB8C00",
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
 });

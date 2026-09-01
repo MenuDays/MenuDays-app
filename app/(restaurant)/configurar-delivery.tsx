@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import RestaurantService from "../../services/restaurant.service";
 import { AppAlert } from "../components/common/AppAlert";
+import { Toast } from "../components/common/Toast";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemeColors } from "../../contexts/ThemeContext";
 
@@ -87,6 +88,7 @@ export default function ConfigurarDeliveryScreen() {
         });
       }
 
+      Toast.success("Configuración de delivery guardada");
       if (cameFromProfile) {
         router.back();
       } else {

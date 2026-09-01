@@ -33,6 +33,7 @@ import SocialLinksEditor from "../components/profile/SocialLinksEditor";
 
 // Propios del restaurante.
 import { AppAlert } from "../components/common/AppAlert";
+import { Toast } from "../components/common/Toast";
 import FormTextField from "../components/restaurant/FormTextField";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
 import { useFocusEffect } from "@react-navigation/native";
@@ -237,6 +238,7 @@ export default function EditarPerfilScreen() {
       });
       setRestaurant(updated);
       setIsEditing(false);
+      Toast.success("Perfil actualizado");
     } catch (e) {
       console.log("Error guardando restaurante:", e);
       AppAlert.alert("Error", "No se pudo guardar el perfil. Intenta de nuevo.");
@@ -256,7 +258,7 @@ export default function EditarPerfilScreen() {
     try {
       const response = await RestaurantService.uploadLogo(picked.asset);
       setRestaurant((prev) => (prev ? { ...prev, logo_url: response.logo_url } : prev));
-      AppAlert.alert("¡Listo!", "Logo actualizado correctamente.");
+      Toast.success("Logo actualizado");
     } catch (e: any) {
       console.log("Error subiendo logo:", e);
       AppAlert.alert("Error", e?.message || "No se pudo actualizar el logo.");
@@ -270,7 +272,7 @@ export default function EditarPerfilScreen() {
     try {
       const response = await RestaurantService.uploadCover(picked.asset);
       setRestaurant((prev) => (prev ? { ...prev, portada_url: response.portada_url } : prev));
-      AppAlert.alert("¡Listo!", "Portada actualizada correctamente.");
+      Toast.success("Portada actualizada");
     } catch (e: any) {
       console.log("Error subiendo portada:", e);
       AppAlert.alert("Error", e?.message || "No se pudo actualizar la portada.");

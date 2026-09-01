@@ -9,6 +9,7 @@ import GalleryService, { GalleryImage } from "../../services/gallery.service";
 import { pickImageFromLibrary } from "../../utils/imagePicker";
 import { optimizedImageUri } from "../../utils/imageUrl";
 import { AppAlert } from "../components/common/AppAlert";
+import { Toast } from "../components/common/Toast";
 import SuccessCelebrationModal from "../components/common/SuccessCelebrationModal";
 import RestaurantBottomNav from "../components/restaurant/RestaurantBottomNav";
 import ScreenHeader from "../components/restaurant/ScreenHeader";
@@ -118,6 +119,7 @@ export default function GalleryScreen() {
     try {
       await GalleryService.setCover(id);
       setImages((prev) => prev.map((img) => ({ ...img, es_portada: img.id === id })));
+      Toast.success("Portada actualizada");
     } catch (e: any) {
       AppAlert.alert("Error", e.message || "No se pudo actualizar la portada.");
     }
@@ -133,6 +135,7 @@ export default function GalleryScreen() {
           try {
             await GalleryService.remove(id);
             setImages((prev) => prev.filter((img) => img.id !== id));
+            Toast.success("Foto eliminada");
           } catch (e: any) {
             AppAlert.alert("Error", e.message || "No se pudo eliminar la foto.");
           }
