@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { Platform } from "react-native";
 
 const BASE_URL = "https://menudays-api-production.up.railway.app/api";
 const SESSION_EXPIRED_MESSAGE = "Tu sesión expiró. Inicia sesión nuevamente.";
@@ -134,6 +135,121 @@ function isUploadBody(body: BodyInit | null | undefined): boolean {
   return true;
 }
 
+// --------------------------------------------------------------------------
+// Subida de multipart con archivo: uploader NATIVO (solo en iOS/Android,
+// solo cuando hay UN archivo local).
+//
+// El problema: en SDK 54 / RN 0.81 el `fetch` global de React Native NO
+// envía de forma confiable un body multipart/form-data que contiene un
+// archivo en un build STANDALONE de Android. En Expo Go anda perfecto
+// (usa la capa de red de desarrollo), pero en la APK firmada la request
+// muere en la capa nativa antes de llegar al server -> la app terminaba
+// mostrando "No se pudo publicar el menú...". La recomendación de Expo
+// para subir archivos es justamente NO depender de ese fetch.
+//
+// Acá el POST/PATCH con una imagen local se hace con el uploader nativo
+// de expo-file-system (OkHttp puro): se comporta EXACTO igual en Expo Go
+// y en la APK, y el server recibe exactamente el mismo request (mismos
+// campos de texto, mismo archivo, mismo boundary multipart) -- no puede
+// notar la diferencia.
+//
+// Este camino es PURAMENTE ADITIVO:
+//   - Web, o body que no es FormData, o FormData sin archivo, o con más
+//     de un archivo (ej. el alta de restaurante manda 3) -> sigue por el
+//     `fetch` de siempre, sin tocar nada.
+//   - Si el módulo nativo falla ANTES de tener respuesta HTTP -> se cae
+//     al `fetch` de siempre. Nunca quedamos peor que antes.
+type NativeUploadOutcome<T> = { handled: true; data: T } | { handled: false };
+
+async function tryNativeMultipartUpload<T>(
+  url: string,
+  method: string,
+  form: any,
+  token: string | null,
+  extraHeaders: HeadersInit | undefined
+): Promise<NativeUploadOutcome<T>> {
+  if (Platform.OS === "web") return { handled: false };
+  if (!form || typeof form.getParts !== "function") return { handled: false };
+
+  const parts: any[] = form.getParts();
+  const fileParts = parts.filter((p) => p && typeof p.uri === "string");
+  // 0 archivos: no es una subida real -> que la maneje el fetch normal.
+  // >1 archivo: el uploadAsync nativo solo admite uno -> fetch normal.
+  if (fileParts.length !== 1) return { handled: false };
+
+  const file = fileParts[0];
+  let fileUri: string = file.uri;
+  // Mismo criterio de normalización que buildFormData: algunos orígenes
+  // en Android devuelven una ruta sin esquema.
+  if (fileUri.startsWith("/")) fileUri = "file://" + fileUri;
+  // Solo archivos LOCALES. Si la uri es http(s) (ej. editar un menú sin
+  // cambiar la foto: llega la foto_url remota de Cloudinary) el uploader
+  // nativo no puede leerla -> se deja pasar al fetch de siempre.
+  if (!/^(file|content|assets-library|ph):/i.test(fileUri)) {
+    return { handled: false };
+  }
+
+  // Campos de texto del formulario -> parameters (multipart text parts).
+  const parameters: Record<string, string> = {};
+  for (const p of parts) {
+    if (p && typeof p.string === "string") parameters[p.fieldName] = p.string;
+  }
+
+  let FileSystem: any;
+  try {
+    FileSystem = require("expo-file-system/legacy");
+  } catch {
+    return { handled: false };
+  }
+
+  let result: { status: number; body?: string };
+  try {
+    result = await FileSystem.uploadAsync(url, fileUri, {
+      httpMethod: (method || "POST").toUpperCase(),
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: file.fieldName,
+      mimeType: typeof file.type === "string" ? file.type : "image/jpeg",
+      parameters,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...((extraHeaders as Record<string, string>) || {}),
+      },
+    });
+  } catch (error) {
+    // Falló el módulo nativo ANTES de tener respuesta HTTP (no es un
+    // 4xx/5xx). Se cae al fetch de siempre en vez de romper.
+    if (__DEV__) {
+      console.log("[api] uploadAsync nativo falló, uso fetch:", error);
+    }
+    return { handled: false };
+  }
+
+  const text = result.body ?? "";
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text };
+  }
+
+  if (__DEV__) {
+    console.log("STATUS (native upload):", result.status);
+    console.log("RESPONSE (native upload):", text);
+  }
+
+  if (result.status < 200 || result.status >= 300) {
+    if (result.status === 401) {
+      handleUnauthorized();
+      throw new Error(SESSION_EXPIRED_MESSAGE);
+    }
+    throw new Error(
+      data.message || data.error || "Ocurrió un error en el servidor."
+    );
+  }
+
+  return { handled: true, data: data as T };
+}
+
 // Un solo intento de fetch con timeout propio.
 //
 // IMPORTANTE: en las SUBIDAS (multipart/form-data) NO se usa
@@ -263,6 +379,21 @@ export async function api<T>(
     console.log("METHOD:", method);
     console.log("BODY:", options.body);
     console.log("================================");
+  }
+
+  // Subida con un archivo local en nativo -> uploader nativo de
+  // expo-file-system (ver tryNativeMultipartUpload). Aditivo: si no
+  // aplica (web / sin archivo / >1 archivo) o el módulo nativo falla de
+  // entrada, devuelve { handled: false } y seguimos por el fetch normal.
+  if (isFormData) {
+    const native = await tryNativeMultipartUpload<T>(
+      url,
+      method,
+      options.body,
+      token,
+      options.headers
+    );
+    if (native.handled) return native.data;
   }
 
   let status: number | null = null;
