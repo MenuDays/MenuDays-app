@@ -1,5 +1,7 @@
 import { api } from "./api";
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // Igual al enum estado_publicacion de Prisma en el backend.
 export type MenuStatus = "programado" | "publicado" | "oculto" | "agotado";
 
@@ -105,8 +107,13 @@ function buildFormData(input: Partial<MenuFormInput>): FormData {
   if (input.coleccionId !== undefined) formData.append("coleccionId", input.coleccionId);
   if (input.estado !== undefined) formData.append("estado", input.estado);
   if (input.imageUri) {
+    // Normaliza el esquema: algunos orígenes de imagen en Android
+    // devuelven una ruta sin "file://" y ahí RN no puede leer el archivo
+    // para el multipart (falla solo en la APK, no en Expo Go).
+    let uri = input.imageUri;
+    if (uri.startsWith("/")) uri = "file://" + uri;
     formData.append("image", {
-      uri: input.imageUri,
+      uri,
       name: "menu.jpg",
       type: "image/jpeg",
     } as any);
@@ -131,11 +138,82 @@ class MenuService {
     return api<Menu>(`/menus/${id}`);
   }
 
+  // Crear menú -- resistente a red intermitente.
+  //
+  // El problema real: en datos móviles (o con un proxy que corta la
+  // conexión después de recibir el body) el POST SÍ llega y el menú SÍ
+  // se crea en el servidor, pero la RESPUESTA se pierde en el camino ->
+  // `fetch` rechaza -> la app mostraba "revisá tu conexión" aunque el
+  // menú ya estaba publicado.
+  //
+  // Acá, si el POST falla a nivel de red, en vez de dar error de una:
+  //   1. se consulta el servidor: ¿el menú ya está? (la respuesta se
+  //      pudo haber perdido) -> si está, LISTO, se devuelve.
+  //   2. si no está, se reintenta el POST (el backend deduplica por
+  //      contenido en una ventana de 5 min: NUNCA se crea duplicado).
+  //   3. recién si después de varios intentos el menú no aparece por
+  //      ningún lado, se propaga el error real.
   async create(input: MenuFormInput): Promise<Menu> {
-    return api<Menu>("/menus", {
-      method: "POST",
-      body: buildFormData(input),
+    const BACKOFF_MS = [0, 2000, 4000];
+    let everReachedServer = false;
+
+    for (let attempt = 0; attempt < BACKOFF_MS.length; attempt++) {
+      if (BACKOFF_MS[attempt]) await sleep(BACKOFF_MS[attempt]);
+      try {
+        return await api<Menu>("/menus", {
+          method: "POST",
+          body: buildFormData(input),
+        });
+      } catch {
+        // ¿Se creó igual? (el POST llegó pero la respuesta se perdió).
+        const check = await this.findRecentlyCreated(input);
+        if (check.menu) return check.menu;
+        if (check.online) everReachedServer = true;
+        // Si ni siquiera se pudo consultar el servidor, el dispositivo
+        // está realmente sin conexión -> no tiene sentido seguir
+        // reintentando el upload.
+        else break;
+      }
+    }
+
+    const finalCheck = await this.findRecentlyCreated(input);
+    if (finalCheck.menu) return finalCheck.menu;
+
+    throw new Error(
+      finalCheck.online || everReachedServer
+        ? "No se pudo publicar el menú en este momento. Volvé a intentar en unos segundos."
+        : "Sin conexión: el menú no se publicó. Probá de nuevo cuando tengas señal."
+    );
+  }
+
+  // Busca un menú del restaurante que coincida con lo que se acaba de
+  // intentar crear (mismo nombre + precio + fecha de inicio) y sea
+  // reciente. Detecta que el menú SÍ se creó aunque la respuesta del
+  // POST no haya vuelto. `online` = se pudo consultar el servidor.
+  private async findRecentlyCreated(
+    input: MenuFormInput
+  ): Promise<{ menu: Menu | null; online: boolean }> {
+    let all: Menu[];
+    try {
+      all = await this.getAll();
+    } catch {
+      return { menu: null, online: false };
+    }
+
+    const wantedName = input.nombre.trim().toLowerCase();
+    const wantedStart = input.fechaInicio.slice(0, 10);
+    const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+
+    const match = all.find((m) => {
+      const created = new Date(m.created_at).getTime();
+      return (
+        m.nombre.trim().toLowerCase() === wantedName &&
+        Math.abs(Number(m.precio) - input.precio) < 0.01 &&
+        m.fecha_inicio.slice(0, 10) === wantedStart &&
+        (Number.isNaN(created) || created >= fiveMinAgo)
+      );
     });
+    return { menu: match ?? null, online: true };
   }
 
   async update(id: string, input: Partial<MenuFormInput>): Promise<Menu> {

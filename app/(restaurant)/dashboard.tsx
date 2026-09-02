@@ -260,6 +260,11 @@ export default function RestaurantDashboard() {
   const [onboardingVisible, setOnboardingVisible] = React.useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
+  // Contenedor que envuelve TODO el dashboard y también al overlay del
+  // tutorial. Las cards se miden RELATIVO a este nodo (no a la ventana),
+  // así el recuadro del tutorial cae exactamente sobre la card sin
+  // desfase por la status bar / edge-to-edge.
+  const overlayHostRef = useRef<View>(null);
   const menuCardRef = useRef<View>(null);
   const platosCardRef = useRef<View>(null);
   const promocionesCardRef = useRef<View>(null);
@@ -294,18 +299,36 @@ export default function RestaurantDashboard() {
   // scroll animado, y el recuadro del tutorial quedaba desfasado del
   // componente real. Así el spotlight cae exacto sobre la UI real, sin
   // importar el tamaño de pantalla ni cuánto haya que desplazarse.
-  function measureTourTargetOnce(key: TourTargetKey): Promise<TourRect | null> {
+  function measureNodeInWindow(node: View | null): Promise<TourRect | null> {
     return new Promise((resolve) => {
-      const ref = getTourTargetRef(key);
-      if (!ref.current) {
+      if (!node) {
         resolve(null);
         return;
       }
-      ref.current.measureInWindow((x, y, width, height) => {
-        if (!width && !height) resolve(null);
+      node.measureInWindow((x, y, width, height) => {
+        if (x == null || y == null) resolve(null);
         else resolve({ x, y, width, height });
       });
     });
+  }
+
+  async function measureTourTargetOnce(
+    key: TourTargetKey
+  ): Promise<TourRect | null> {
+    const ref = getTourTargetRef(key);
+    const [card, host] = await Promise.all([
+      measureNodeInWindow(ref.current),
+      measureNodeInWindow(overlayHostRef.current),
+    ]);
+    if (!card || !host || (!card.width && !card.height)) return null;
+    // Coordenadas de la card RELATIVAS al contenedor del overlay -> el
+    // recuadro del tutorial usa estos mismos números tal cual.
+    return {
+      x: card.x - host.x,
+      y: card.y - host.y,
+      width: card.width,
+      height: card.height,
+    };
   }
 
   async function settleTourTarget(key: TourTargetKey): Promise<TourRect | null> {
@@ -571,6 +594,7 @@ export default function RestaurantDashboard() {
   }
 
   return (
+    <View ref={overlayHostRef} style={styles.host} collapsable={false}>
     <ImageBackground
       source={heroBg}
       resizeMode="cover"
@@ -912,6 +936,7 @@ export default function RestaurantDashboard() {
         measureTarget={measureTourTarget}
       />
     </ImageBackground>
+    </View>
   );
 }
 
@@ -1112,6 +1137,9 @@ function StatGaugeWidget({
 }
 
 const styles = StyleSheet.create({
+  host: {
+    flex: 1,
+  },
   container: {
   flex: 1,
   backgroundColor: "transparent",

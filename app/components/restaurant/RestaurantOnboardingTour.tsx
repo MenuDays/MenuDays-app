@@ -309,10 +309,12 @@ function SpotlightHole({
   windowWidth: number;
   windowHeight: number;
 }) {
-  // Recuadro ajustado a la card (poco padding) para que se lea "sobre"
-  // ella y no flotando lejos.
-  const pad = 6;
-  const radius = 16;
+  // El recuadro calca EXACTAMENTE la card: misma posición (x, y) y
+  // mismas dimensiones (ancho, alto). `rect` ya viene en el sistema de
+  // coordenadas del overlay (relativo al mismo contenedor), así que no
+  // hay corrección de status bar ni desfase.
+  const pad = 0;
+  const radius = 20; // = CARD_RADIUS del dashboard
   const hx = Math.max(0, rect.x - pad);
   const hy = Math.max(0, rect.y - pad);
   const hw = Math.min(windowWidth - hx, rect.width + pad * 2);

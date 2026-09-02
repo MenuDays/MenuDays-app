@@ -66,11 +66,16 @@ const MAX_GET_RETRIES = 3;
 const GET_RETRY_DELAY_MS = 900;
 
 // Mutaciones: solo se reintentan cuando el fetch() falló rápido (nunca
-// llegó al server). El backoff creciente (~14s en total) le da tiempo
-// al contenedor de Railway a terminar de reanudarse, sin reintentar a
-// ciegas algo que pudo haber impactado ni hacer esperar de más a quien
-// de verdad está sin señal.
+// llegó al server). El backoff creciente le da tiempo al contenedor de
+// Railway a reanudarse, sin reintentar a ciegas algo que pudo impactar
+// ni hacer esperar de más a quien de verdad está sin señal.
+//
+// Para las SUBIDAS (menú/plato/promo/galería) el reintento interno es
+// corto: son caras y, en el caso del menú, el que reintenta de verdad
+// (con chequeo contra el servidor y sin riesgo de duplicar) es
+// MenuService.create.
 const MUTATION_RETRY_BACKOFF_MS = [1200, 2500, 4000, 6000];
+const UPLOAD_RETRY_BACKOFF_MS = [1500];
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,14 +109,63 @@ async function handleUnauthorized(): Promise<void> {
 
 type TimedError = Error & { code?: "TIMEOUT" };
 
-// Un solo intento de fetch con timeout propio. Si el que aborta es
-// NUESTRO timeout (no un corte de red), el error se marca con
-// code "TIMEOUT" para poder distinguirlo aguas arriba.
+function makeTimeoutError(): TimedError {
+  const err: TimedError = new Error(SLOW_SERVER_MESSAGE);
+  err.code = "TIMEOUT";
+  return err;
+}
+
+// ¿El body es un FormData (subida multipart)?
+//
+// NO se usa `instanceof FormData`: en el build de producción (Hermes +
+// minificación) ese chequeo puede dar FALSE aunque el body SÍ sea un
+// FormData -- y entonces el upload caía en el camino con AbortController,
+// que rompe las subidas multipart en React Native. Ese era justo el
+// caso "en Expo publica bien, en la APK da error". Acá se detecta por
+// forma: cualquier body que NO sea string ni ArrayBuffer/typed-array se
+// trata como subida (FormData, Blob).
+function isUploadBody(body: BodyInit | null | undefined): boolean {
+  if (body == null) return false;
+  if (typeof body === "string") return false;
+  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body as any)) return false;
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+    return false;
+  }
+  return true;
+}
+
+// Un solo intento de fetch con timeout propio.
+//
+// IMPORTANTE: en las SUBIDAS (multipart/form-data) NO se usa
+// AbortController. En React Native, pasar `signal` junto con un body
+// FormData que tiene un archivo puede hacer que `fetch` rechace al
+// instante con "Network request failed" (o que aborte antes de tiempo)
+// -- justo el falso "error de conexión" al publicar un menú. Para las
+// subidas se usa Promise.race con un temporizador: si tarda de más,
+// dejamos de esperar (el fetch sigue de fondo y se descarta) y avisamos
+// "servidor lento", sin abortar la conexión a mano.
+//
+// Para el resto (GET/PATCH JSON livianos) se mantiene el AbortController
+// de siempre.
 async function attemptFetch(
   url: string,
   options: RequestInit,
   timeoutMs: number
 ): Promise<Response> {
+  const isUpload = isUploadBody(options.body);
+
+  if (isUpload) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(makeTimeoutError()), timeoutMs);
+    });
+    try {
+      return await Promise.race([fetch(url, options), timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   const controller = new AbortController();
   let timedOut = false;
   const timeoutId = setTimeout(() => {
@@ -122,11 +176,7 @@ async function attemptFetch(
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
-    if (timedOut) {
-      const err: TimedError = new Error(SLOW_SERVER_MESSAGE);
-      err.code = "TIMEOUT";
-      throw err;
-    }
+    if (timedOut) throw makeTimeoutError();
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -141,7 +191,7 @@ async function fetchWithRetry(
   options: RequestInit
 ): Promise<Response> {
   const method = (options.method || "GET").toUpperCase();
-  const isUpload = options.body instanceof FormData;
+  const isUpload = isUploadBody(options.body);
   const isMutation = !IDEMPOTENT_METHODS.has(method);
   const timeoutMs = isUpload ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
 
@@ -166,11 +216,8 @@ async function fetchWithRetry(
   // salió del dispositivo). Si tardó en fallar o fue nuestro timeout, la
   // petición pudo haber llegado al server: reintentar duplicaría el
   // recurso, así que se corta y se informa "server lento".
-  for (
-    let attempt = 0;
-    attempt <= MUTATION_RETRY_BACKOFF_MS.length;
-    attempt++
-  ) {
+  const backoffs = isUpload ? UPLOAD_RETRY_BACKOFF_MS : MUTATION_RETRY_BACKOFF_MS;
+  for (let attempt = 0; attempt <= backoffs.length; attempt++) {
     const startedAt = Date.now();
     try {
       return await attemptFetch(url, options, timeoutMs);
@@ -186,7 +233,7 @@ async function fetchWithRetry(
         throw new Error(SLOW_SERVER_MESSAGE);
       }
 
-      const backoff = MUTATION_RETRY_BACKOFF_MS[attempt];
+      const backoff = backoffs[attempt];
       if (backoff === undefined) break;
       await sleep(backoff);
     }
@@ -201,7 +248,11 @@ export async function api<T>(
   options: ApiOptions = {}
 ): Promise<T> {
   const token = await AsyncStorage.getItem("@MenuDays:token");
-  const isFormData = options.body instanceof FormData;
+  // OJO: por forma, NO por `instanceof` (ver isUploadBody). Si acá diera
+  // mal, se le ponía "Content-Type: application/json" a un FormData y el
+  // server no podía parsear el multipart -> "no se pudo publicar" SOLO
+  // en la APK de producción.
+  const isFormData = isUploadBody(options.body);
 
   const url = `${BASE_URL}${endpoint}`;
   const method = (options.method || "GET").toUpperCase();
